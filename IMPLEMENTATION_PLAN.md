@@ -190,14 +190,14 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 
 ### 5.5 Cleanup
 - [ ] Remove or comment out old `pathways_app.py` code paths
-- [ ] Update any imports/references to use new app
+- [x] Update any imports/references to use new app (updated __init__.py to re-export from app_v2)
 - [ ] Update README with new run instructions
 - [ ] Document any breaking changes
 
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [ ] App compiles without errors (`reflex run` succeeds)
+- [x] App compiles without errors (`reflex run` succeeds)
 - [ ] All filters work with instant (debounced) updates
 - [ ] KPIs display correct numbers matching filter state
 - [ ] Icicle chart renders and updates reactively
