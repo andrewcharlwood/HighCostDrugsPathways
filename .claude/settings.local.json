@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(wc:*)",
+      "WebFetch(domain:flet.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.flet.dev)"
+    ]
+  }
+}

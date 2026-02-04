@@ -1,0 +1,61 @@
+assets/external/
+.states
+.web
+*.py[cod]
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Test and lint caches
+.coverage
+.mypy_cache/
+.pytest_cache/
+
+# Data files (large)
+hcd_20250411.csv
+hcd_20250411.parquet
+
+# IDE
+.idea
+
+# Ignored experiments
+.ignore
+
+# Ralph loop logs (keep directory via .gitkeep)
+logs/*.log
+logs/*.jsonl
+
+# Reflex build artifacts (future)
+.web/
+.states/
+
+# SQLite database (will contain local data)
+*.db
+*.sqlite
+
+# Snowflake result cache
+data/cache/
+
+# Uploaded data files
+data/uploads/
+
+# Exported analysis results
+data/exports/
+
+# Analysis output files
+output/*.html
+output/*.csv
+*.html
+
+# VS Code workspace settings
+.vscode/
+
+# User uploaded files
+uploaded_files/

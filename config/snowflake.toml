@@ -1,0 +1,128 @@
+# Snowflake Configuration for NHS Patient Pathway Analysis
+#
+# This file contains connection settings for the Snowflake data warehouse.
+# IMPORTANT: This file should NOT be committed to version control if it contains
+# sensitive information. However, with externalbrowser auth, no passwords are stored.
+#
+# For NHS SSO authentication, the 'externalbrowser' authenticator opens a browser
+# window for authentication via NHS identity management.
+
+[connection]
+# Snowflake account identifier (e.g., "xy12345.uk-south.azure")
+# Ask your Snowflake administrator for the correct account name
+account = ""
+
+# Default warehouse to use for queries
+# Common options: ANALYST_WH, COMPUTE_WH
+warehouse = "ANALYST_WH"
+
+# Default database for queries
+# DATA_HUB is the primary analyst-curated data warehouse
+database = "DATA_HUB"
+
+# Default schema (optional, can be overridden per query)
+schema = "DWH"
+
+# Authentication method
+# "externalbrowser" opens browser for NHS SSO (required for NHS environments)
+# Other options: "snowflake" (username/password), "oauth", "okta"
+authenticator = "externalbrowser"
+
+# User principal (email address for externalbrowser auth)
+# Leave empty to use current Windows user or prompt
+user = ""
+
+# Role to use (optional, uses default role if empty)
+role = ""
+
+[timeouts]
+# Connection timeout in seconds
+connection_timeout = 30
+
+# Query execution timeout in seconds (for long-running queries)
+# Set to 0 for no timeout
+query_timeout = 300
+
+# Login timeout in seconds (for SSO browser auth)
+login_timeout = 120
+
+[cache]
+# Enable result caching
+enabled = true
+
+# Cache directory (relative to project root or absolute path)
+# Defaults to data/cache/ if not specified
+directory = "data/cache"
+
+# Time-to-live for cached results in seconds
+# 24 hours for historical data (86400 seconds)
+ttl_seconds = 86400
+
+# TTL for data that includes today's date (shorter)
+ttl_current_data_seconds = 3600
+
+# Maximum cache size in MB (oldest entries removed when exceeded)
+max_size_mb = 500
+
+[databases]
+# Quick reference for database purposes (read-only documentation)
+# DATA_HUB = "Analyst-curated data warehouse - primary source for most queries"
+# PRIMARY_CARE = "Raw extracts from EMIS and TPP clinical systems"
+# NATIONAL = "NHS England national datasets (SUS, ECDS, MHSDS, etc.)"
+# FACTS_AND_DIMENSIONS_ALL_DATA = "External reference data (BNF, SNOMED, QOF clusters)"
+# REPORTING_DATASETS_ICB = "Reporting outputs and analyst workspaces"
+
+# Tables commonly used for high-cost drug analysis
+[tables.activity]
+# Main activity data source (high-cost drug interventions)
+# Acute__Conmon__PatientLevelDrugs contains patient-level high-cost drug data
+database = "DATA_HUB"
+schema = "CDM"
+table = "Acute__Conmon__PatientLevelDrugs"
+key_columns = [
+    "PseudoNHSNoLinked",    # Pseudonymised NHS number for patient linking
+    "ProviderCode",          # NHS provider code (e.g., RM1, RGP)
+    "LocalPatientID",        # Local patient identifier within provider
+    "InterventionDate",      # Date of drug intervention
+    "DrugName",              # Drug name (raw, needs standardization)
+    "DrugSNOMEDCode",        # SNOMED code for drug
+    "PriceActual",           # Actual cost of intervention
+    "TreatmentFunctionCode", # NHS treatment function code
+    "TreatmentFunctionDesc", # Treatment function description
+    "AdditionalDetail1",     # Additional details (used for directory identification)
+]
+
+[tables.patient]
+# Patient demographics
+database = "DATA_HUB"
+schema = "DWH"
+view = "DimPerson"
+key_columns = ["PatientPseudonym", "PersonKey", "CurrentGeneralPractice"]
+
+[tables.medication]
+# Medication reference data
+database = "DATA_HUB"
+schema = "DWH"
+view = "DimMedicineAndDevice"
+key_columns = ["ProductSnomedCode", "TherapeuticMoietySnomedCode", "ProductDescription"]
+
+[tables.organization]
+# NHS organizations and GP practices
+database = "DATA_HUB"
+schema = "DWH"
+view = "DimOrganisationAndSite"
+key_columns = ["SiteCode", "OrganisationName"]
+
+[query]
+# Default query behaviors
+# Always double-quote identifiers for case-sensitivity
+quote_identifiers = true
+
+# Default row limit for test queries
+test_limit = 20
+
+# Maximum rows to fetch in a single query (prevents runaway queries)
+max_rows = 100000
+
+# Chunk size for large result sets
+chunk_size = 10000

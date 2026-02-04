@@ -1,0 +1,64 @@
+# Progress Log
+
+## Design Context
+
+### Project Vision
+Complete UI redesign of HCD Analysis tool. Modern, bold design with NHS color scheme inspiration (not constrained by it). Single-page dashboard replacing multi-page sidebar layout. Light mode only.
+
+### Key Design Decisions
+1. **No sidebar** — all filters in a prominent filter bar
+2. **No user auth UI** — local app, no login needed
+3. **Chart navigation via tabs** — top bar has chart type selection (Icicle now, more later)
+4. **Instant filtering** — debounced (300ms), not "Apply" button
+5. **Two date ranges**:
+   - "Initiated" filter (default: OFF, include all patients)
+   - "Last Seen" filter (default: ON, last 6 months)
+   - "To" date always = latest date in dataset
+6. **Searchable dropdowns** — Drugs, Indications, Directorates with search + counts
+7. **Data source hidden** — SQLite only, refresh via CLI, show freshness indicator
+8. **KPIs reactive** — update when filters change
+
+### Color Palette (from DESIGN_SYSTEM.md)
+- Heritage Blue: #003087 (deep, authoritative)
+- Primary Blue: #0066CC (main actions)
+- Vibrant Blue: #1E88E5 (highlights, hovers)
+- Sky Blue: #4FC3F7 (accents)
+- Pale Blue: #E3F2FD (backgrounds)
+- Neutrals: Slate family (#1E293B → #F1F5F9)
+
+### Typography
+- Font: Inter (Google Fonts or system)
+- Display: 32px/700, Heading1: 24px/600, Body: 14px/400, Caption: 12px/500
+
+## Reflex Patterns
+
+### Var operations in rx.foreach
+When using `rx.foreach`, items are Reflex Vars. Use:
+- `.to(int)` for numeric comparisons
+- `.to_string()` for text operations
+- Never use f-strings or Python operators directly
+
+### Conditional rendering
+Use `rx.cond(condition, true_value, false_value)` not Python `if`.
+
+### State structure
+- Event handlers modify state
+- `@rx.var` decorated methods for computed/derived values
+- All state vars need defaults
+
+## Existing Codebase Reference
+
+### Key files to reference
+- `pathways_app/pathways_app.py` — existing Reflex app (2100+ lines)
+- `analysis/pathway_analyzer.py` — chart data preparation logic
+- `data_processing/loader.py` — SQLite data loading
+- `core/models.py` — AnalysisFilters dataclass
+
+### Patterns that work in existing code
+- `State` class with filter variables
+- `rx.plotly()` for chart rendering
+- Multi-select with `rx.checkbox` groups
+- Theme configuration via `rx.theme()`
+
+## Iteration Log
+<!-- Each iteration appends a structured entry below. See RALPH_PROMPT.md for format. -->
