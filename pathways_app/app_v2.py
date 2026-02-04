@@ -5,6 +5,9 @@ Single-page dashboard with reactive filtering and real-time chart updates.
 Design reference: DESIGN_SYSTEM.md
 """
 
+from datetime import datetime, timedelta
+from typing import Any
+
 import reflex as rx
 
 from pathways_app.styles import (
@@ -41,24 +44,51 @@ class AppState(rx.State):
     Will be expanded in Phase 3 with full filter state and data management.
     """
 
-    # Placeholder state variables (expanded in Phase 3)
+    # =========================================================================
+    # Data State Variables
+    # =========================================================================
+
+    # Data loading status
     data_loaded: bool = False
     total_records: int = 0
     chart_loading: bool = False
     error_message: str = ""
 
+    # Data freshness tracking
+    last_updated: str = ""  # ISO format timestamp of last data load
+
+    # Raw data storage - list of dicts (Reflex-friendly)
+    # Each dict represents a patient record with keys like:
+    # UPID, Drug Name, Intervention Date, Price Actual, Directory, etc.
+    raw_data: list[dict[str, Any]] = []
+
+    # Latest date in dataset (detected on load, used for "to" date defaults)
+    latest_date_in_data: str = ""
+
+    # =========================================================================
+    # UI State Variables
+    # =========================================================================
+
     # Placeholder for current chart type (for top bar tabs)
     current_chart: str = "icicle"
+
+    # =========================================================================
+    # Filter State Variables
+    # =========================================================================
 
     # Filter toggle state
     initiated_filter_enabled: bool = False
     last_seen_filter_enabled: bool = True
 
-    # Date filter values (ISO format strings for simplicity)
+    # Date filter values (ISO format strings YYYY-MM-DD)
+    # Initiated filter: Defaults empty (filter is OFF by default)
     initiated_from_date: str = ""
     initiated_to_date: str = ""
-    last_seen_from_date: str = ""
-    last_seen_to_date: str = ""
+
+    # Last Seen filter: Defaults to last 6 months (filter is ON by default)
+    # These will be updated on data load to use actual latest date
+    last_seen_from_date: str = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+    last_seen_to_date: str = datetime.now().strftime("%Y-%m-%d")
 
     # Available options for dropdowns (populated from data in Phase 3)
     available_drugs: list[str] = ["Drug A", "Drug B", "Drug C", "Drug D", "Drug E"]
@@ -291,6 +321,33 @@ class AppState(rx.State):
         if self.indication_match_rate == 0.0:
             return "—"
         return f"{self.indication_match_rate:.0f}%"
+
+    @rx.var
+    def last_updated_display(self) -> str:
+        """Format last updated timestamp for display in top bar."""
+        if not self.last_updated:
+            return "Never"
+        try:
+            # Parse ISO format timestamp
+            dt = datetime.fromisoformat(self.last_updated)
+            now = datetime.now()
+            diff = now - dt
+
+            if diff.days == 0:
+                if diff.seconds < 60:
+                    return "Just now"
+                if diff.seconds < 3600:
+                    mins = diff.seconds // 60
+                    return f"{mins}m ago"
+                hours = diff.seconds // 3600
+                return f"{hours}h ago"
+            if diff.days == 1:
+                return "Yesterday"
+            if diff.days < 7:
+                return f"{diff.days}d ago"
+            return dt.strftime("%d %b %Y")
+        except (ValueError, TypeError):
+            return "Unknown"
 
 
 # =============================================================================
@@ -630,7 +687,7 @@ def top_bar() -> rx.Component:
                     rx.text(
                         rx.cond(
                             AppState.data_loaded,
-                            "Last refreshed: recently",
+                            "Refreshed: " + AppState.last_updated_display,
                             "Connecting...",
                         ),
                         font_size="11px",

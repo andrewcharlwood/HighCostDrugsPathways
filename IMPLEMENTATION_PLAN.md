@@ -93,24 +93,26 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 ## Phase 3: State Management
 
 ### 3.1 Core State Variables
-- [ ] Define filter state variables in `AppState`:
+- [x] Define filter state variables in `AppState`:
   - `initiated_filter_enabled: bool = False`
-  - `initiated_from: datetime`
-  - `initiated_to: datetime`
+  - `initiated_from_date: str = ""`  (ISO date string)
+  - `initiated_to_date: str = ""`
   - `last_seen_filter_enabled: bool = True`
-  - `last_seen_from: datetime` (default: 6 months ago)
-  - `last_seen_to: datetime` (default: latest in dataset)
-  - `selected_drugs: List[str]` (default: all)
-  - `selected_indications: List[str]` (default: all)
-  - `selected_directorates: List[str]` (default: all)
-- [ ] Define data state variables:
-  - `data_loaded: bool`
-  - `total_records: int`
-  - `last_updated: datetime`
-  - `filtered_data: pd.DataFrame` (or computed)
-- [ ] Define UI state variables:
-  - `chart_loading: bool`
-  - `error_message: str`
+  - `last_seen_from_date: str` (default: 6 months ago, computed at class definition)
+  - `last_seen_to_date: str` (default: today, updated on data load)
+  - `selected_drugs: list[str] = []` (empty = all)
+  - `selected_indications: list[str] = []` (empty = all)
+  - `selected_directorates: list[str] = []` (empty = all)
+- [x] Define data state variables:
+  - `data_loaded: bool = False`
+  - `total_records: int = 0`
+  - `last_updated: str = ""` (ISO timestamp)
+  - `raw_data: list[dict[str, Any]] = []` (list of dicts, Reflex-friendly)
+  - `latest_date_in_data: str = ""` (for "to" date defaults)
+- [x] Define UI state variables:
+  - `chart_loading: bool = False`
+  - `error_message: str = ""`
+  - `current_chart: str = "icicle"`
 
 ### 3.2 Data Loading
 - [ ] Create `load_data()` method that reads from SQLite
