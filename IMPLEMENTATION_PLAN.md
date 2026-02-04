@@ -84,11 +84,11 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] KPIs should be reactive to filter state
 
 ### 2.4 Chart Container
-- [ ] Create `chart_section()` component
-- [ ] Full-width card with appropriate padding
-- [ ] Placeholder for Plotly chart (integrate in Phase 3)
-- [ ] Loading state with skeleton/spinner
-- [ ] Error state with friendly message
+- [x] Create `chart_section()` component
+- [x] Full-width card with appropriate padding
+- [x] Placeholder for Plotly chart (integrate in Phase 4)
+- [x] Loading state with skeleton/spinner
+- [x] Error state with friendly message
 
 ## Phase 3: State Management
 

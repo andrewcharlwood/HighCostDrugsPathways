@@ -893,41 +893,306 @@ def kpi_row() -> rx.Component:
     )
 
 
+def chart_loading_skeleton() -> rx.Component:
+    """
+    Loading skeleton for the chart area.
+
+    Displays animated pulsing bars to indicate loading state.
+    Uses design system colors and spacing.
+    """
+    return rx.box(
+        rx.vstack(
+            # Simulated chart bars at different heights
+            rx.hstack(
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="60%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                ),
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="80%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                    animation_delay="0.1s",
+                ),
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="45%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                    animation_delay="0.2s",
+                ),
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="70%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                    animation_delay="0.3s",
+                ),
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="55%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                    animation_delay="0.4s",
+                ),
+                rx.box(
+                    background_color=Colors.SLATE_300,
+                    width="12%",
+                    height="90%",
+                    border_radius=Radii.SM,
+                    animation="pulse 1.5s ease-in-out infinite",
+                    animation_delay="0.5s",
+                ),
+                spacing="3",
+                align="end",
+                justify="center",
+                height="100%",
+                width="100%",
+            ),
+            # Loading text
+            rx.hstack(
+                rx.spinner(size="2"),
+                rx.text(
+                    "Generating chart...",
+                    font_size=Typography.BODY_SIZE,
+                    font_weight=Typography.BODY_WEIGHT,
+                    color=Colors.SLATE_500,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            spacing="4",
+            align="center",
+            justify="center",
+            height="100%",
+            width="100%",
+        ),
+        background_color=Colors.SLATE_100,
+        border_radius=Radii.MD,
+        width="100%",
+        height="500px",
+        padding=Spacing.XL,
+    )
+
+
+def chart_error_state(error_message: rx.Var[str]) -> rx.Component:
+    """
+    Error state for the chart area.
+
+    Displays a friendly error message with an icon and the error details.
+    Provides guidance on how to resolve the issue.
+    """
+    return rx.box(
+        rx.center(
+            rx.vstack(
+                rx.icon(
+                    "triangle-alert",
+                    size=48,
+                    color=Colors.WARNING,
+                ),
+                rx.text(
+                    "Unable to Generate Chart",
+                    font_size=Typography.H2_SIZE,
+                    font_weight=Typography.H2_WEIGHT,
+                    color=Colors.SLATE_900,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                rx.text(
+                    error_message,
+                    font_size=Typography.BODY_SIZE,
+                    font_weight=Typography.BODY_WEIGHT,
+                    color=Colors.SLATE_700,
+                    font_family=Typography.FONT_FAMILY,
+                    text_align="center",
+                    max_width="400px",
+                ),
+                rx.text(
+                    "Try adjusting the filters or check the data source.",
+                    font_size=Typography.CAPTION_SIZE,
+                    font_weight=Typography.CAPTION_WEIGHT,
+                    color=Colors.SLATE_500,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                spacing="3",
+                align="center",
+            ),
+            width="100%",
+            height="100%",
+        ),
+        background_color=Colors.SLATE_100,
+        border_radius=Radii.MD,
+        width="100%",
+        height="500px",
+        padding=Spacing.XL,
+    )
+
+
+def chart_empty_state() -> rx.Component:
+    """
+    Empty state for when no data matches the filters.
+
+    Displays a friendly message encouraging filter adjustment.
+    """
+    return rx.box(
+        rx.center(
+            rx.vstack(
+                rx.icon(
+                    "search-x",
+                    size=48,
+                    color=Colors.SLATE_500,
+                ),
+                rx.text(
+                    "No Data to Display",
+                    font_size=Typography.H2_SIZE,
+                    font_weight=Typography.H2_WEIGHT,
+                    color=Colors.SLATE_900,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                rx.text(
+                    "No patient records match your current filter criteria.",
+                    font_size=Typography.BODY_SIZE,
+                    font_weight=Typography.BODY_WEIGHT,
+                    color=Colors.SLATE_700,
+                    font_family=Typography.FONT_FAMILY,
+                    text_align="center",
+                ),
+                rx.text(
+                    "Try widening your date range or selecting more drugs/indications.",
+                    font_size=Typography.CAPTION_SIZE,
+                    font_weight=Typography.CAPTION_WEIGHT,
+                    color=Colors.SLATE_500,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                spacing="3",
+                align="center",
+            ),
+            width="100%",
+            height="100%",
+        ),
+        background_color=Colors.SLATE_100,
+        border_radius=Radii.MD,
+        width="100%",
+        height="500px",
+        padding=Spacing.XL,
+    )
+
+
+def chart_ready_placeholder() -> rx.Component:
+    """
+    Ready state placeholder for the chart area.
+
+    This will be replaced with actual rx.plotly() in Phase 4.
+    For now, shows a placeholder indicating the chart location.
+    """
+    return rx.box(
+        rx.center(
+            rx.vstack(
+                rx.icon(
+                    "chart-bar-stacked",
+                    size=48,
+                    color=Colors.PRIMARY,
+                ),
+                rx.text(
+                    "Chart Ready",
+                    font_size=Typography.H2_SIZE,
+                    font_weight=Typography.H2_WEIGHT,
+                    color=Colors.SLATE_900,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                rx.text(
+                    "Plotly icicle chart will render here in Phase 4.",
+                    font_size=Typography.BODY_SIZE,
+                    font_weight=Typography.BODY_WEIGHT,
+                    color=Colors.SLATE_500,
+                    font_family=Typography.FONT_FAMILY,
+                ),
+                spacing="3",
+                align="center",
+            ),
+            width="100%",
+            height="100%",
+        ),
+        background_color=Colors.PALE,
+        border=f"2px dashed {Colors.PRIMARY}",
+        border_radius=Radii.MD,
+        width="100%",
+        height="500px",
+        padding=Spacing.XL,
+    )
+
+
 def chart_section() -> rx.Component:
     """
     Main chart section component.
 
-    Contains: Plotly icicle chart with loading and error states.
+    Contains: Plotly icicle chart with loading, error, empty, and ready states.
 
-    Will be fully implemented in Task 2.4 and Phase 4.
+    State handling:
+    - Loading: Shows skeleton animation when chart_loading is True
+    - Error: Shows error message when error_message is not empty
+    - Empty: Shows empty state when data_loaded but unique_patients is 0
+    - Ready: Shows chart placeholder (will be replaced with actual chart in Phase 4)
+
+    Full implementation with Plotly integration in Phase 4.
     """
     return rx.box(
         rx.vstack(
-            rx.text(
-                "Patient Pathway Chart",
-                **text_h1(),
-            ),
-            rx.text(
-                "Chart will be displayed here once data is loaded.",
-                font_size=Typography.BODY_SIZE,
-                font_weight=Typography.BODY_WEIGHT,
-                color=Colors.SLATE_500,
-                font_family=Typography.FONT_FAMILY,
-            ),
-            # Placeholder for chart area
-            rx.box(
-                rx.center(
-                    rx.text(
-                        "Chart Placeholder",
-                        color=Colors.SLATE_500,
-                        font_size=Typography.BODY_SIZE,
-                    ),
-                    width="100%",
-                    height="400px",
+            # Header row with title and chart type info
+            rx.hstack(
+                rx.text(
+                    "Patient Pathway Visualization",
+                    **text_h1(),
                 ),
-                background_color=Colors.SLATE_100,
-                border_radius=Radii.MD,
+                rx.hstack(
+                    rx.icon(
+                        "info",
+                        size=14,
+                        color=Colors.SLATE_500,
+                    ),
+                    rx.text(
+                        "Hierarchical view: Trust → Directorate → Drug → Patient Pathway",
+                        font_size=Typography.CAPTION_SIZE,
+                        font_weight=Typography.CAPTION_WEIGHT,
+                        color=Colors.SLATE_500,
+                        font_family=Typography.FONT_FAMILY,
+                    ),
+                    spacing="1",
+                    align="center",
+                ),
+                justify="between",
+                align="center",
                 width="100%",
+                flex_wrap="wrap",
+            ),
+            # Chart container with state-based rendering
+            rx.cond(
+                # Priority 1: Loading state
+                AppState.chart_loading,
+                chart_loading_skeleton(),
+                # Not loading - check for error
+                rx.cond(
+                    # Priority 2: Error state
+                    AppState.error_message != "",
+                    chart_error_state(AppState.error_message),
+                    # No error - check if data loaded
+                    rx.cond(
+                        # Priority 3: Data loaded but empty
+                        AppState.data_loaded & (AppState.unique_patients == 0),
+                        chart_empty_state(),
+                        # Priority 4: Ready state (data loaded and has records)
+                        # or initial state (data not loaded yet)
+                        chart_ready_placeholder(),
+                    ),
+                ),
             ),
             spacing="4",
             width="100%",
