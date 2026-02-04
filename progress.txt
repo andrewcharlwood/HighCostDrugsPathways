@@ -916,3 +916,43 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
 - Debounce not implemented yet - needed for "instant (debounced) updates" completion criterion
+
+## Iteration 17 - 2026-02-04
+### Task: 5.2 Performance Optimization (Debounce Implementation)
+### Why this task:
+- Previous iteration (16) explicitly recommended Task 5.2 for debounce implementation
+- Progress.txt noted "Debounce (300ms) was deferred during Phase 2 - implementing it would satisfy completion criteria"
+- Completion criterion "All filters work with instant (debounced) updates" was NOT marked complete
+- This was a key missing piece blocking project completion
+### Status: COMPLETE
+### What was done:
+- Discovered `rx.debounce_input` component in Reflex with default 300ms timeout
+- Updated `date_range_picker()` to wrap both "From" and "To" date inputs with `rx.debounce_input()`
+- Updated `searchable_dropdown()` to wrap search input with `rx.debounce_input()`
+- Added docstring updates noting debounce behavior
+- Total: 7 inputs now debounced (4 date inputs + 3 search inputs)
+- Verified reflex compilation: 33/33 components compiled successfully
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - `reflex run` compilation: 33/33 PASSED
+- Tier 2 (Visual): Reflex compiles and runs (port 8002) - debounce is client-side behavior
+- Tier 3 (Functional): Debounce implemented via rx.debounce_input (300ms default timeout)
+### Files changed:
+- Modified: pathways_app/app_v2.py (wrapped 7 inputs with rx.debounce_input)
+- Modified: IMPLEMENTATION_PLAN.md (marked 5.2 complete, updated completion criteria)
+### Committed: b93af40 "feat: implement debounced inputs for filter performance (Task 5.2)"
+### Patterns discovered:
+- `rx.debounce_input` wraps a child input component and buffers on_change events
+- Default debounce_timeout is 300ms - exactly what was needed
+- Pattern: `rx.debounce_input(rx.input(...), debounce_timeout=300)`
+- Works with any input type including date and text inputs
+### Next iteration should:
+- Review IMPLEMENTATION_PLAN.md for remaining incomplete tasks
+- Task 5.4 remaining: Compare metrics with original app, test with large dataset
+- Task 5.5 remaining: Remove old code paths, update README, document changes
+- Check if "No console errors during normal operation" can be verified
+- Consider: Project may be nearly complete - review all completion criteria
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
