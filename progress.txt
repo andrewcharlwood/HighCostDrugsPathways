@@ -390,3 +390,53 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 - Consider testing app_v2 visually by modifying pathways_app/__init__.py to import from app_v2
 ### Blocked items:
 - Visual validation still blocked until rxconfig is updated to point to app_v2
+
+## Iteration 7 - 2026-02-04
+### Task: 3.1 Core State Variables
+### Why this task:
+- Previous iteration (6) completed Phase 2 and explicitly recommended starting Phase 3
+- Task 3.1 is the first task in Phase 3
+- Progress.txt noted "many already exist from Task 2.2, needs review" — this is accurate
+- Foundation must be complete before data loading (Task 3.2)
+### Status: COMPLETE
+### What was done:
+- Reviewed existing state variables (most already existed from Phase 2 filter work)
+- Added missing data state variables:
+  - `last_updated: str = ""` — ISO timestamp for data freshness
+  - `raw_data: list[dict[str, Any]] = []` — store loaded data as list of dicts (Reflex-friendly)
+  - `latest_date_in_data: str = ""` — detected on load, used for "to" date defaults
+- Set sensible date defaults for last_seen filter:
+  - `last_seen_from_date`: 6 months ago (computed at class definition via datetime)
+  - `last_seen_to_date`: today (updated on data load to latest in dataset)
+- Added `last_updated_display` computed var for human-friendly timestamp display
+- Updated top bar to show dynamic "Refreshed: Xh ago" instead of hardcoded "Last refreshed: recently"
+- Added datetime and typing imports
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - Date defaults verified: last_seen_from = 2025-08-08, last_seen_to = 2026-02-04
+- Tier 2 (Visual): Deferred - requires running app with modified config
+- Tier 3 (Functional): Computed var `last_updated_display` verified structurally
+### Files changed:
+- Modified: pathways_app/app_v2.py (+59 lines - new state vars, imports, computed var)
+- Modified: IMPLEMENTATION_PLAN.md (marked 3.1 subtasks complete)
+### Committed: fead4bf "feat: complete core state variables (Task 3.1)"
+### Patterns discovered:
+- Reflex state defaults are computed at class definition time — datetime.now() works for defaults
+- Use `list[dict[str, Any]]` for storing DataFrame-like data in Reflex state (DataFrames don't serialize well)
+- Top bar string concatenation: `"Refreshed: " + AppState.last_updated_display` works with computed vars
+### Next iteration should:
+- Continue with Task 3.2: Data Loading
+- Create `load_data()` method that reads from SQLite database
+- Reference existing `data_processing/loader.py` and `data_processing/database.py` for patterns
+- Populate: available_drugs, available_indications, available_directorates from actual data
+- Detect latest date in dataset for "to" date defaults
+- Update total_records, last_updated, data_loaded on successful load
+- Call load_data on app initialization (use rx.State._on_load or similar)
+- Key files to reference:
+  - `data_processing/loader.py` — SQLiteDataLoader class
+  - `data_processing/database.py` — DatabaseManager for connections
+  - `pathways_app/pathways_app.py` — existing load patterns (search for "def load_")
+### Blocked items:
+- None
