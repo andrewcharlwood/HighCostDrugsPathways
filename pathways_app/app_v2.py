@@ -1806,47 +1806,24 @@ def chart_empty_state() -> rx.Component:
     )
 
 
-def chart_ready_placeholder() -> rx.Component:
+def chart_display() -> rx.Component:
     """
-    Ready state placeholder for the chart area.
+    Plotly icicle chart display component.
 
-    This will be replaced with actual rx.plotly() in Phase 4.
-    For now, shows a placeholder indicating the chart location.
+    Renders the interactive icicle chart from AppState.icicle_figure.
+    The figure is a computed property that updates reactively when
+    chart_data changes (which happens when filters change).
+
+    Uses rx.plotly() to render the Plotly figure object.
     """
     return rx.box(
-        rx.center(
-            rx.vstack(
-                rx.icon(
-                    "chart-bar-stacked",
-                    size=48,
-                    color=Colors.PRIMARY,
-                ),
-                rx.text(
-                    "Chart Ready",
-                    font_size=Typography.H2_SIZE,
-                    font_weight=Typography.H2_WEIGHT,
-                    color=Colors.SLATE_900,
-                    font_family=Typography.FONT_FAMILY,
-                ),
-                rx.text(
-                    "Plotly icicle chart will render here in Phase 4.",
-                    font_size=Typography.BODY_SIZE,
-                    font_weight=Typography.BODY_WEIGHT,
-                    color=Colors.SLATE_500,
-                    font_family=Typography.FONT_FAMILY,
-                ),
-                spacing="3",
-                align="center",
-            ),
+        rx.plotly(
+            data=AppState.icicle_figure,
             width="100%",
-            height="100%",
+            height="600px",
         ),
-        background_color=Colors.PALE,
-        border=f"2px dashed {Colors.PRIMARY}",
-        border_radius=Radii.MD,
         width="100%",
-        height="500px",
-        padding=Spacing.XL,
+        min_height="600px",
     )
 
 
@@ -1860,9 +1837,9 @@ def chart_section() -> rx.Component:
     - Loading: Shows skeleton animation when chart_loading is True
     - Error: Shows error message when error_message is not empty
     - Empty: Shows empty state when data_loaded but unique_patients is 0
-    - Ready: Shows chart placeholder (will be replaced with actual chart in Phase 4)
+    - Ready: Shows interactive Plotly icicle chart
 
-    Full implementation with Plotly integration in Phase 4.
+    The chart updates reactively when filters change via the icicle_figure computed property.
     """
     return rx.box(
         rx.vstack(
@@ -1908,9 +1885,8 @@ def chart_section() -> rx.Component:
                         # Priority 3: Data loaded but empty
                         AppState.data_loaded & (AppState.unique_patients == 0),
                         chart_empty_state(),
-                        # Priority 4: Ready state (data loaded and has records)
-                        # or initial state (data not loaded yet)
-                        chart_ready_placeholder(),
+                        # Priority 4: Ready state - show interactive Plotly chart
+                        chart_display(),
                     ),
                 ),
             ),

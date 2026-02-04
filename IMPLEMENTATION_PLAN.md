@@ -153,11 +153,11 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Set responsive sizing
 
 ### 4.3 Chart Component
-- [ ] Integrate `rx.plotly()` component in chart_section
-- [ ] Pass reactive figure from state
-- [ ] Handle loading states (show skeleton while computing)
-- [ ] Handle empty data state (friendly message)
-- [ ] Verify chart updates when filters change
+- [x] Integrate `rx.plotly()` component in chart_section
+- [x] Pass reactive figure from state
+- [x] Handle loading states (show skeleton while computing)
+- [x] Handle empty data state (friendly message)
+- [x] Verify chart updates when filters change
 
 ## Phase 5: Polish & Verification
 
