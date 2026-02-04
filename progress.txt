@@ -258,3 +258,68 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - Debounced filter handlers (300ms) deferred to Phase 3.3 — not blocked, just sequenced
 - Visual validation still blocked until rxconfig is updated
+
+## Iteration 5 - 2026-02-04
+### Task: 2.3 KPI Row
+### Why this task:
+- Previous iteration (4) explicitly recommended continuing with Task 2.3
+- Natural progression through Phase 2 Layout Components
+- KPI row is foundational for Phase 3 state management (data will flow to these metrics)
+- No dependencies blocking this task
+### Status: COMPLETE
+### What was done:
+- Created `kpi_card()` component with:
+  - Optional icon display (uses Lucide icons: users, pill, pound-sterling, circle-check)
+  - Large mono number using kpi_value_style()
+  - Caption label using kpi_label_style()
+  - Optional Pale Blue highlight for primary metrics
+  - Hover effect: shadow increases, slight translateY lift
+  - Design tokens used throughout (Colors, Typography, Spacing, Radii, Shadows, Transitions)
+- Updated `kpi_row()` with 4 KPI cards in responsive flex layout:
+  - Unique Patients (highlighted) - icon: users
+  - Drug Types - icon: pill
+  - Total Cost - icon: pound-sterling
+  - Indication Match - icon: circle-check
+- Added KPI state variables to AppState:
+  - unique_patients: int = 0
+  - total_drugs: int = 0
+  - total_cost: float = 0.0
+  - indication_match_rate: float = 0.0
+- Added computed display vars for formatted output:
+  - unique_patients_display (comma-formatted, "—" when zero)
+  - total_drugs_display (comma-formatted, "—" when zero)
+  - total_cost_display (£X.XM/K format, "—" when zero)
+  - match_rate_display (X%, "—" when zero)
+- Fixed issue: Cannot use **kpi_card_style() and then override background_color
+  - Solution: Apply card styles manually inline to allow conditional background
+- Fixed icon name: check-circle → circle-check (Lucide naming convention)
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - kpi_row() returns HStack component correctly
+  - No icon warnings after fixing circle-check name
+- Tier 2 (Visual): Deferred - requires modifying rxconfig to test app_v2
+- Tier 3 (Functional): Computed vars verified structurally (actual data flow in Phase 3)
+### Files changed:
+- Modified: pathways_app/app_v2.py (+159 lines - KPI state, computed vars, kpi_card, kpi_row)
+- Modified: IMPLEMENTATION_PLAN.md (marked 2.3 subtasks complete)
+### Committed: 2df3a09 "feat: implement KPI row with reactive metrics (Task 2.3)"
+### Patterns discovered:
+- Cannot use **style_helper() spread operator if you need to override any prop in that dict
+  - Instead: apply styles manually inline, or create a version of the helper without that prop
+- Lucide icon names use kebab-case in Reflex: circle-check not check-circle
+- Use rx.fragment() as no-op placeholder when conditionally not rendering something
+- KPI formatting: Use :, for thousands separator, handle zero case with "—" placeholder
+### Next iteration should:
+- Continue with Task 2.4: Chart Container
+- Implement `chart_section()` component with:
+  - Full-width card with appropriate padding
+  - Placeholder for Plotly chart (actual integration in Phase 4)
+  - Loading state with skeleton/spinner (rx.skeleton or custom)
+  - Error state with friendly message
+- Use rx.cond() to switch between loading/error/chart states based on AppState
+- This completes Phase 2 Layout Components
+### Blocked items:
+- Debounced filter handlers (300ms) deferred to Phase 3.3
+- Visual validation still blocked until rxconfig is updated
