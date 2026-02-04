@@ -403,7 +403,7 @@ class AppState(rx.State):
         db_path = Path("data/pathways.db")
 
         if not db_path.exists():
-            self.error_message = "Database not found."
+            self.error_message = "Unable to connect to database. Please ensure data has been loaded."
             return
 
         try:
@@ -514,9 +514,9 @@ class AppState(rx.State):
             self.prepare_chart_data()
 
         except sqlite3.Error as e:
-            self.error_message = f"Database error: {str(e)}"
+            self.error_message = f"Unable to filter data. Database error: {str(e)}"
         except Exception as e:
-            self.error_message = f"Filter error: {str(e)}"
+            self.error_message = f"An unexpected error occurred while filtering. Details: {str(e)}"
 
     # =========================================================================
     # Data Loading Methods
@@ -537,7 +537,7 @@ class AppState(rx.State):
         db_path = Path("data/pathways.db")
 
         if not db_path.exists():
-            self.error_message = "Database not found. Please run data migration first."
+            self.error_message = "Database not found. Please ensure the data has been loaded (data/pathways.db)."
             return
 
         try:
@@ -549,7 +549,7 @@ class AppState(rx.State):
             self.total_records = cursor.fetchone()[0]
 
             if self.total_records == 0:
-                self.error_message = "No data in database. Please run data migration."
+                self.error_message = "The database is empty. No patient records found."
                 conn.close()
                 return
 
@@ -626,10 +626,10 @@ class AppState(rx.State):
             self.apply_filters()
 
         except sqlite3.Error as e:
-            self.error_message = f"Database error: {str(e)}"
+            self.error_message = f"Unable to load data. Database error: {str(e)}"
             self.data_loaded = False
         except Exception as e:
-            self.error_message = f"Failed to load data: {str(e)}"
+            self.error_message = f"Failed to load data. Please check the database file. Details: {str(e)}"
             self.data_loaded = False
 
     # =========================================================================
@@ -663,7 +663,7 @@ class AppState(rx.State):
         db_path = Path("data/pathways.db")
 
         if not db_path.exists():
-            self.error_message = "Database not found."
+            self.error_message = "Unable to generate chart. Database not found."
             self.chart_data = []
             return
 
@@ -868,11 +868,11 @@ class AppState(rx.State):
             self.error_message = ""
 
         except sqlite3.Error as e:
-            self.error_message = f"Chart data error: {str(e)}"
+            self.error_message = f"Unable to generate chart. Database error: {str(e)}"
             self.chart_data = []
             self.chart_loading = False
         except Exception as e:
-            self.error_message = f"Chart preparation failed: {str(e)}"
+            self.error_message = f"Unable to generate chart. Details: {str(e)}"
             self.chart_data = []
             self.chart_loading = False
 
