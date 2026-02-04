@@ -122,11 +122,11 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Call on app initialization
 
 ### 3.3 Filter Logic
-- [ ] Create `apply_filters()` computed method that filters the data based on current state
-- [ ] Handle initiated date filter (when enabled)
-- [ ] Handle last seen date filter (when enabled)
-- [ ] Handle drug/indication/directorate multi-select filters
-- [ ] Return filtered DataFrame
+- [x] Create `apply_filters()` computed method that filters the data based on current state
+- [x] Handle initiated date filter (when enabled)
+- [x] Handle last seen date filter (when enabled)
+- [x] Handle drug/indication/directorate multi-select filters
+- [x] Return filtered DataFrame
 
 ### 3.4 KPI Calculations
 - [ ] Create computed properties for KPI values:

@@ -115,27 +115,39 @@ class AppState(rx.State):
     def toggle_initiated_filter(self):
         """Toggle initiated date filter on/off."""
         self.initiated_filter_enabled = not self.initiated_filter_enabled
+        if self.data_loaded:
+            self.apply_filters()
 
     def toggle_last_seen_filter(self):
         """Toggle last seen date filter on/off."""
         self.last_seen_filter_enabled = not self.last_seen_filter_enabled
+        if self.data_loaded:
+            self.apply_filters()
 
     # Event handlers for date changes
     def set_initiated_from(self, value: str):
         """Set initiated from date."""
         self.initiated_from_date = value
+        if self.data_loaded:
+            self.apply_filters()
 
     def set_initiated_to(self, value: str):
         """Set initiated to date."""
         self.initiated_to_date = value
+        if self.data_loaded:
+            self.apply_filters()
 
     def set_last_seen_from(self, value: str):
         """Set last seen from date."""
         self.last_seen_from_date = value
+        if self.data_loaded:
+            self.apply_filters()
 
     def set_last_seen_to(self, value: str):
         """Set last seen to date."""
         self.last_seen_to_date = value
+        if self.data_loaded:
+            self.apply_filters()
 
     # Event handlers for search
     def set_drug_search(self, value: str):
@@ -185,6 +197,8 @@ class AppState(rx.State):
             self.selected_drugs = [d for d in self.selected_drugs if d != drug]
         else:
             self.selected_drugs = self.selected_drugs + [drug]
+        if self.data_loaded:
+            self.apply_filters()
 
     def toggle_indication(self, indication: str):
         """Toggle an indication selection."""
@@ -192,6 +206,8 @@ class AppState(rx.State):
             self.selected_indications = [i for i in self.selected_indications if i != indication]
         else:
             self.selected_indications = self.selected_indications + [indication]
+        # Note: Indication filter not yet implemented at database level
+        # Will be added when indication-based filtering is required
 
     def toggle_directorate(self, directorate: str):
         """Toggle a directorate selection."""
@@ -199,31 +215,43 @@ class AppState(rx.State):
             self.selected_directorates = [d for d in self.selected_directorates if d != directorate]
         else:
             self.selected_directorates = self.selected_directorates + [directorate]
+        if self.data_loaded:
+            self.apply_filters()
 
     # Select/clear all handlers
     def select_all_drugs(self):
         """Select all available drugs."""
         self.selected_drugs = self.available_drugs.copy()
+        if self.data_loaded:
+            self.apply_filters()
 
     def clear_all_drugs(self):
         """Clear all drug selections."""
         self.selected_drugs = []
+        if self.data_loaded:
+            self.apply_filters()
 
     def select_all_indications(self):
         """Select all available indications."""
         self.selected_indications = self.available_indications.copy()
+        # Note: Indication filter not yet implemented at database level
 
     def clear_all_indications(self):
         """Clear all indication selections."""
         self.selected_indications = []
+        # Note: Indication filter not yet implemented at database level
 
     def select_all_directorates(self):
         """Select all available directorates."""
         self.selected_directorates = self.available_directorates.copy()
+        if self.data_loaded:
+            self.apply_filters()
 
     def clear_all_directorates(self):
         """Clear all directorate selections."""
         self.selected_directorates = []
+        if self.data_loaded:
+            self.apply_filters()
 
     # Computed vars for filtered options based on search
     @rx.var
@@ -351,6 +379,142 @@ class AppState(rx.State):
             return "Unknown"
 
     # =========================================================================
+    # Filter Logic Methods
+    # =========================================================================
+
+    def apply_filters(self):
+        """
+        Apply current filter state to data and update KPI values.
+
+        This method queries the SQLite database with the current filter settings:
+        - Initiated date filter: filters patients whose FIRST intervention date is within range
+        - Last Seen date filter: filters patients whose LAST intervention date is within range
+        - Drug filter: filters by selected drugs (empty = all)
+        - Directorate filter: filters by selected directorates (empty = all)
+
+        Note: Indication filter is not implemented at the database level since indications
+        are derived from drug mappings, not stored directly in fact_interventions.
+
+        Updates: unique_patients, total_drugs, total_cost, and filtered_record_count
+        """
+        import sqlite3
+
+        db_path = Path("data/pathways.db")
+
+        if not db_path.exists():
+            self.error_message = "Database not found."
+            return
+
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+
+            # Build the filter query dynamically
+            # We use a CTE to compute first_seen and last_seen dates per patient,
+            # then filter based on those dates if date filters are enabled
+
+            where_clauses = []
+            params = []
+
+            # Drug filter (if any drugs selected)
+            if self.selected_drugs:
+                placeholders = ",".join("?" * len(self.selected_drugs))
+                where_clauses.append(f"drug_name_std IN ({placeholders})")
+                params.extend(self.selected_drugs)
+
+            # Directorate filter (if any directorates selected)
+            if self.selected_directorates:
+                placeholders = ",".join("?" * len(self.selected_directorates))
+                where_clauses.append(f"directory IN ({placeholders})")
+                params.extend(self.selected_directorates)
+
+            # Build WHERE clause for base data filtering
+            base_where = ""
+            if where_clauses:
+                base_where = "WHERE " + " AND ".join(where_clauses)
+
+            # Date filter logic:
+            # - "Initiated" filters patients whose FIRST intervention is within the date range
+            # - "Last Seen" filters patients whose LAST intervention is within the date range
+            # We need to use a subquery to compute patient-level date ranges
+
+            having_clauses = []
+            having_params = []
+
+            # Initiated filter (when enabled)
+            if self.initiated_filter_enabled and self.initiated_from_date:
+                having_clauses.append("first_seen_date >= ?")
+                having_params.append(self.initiated_from_date)
+            if self.initiated_filter_enabled and self.initiated_to_date:
+                having_clauses.append("first_seen_date <= ?")
+                having_params.append(self.initiated_to_date)
+
+            # Last Seen filter (when enabled)
+            if self.last_seen_filter_enabled and self.last_seen_from_date:
+                having_clauses.append("last_seen_date >= ?")
+                having_params.append(self.last_seen_from_date)
+            if self.last_seen_filter_enabled and self.last_seen_to_date:
+                having_clauses.append("last_seen_date <= ?")
+                having_params.append(self.last_seen_to_date)
+
+            having_clause = ""
+            if having_clauses:
+                having_clause = "HAVING " + " AND ".join(having_clauses)
+
+            # Query to get filtered patient UPIDs
+            # This computes per-patient first/last seen dates and filters accordingly
+            patient_filter_query = f"""
+                WITH patient_dates AS (
+                    SELECT
+                        upid,
+                        MIN(intervention_date) as first_seen_date,
+                        MAX(intervention_date) as last_seen_date
+                    FROM fact_interventions
+                    {base_where}
+                    GROUP BY upid
+                    {having_clause}
+                )
+                SELECT upid FROM patient_dates
+            """
+
+            # Now get KPI values for filtered patients
+            kpi_query = f"""
+                WITH filtered_patients AS (
+                    {patient_filter_query}
+                )
+                SELECT
+                    COUNT(DISTINCT f.upid) as unique_patients,
+                    COUNT(DISTINCT f.drug_name_std) as unique_drugs,
+                    COALESCE(SUM(f.price_actual), 0) as total_cost,
+                    COUNT(*) as record_count
+                FROM fact_interventions f
+                INNER JOIN filtered_patients fp ON f.upid = fp.upid
+                {base_where.replace('WHERE', 'AND') if base_where else ''}
+            """
+
+            # Combine all params: base params for CTE, having params, then base params again for final join
+            all_params = params + having_params
+            if where_clauses:
+                all_params.extend(params)  # For the AND conditions in the final query
+
+            cursor.execute(kpi_query, all_params)
+            result = cursor.fetchone()
+
+            if result:
+                self.unique_patients = result[0] or 0
+                self.total_drugs = result[1] or 0
+                self.total_cost = float(result[2]) if result[2] else 0.0
+                # Note: filtered_record_count could be stored if needed
+
+            conn.close()
+            self.error_message = ""
+
+        except sqlite3.Error as e:
+            self.error_message = f"Database error: {str(e)}"
+        except Exception as e:
+            self.error_message = f"Filter error: {str(e)}"
+
+    # =========================================================================
     # Data Loading Methods
     # =========================================================================
 
@@ -453,6 +617,9 @@ class AppState(rx.State):
             self.data_loaded = True
             self.last_updated = datetime.now().isoformat()
             self.error_message = ""
+
+            # Apply initial filters to compute KPI values
+            self.apply_filters()
 
         except sqlite3.Error as e:
             self.error_message = f"Database error: {str(e)}"
