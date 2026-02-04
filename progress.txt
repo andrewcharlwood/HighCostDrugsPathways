@@ -848,7 +848,7 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Files changed:
 - Modified: IMPLEMENTATION_PLAN.md (marked 5.1 subtasks complete)
 - Modified: progress.txt (this entry)
-### Committed: 5c06d72 "docs: complete visual polish audit against DESIGN_SYSTEM.md (Task 5.1)"
+### Committed: 0dd99e6 "docs: complete visual polish audit against DESIGN_SYSTEM.md (Task 5.1)"
 ### Patterns discovered:
 - Plotly figure configuration necessarily uses inline hex values (external library)
 - input_style() includes _focus states that provide hover-like feedback
