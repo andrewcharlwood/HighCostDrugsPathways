@@ -59,9 +59,12 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Verify: `python -c "from data_processing.pathway_pipeline import *"`
 
 ### 1.3 Create Migration Script
-- [ ] Create script to set up new tables in existing `data/pathways.db`
-- [ ] Pre-populate `pathway_date_filters` with 6 combinations
-- [ ] Verify migration runs cleanly on fresh database
+- [x] Create script to set up new tables in existing `data/pathways.db`
+  - Note: Existing `python -m data_processing.migrate` handles this (updated in Task 1.1)
+- [x] Pre-populate `pathway_date_filters` with 6 combinations
+  - Note: Auto-populated via INSERT OR REPLACE in PATHWAY_DATE_FILTERS_SCHEMA
+- [x] Verify migration runs cleanly on fresh database
+  - Verified: All 3 pathway tables created, 6 date filters populated correctly
 
 ## Phase 2: CLI Refresh Command
 
