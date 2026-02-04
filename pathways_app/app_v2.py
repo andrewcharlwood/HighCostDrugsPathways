@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import plotly.graph_objects as go
 import reflex as rx
 
 from pathways_app.styles import (
@@ -902,6 +903,114 @@ class AppState(rx.State):
         if parts:
             return " | ".join(parts)
         return "All Patients"
+
+    # =========================================================================
+    # Plotly Chart Generation
+    # =========================================================================
+
+    @rx.var
+    def icicle_figure(self) -> go.Figure:
+        """
+        Generate Plotly icicle chart from chart_data.
+
+        This computed property creates a go.Figure with the hierarchical icicle chart
+        using data from prepare_chart_data(). The chart displays patient pathways:
+        Root → Trust → Directory → Drug
+
+        Colors use a custom NHS-inspired blue gradient colorscale.
+        Hover displays patient count, cost, and percentage of parent.
+
+        Returns:
+            Plotly Figure object ready for rx.plotly() component
+        """
+        # Return empty figure if no data
+        if not self.chart_data:
+            return go.Figure()
+
+        # Extract lists from chart_data
+        parents = [d.get("parents", "") for d in self.chart_data]
+        ids = [d.get("ids", "") for d in self.chart_data]
+        labels = [d.get("labels", "") for d in self.chart_data]
+        values = [d.get("value", 0) for d in self.chart_data]
+        costs = [d.get("cost", 0.0) for d in self.chart_data]
+        colours = [d.get("colour", 0.0) for d in self.chart_data]
+
+        # NHS-inspired blue gradient colorscale (from design system)
+        # Heritage Blue → Primary Blue → Vibrant Blue → Sky Blue → Pale Blue
+        colorscale = [
+            [0.0, "#003087"],   # Heritage Blue
+            [0.25, "#0066CC"],  # Primary Blue
+            [0.5, "#1E88E5"],   # Vibrant Blue
+            [0.75, "#4FC3F7"],  # Sky Blue
+            [1.0, "#E3F2FD"],   # Pale Blue
+        ]
+
+        # Create the icicle chart
+        fig = go.Figure(
+            go.Icicle(
+                labels=labels,
+                ids=ids,
+                parents=parents,
+                values=values,
+                branchvalues="total",
+                marker=dict(
+                    colors=colours,
+                    colorscale=colorscale,
+                    line=dict(width=1, color="#FFFFFF"),
+                ),
+                maxdepth=3,
+                # Custom data for hover template
+                customdata=list(zip(values, colours, costs)),
+                # Text shown on chart segments
+                texttemplate="<b>%{label}</b><br>%{value:,} patients",
+                # Hover text with full details
+                hovertemplate=(
+                    "<b>%{label}</b><br>"
+                    "Patients: %{customdata[0]:,} (%{customdata[1]:.1%} of parent)<br>"
+                    "Total Cost: £%{customdata[2]:,.0f}"
+                    "<extra></extra>"
+                ),
+                textfont=dict(
+                    family="Inter, system-ui, sans-serif",
+                    size=12,
+                ),
+            )
+        )
+
+        # Configure layout
+        fig.update_layout(
+            title=dict(
+                text=f"Patient Pathways — {self.chart_title}",
+                font=dict(
+                    family="Inter, system-ui, sans-serif",
+                    size=18,
+                    color="#1E293B",  # Slate 900
+                ),
+                x=0.5,
+                xanchor="center",
+            ),
+            margin=dict(t=60, l=10, r=10, b=30),
+            hoverlabel=dict(
+                bgcolor="#FFFFFF",
+                bordercolor="#CBD5E1",  # Slate 300
+                font=dict(
+                    family="Inter, system-ui, sans-serif",
+                    size=13,
+                    color="#1E293B",  # Slate 900
+                ),
+            ),
+            paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
+            plot_bgcolor="rgba(0,0,0,0)",
+            # Responsive sizing - height set but width auto
+            height=600,
+            # Enable interactivity
+            clickmode="event+select",
+        )
+
+        # Disable sort to maintain hierarchy order
+        fig.update_traces(sort=False)
+
+        return fig
 
 
 # =============================================================================

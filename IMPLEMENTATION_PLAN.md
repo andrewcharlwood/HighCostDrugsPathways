@@ -147,10 +147,10 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Call prepare_chart_data() from apply_filters() for reactive updates
 
 ### 4.2 Reactive Plotly Integration
-- [ ] Create `generate_icicle_chart()` computed property that returns Plotly figure
-- [ ] Configure chart colors using design system palette
-- [ ] Configure chart interactivity (zoom, pan, click, hover)
-- [ ] Set responsive sizing
+- [x] Create `generate_icicle_chart()` computed property that returns Plotly figure
+- [x] Configure chart colors using design system palette
+- [x] Configure chart interactivity (zoom, pan, click, hover)
+- [x] Set responsive sizing
 
 ### 4.3 Chart Component
 - [ ] Integrate `rx.plotly()` component in chart_section
