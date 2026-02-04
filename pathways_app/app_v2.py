@@ -23,6 +23,9 @@ from pathways_app.styles import (
     text_h3,
     text_caption,
     button_ghost_style,
+    kpi_card_style,
+    kpi_value_style,
+    kpi_label_style,
 )
 
 
@@ -243,6 +246,51 @@ class AppState(rx.State):
         if count == 0:
             return f"All {total} directorates"
         return f"{count} of {total} selected"
+
+    # =========================================================================
+    # KPI State Variables
+    # =========================================================================
+
+    # Placeholder KPI values (will be computed from filtered data in Phase 3)
+    # For now, these are static placeholders that demonstrate reactivity
+    unique_patients: int = 0
+    total_drugs: int = 0
+    total_cost: float = 0.0
+    indication_match_rate: float = 0.0
+
+    # Computed KPI display values
+    @rx.var
+    def unique_patients_display(self) -> str:
+        """Format unique patients count for display."""
+        if self.unique_patients == 0:
+            return "—"
+        return f"{self.unique_patients:,}"
+
+    @rx.var
+    def total_drugs_display(self) -> str:
+        """Format total drugs count for display."""
+        if self.total_drugs == 0:
+            return "—"
+        return f"{self.total_drugs:,}"
+
+    @rx.var
+    def total_cost_display(self) -> str:
+        """Format total cost for display."""
+        if self.total_cost == 0.0:
+            return "—"
+        # Format as £X.XM or £X.XK depending on magnitude
+        if self.total_cost >= 1_000_000:
+            return f"£{self.total_cost / 1_000_000:.1f}M"
+        if self.total_cost >= 1_000:
+            return f"£{self.total_cost / 1_000:.1f}K"
+        return f"£{self.total_cost:,.0f}"
+
+    @rx.var
+    def match_rate_display(self) -> str:
+        """Format indication match rate for display."""
+        if self.indication_match_rate == 0.0:
+            return "—"
+        return f"{self.indication_match_rate:.0f}%"
 
 
 # =============================================================================
@@ -727,40 +775,121 @@ def filter_section() -> rx.Component:
     )
 
 
+def kpi_card(
+    value: rx.Var[str],
+    label: str,
+    icon_name: str = None,
+    highlight: bool = False,
+) -> rx.Component:
+    """
+    KPI card component displaying a metric value with label.
+
+    Args:
+        value: The display value (should be a formatted string from computed var)
+        label: Label describing the metric
+        icon_name: Optional Lucide icon name to display
+        highlight: If True, uses Pale Blue background tint
+
+    Design specs from DESIGN_SYSTEM.md:
+    - Large mono number: 32-48px, Slate 900
+    - Label: Caption size, Slate 500
+    - Background: White or Pale Blue tint
+    """
+    # Build content - icon only if provided
+    content_items = []
+    if icon_name:
+        content_items.append(
+            rx.icon(
+                icon_name,
+                size=20,
+                color=Colors.PRIMARY,
+            )
+        )
+
+    return rx.box(
+        rx.vstack(
+            # Optional icon
+            rx.icon(
+                icon_name if icon_name else "activity",
+                size=20,
+                color=Colors.PRIMARY,
+            ) if icon_name else rx.fragment(),
+            # Value
+            rx.text(
+                value,
+                **kpi_value_style(),
+            ),
+            # Label
+            rx.text(
+                label,
+                **kpi_label_style(),
+            ),
+            spacing="1",
+            align="center",
+        ),
+        # Apply card styling manually to allow background_color override
+        background_color=Colors.PALE if highlight else Colors.WHITE,
+        border=f"1px solid {Colors.SLATE_300}",
+        border_radius=Radii.LG,
+        padding=Spacing.XL,
+        box_shadow=Shadows.SM,
+        text_align="center",
+        min_width="180px",
+        flex="1",
+        transition=f"box-shadow {Transitions.SHADOW}, transform {Transitions.TRANSFORM}",
+        _hover={
+            "box_shadow": Shadows.MD,
+            "transform": "translateY(-2px)",
+        },
+    )
+
+
 def kpi_row() -> rx.Component:
     """
-    KPI metrics row component.
+    KPI metrics row component with responsive grid layout.
 
-    Contains: Unique patients count, and space for additional metrics.
+    Contains:
+    - Unique Patients: COUNT(DISTINCT patient_id)
+    - Total Drugs: Count of selected/filtered drugs
+    - Total Cost: Sum of costs in filtered data
+    - Match Rate: Indication match percentage
 
-    Will be fully implemented in Task 2.3.
+    Layout: Responsive flex row that wraps on smaller screens.
+    KPIs update reactively when filters change (Phase 3).
     """
     return rx.hstack(
-        rx.box(
-            rx.vstack(
-                rx.text(
-                    "—",
-                    font_family=Typography.FONT_MONO,
-                    font_size="32px",
-                    font_weight="600",
-                    color=Colors.SLATE_900,
-                ),
-                rx.text(
-                    "Unique Patients",
-                    font_size=Typography.CAPTION_SIZE,
-                    font_weight=Typography.CAPTION_WEIGHT,
-                    color=Colors.SLATE_500,
-                ),
-                spacing="1",
-                align="center",
-            ),
-            **card_style(),
-            min_width="200px",
-            text_align="center",
+        # Unique Patients KPI - highlighted as primary metric
+        kpi_card(
+            value=AppState.unique_patients_display,
+            label="Unique Patients",
+            icon_name="users",
+            highlight=True,
         ),
-        # Space for additional KPI cards
+        # Total Drugs KPI
+        kpi_card(
+            value=AppState.total_drugs_display,
+            label="Drug Types",
+            icon_name="pill",
+            highlight=False,
+        ),
+        # Total Cost KPI
+        kpi_card(
+            value=AppState.total_cost_display,
+            label="Total Cost",
+            icon_name="pound-sterling",
+            highlight=False,
+        ),
+        # Indication Match Rate KPI
+        kpi_card(
+            value=AppState.match_rate_display,
+            label="Indication Match",
+            icon_name="circle-check",
+            highlight=False,
+        ),
         spacing="4",
         width="100%",
+        flex_wrap="wrap",
+        align="stretch",
     )
 
 

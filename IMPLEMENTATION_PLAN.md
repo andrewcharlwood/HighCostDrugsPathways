@@ -74,14 +74,14 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Style according to design system
 
 ### 2.3 KPI Row
-- [ ] Create `kpi_card()` component:
+- [x] Create `kpi_card()` component:
   - Large mono number (32-48px)
   - Label below (caption style)
   - Subtle background tint
-- [ ] Create `kpi_row()` component with responsive grid
-- [ ] Initially show: Unique Patients count
-- [ ] Leave space for future metrics (Drugs count, Total cost, Match rate)
-- [ ] KPIs should be reactive to filter state
+- [x] Create `kpi_row()` component with responsive grid
+- [x] Initially show: Unique Patients count
+- [x] Leave space for future metrics (Drugs count, Total cost, Match rate)
+- [x] KPIs should be reactive to filter state
 
 ### 2.4 Chart Container
 - [ ] Create `chart_section()` component
