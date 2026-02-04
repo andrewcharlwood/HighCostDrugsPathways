@@ -1,206 +1,174 @@
-# Implementation Plan - HCD Analysis UI Redesign
+# Implementation Plan - Pathway Data Architecture
 
 ## Project Overview
 
-Complete frontend redesign of the Patient Pathway Analysis tool. Replace the current multi-page sidebar layout with a modern, single-page dashboard featuring:
-- Instant reactive filtering with debounce
-- Interactive Plotly icicle chart that updates in real-time
-- NHS-inspired but bold, modern visual design
-- KPI metrics that respond to filter changes
+Pre-compute patient treatment pathways from Snowflake and store in SQLite for fast Reflex filtering. This replaces the current simplified `prepare_chart_data()` with full pathway hierarchy support.
 
-**Design Reference:** See `DESIGN_SYSTEM.md` for color palette, typography, spacing, and component specs.
+**Architecture**: Snowflake → Pathway Processing → SQLite (pre-computed) → Reflex (filter & view)
 
-**Source Code:** The existing `pathways_app/pathways_app.py` contains the current implementation. Create a new `pathways_app/app_v2.py` for the redesign, leaving the original intact until verification.
+**Key Benefits**:
+- Performance: Pathway calculation done once during data refresh, not on every filter
+- Simplicity: Reflex filters pre-computed data with simple SQL WHERE clauses
+- Full Pathways: Sequential treatment pathways (drug_0 → drug_1 → drug_2...) with statistics
+
+**Design Reference**: See `PATHWAY_DATA_ARCHITECTURE_PLAN.md` for detailed architecture, schema, and data flow.
+
+**Source Code**:
+- Existing analysis: `analysis/pathway_analyzer.py`
+- Existing visualization: `visualization/plotly_generator.py`
+- Existing Reflex app: `pathways_app/app_v2.py`
 
 ## Quality Checks
 
 Run after each task:
 
 ```bash
-# Syntax check
-python -m py_compile pathways_app/app_v2.py
+# Syntax check for Python files
+python -m py_compile <file.py>
 
 # Import verification
-python -c "from pathways_app.app_v2 import app"
+python -c "from <module> import <class>"
 
-# Reflex compilation test
+# For Reflex changes
 cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
-
-# If compilation shows errors, fix before marking task complete
 ```
 
-## Phase 1: Foundation
+## Phase 1: Schema & Data Pipeline Foundation
 
-### 1.1 Design Tokens Module
-- [x] Create `pathways_app/styles.py` with design token classes:
-  - `Colors` class with all palette colors as constants
-  - `Typography` class with font sizes, weights
-  - `Spacing` class with spacing scale
-  - `Shadows` class with shadow values
-  - `Radii` class with border radius values
-- [x] Create helper functions for common style patterns (e.g., `card_style()`, `button_primary_style()`)
-- [x] Verify imports work: `from pathways_app.styles import Colors, Spacing`
+### 1.1 Extend Database Schema
+- [x] Add `pathway_date_filters` table with 6 pre-defined combinations:
+  - `all_6mo`, `all_12mo`, `1yr_6mo`, `1yr_12mo`, `2yr_6mo`, `2yr_12mo`
+- [x] Add `pathway_nodes` table with:
+  - Hierarchy structure (parents, ids, labels, level)
+  - Patient counts and costs (value, cost, costpp, cost_pp_pa)
+  - Date ranges (first_seen, last_seen, first_seen_parent, last_seen_parent)
+  - Treatment statistics (average_spacing, average_administered, avg_days)
+  - Denormalized filter columns (trust_name, directory, drug_sequence)
+  - Foreign key to date_filter_id
+- [x] Add `pathway_refresh_log` table for tracking refresh status
+- [x] Create indexes for efficient filtering
+- [x] Verify schema with: `python -c "from data_processing.schema import *"`
 
-### 1.2 App Skeleton
-- [x] Create `pathways_app/app_v2.py` with basic Reflex app structure
-- [x] Define new `AppState` class with minimal state (placeholder for now)
-- [x] Create single-page layout structure matching DESIGN_SYSTEM.md
-- [x] Verify `reflex run` compiles and shows blank page with correct structure
-- [x] Configure Reflex theme with design system colors
+### 1.2 Create Pathway Pipeline Module
+- [ ] Create `data_processing/pathway_pipeline.py` with:
+  - `fetch_and_transform_data()` - Snowflake fetch + UPID/drug/directory transformations
+  - `process_pathway_for_date_filter(df, date_filter_config)` - Single filter processing
+  - `extract_denormalized_fields(ice_df)` - Extract trust, directory, drug_sequence from ids
+  - `convert_to_records(ice_df, date_filter_id)` - Convert ice_df to list of dicts for SQLite
+- [ ] Integrate with existing `analysis/pathway_analyzer.py` functions
+- [ ] Verify: `python -c "from data_processing.pathway_pipeline import *"`
 
-## Phase 2: Layout Components
+### 1.3 Create Migration Script
+- [ ] Create script to set up new tables in existing `data/pathways.db`
+- [ ] Pre-populate `pathway_date_filters` with 6 combinations
+- [ ] Verify migration runs cleanly on fresh database
 
-### 2.1 Top Navigation Bar
-- [x] Create `top_bar()` component:
-  - Logo (use existing NHS person logo from assets)
-  - App title "HCD Analysis"
-  - Chart type tabs/pills (Icicle active, placeholders for future charts)
-  - Data freshness indicator (right side): "12,450 records (2d ago)"
-- [x] Style with Heritage Blue accents, clean typography
-- [x] Fixed height: 64px
-- [x] Verify renders correctly
+## Phase 2: CLI Refresh Command
 
-### 2.2 Filter Section
-- [x] Create `filter_section()` component with card styling
-- [x] Add date range pickers:
-  - "Initiated" range with enable/disable checkbox (default: disabled)
-  - "Last Seen" range with enable/disable checkbox (default: enabled, last 6 months)
-  - "To" date defaults to latest date in dataset (placeholder — actual data integration in Phase 3)
-- [x] Add searchable multi-select dropdowns:
-  - Drugs dropdown with search, select all, count display
-  - Indications dropdown with search, select all, count display
-  - Directorates dropdown with search, select all, count display
-- [ ] Implement debounced filter change handlers (300ms) — deferred to Phase 3.3
-- [x] Style according to design system
+### 2.1 Create Refresh Command
+- [ ] Create `cli/refresh_pathways.py` with:
+  - DATE_FILTER_CONFIGS constant (6 combinations)
+  - `compute_date_ranges(config, max_date)` - Calculate actual dates from config
+  - `refresh_pathways(minimum_patients, provider_codes, ...)` main function
+- [ ] Implement refresh flow:
+  1. Fetch ALL data from Snowflake (full date range)
+  2. Apply transformations (UPID, drug names, directory)
+  3. Clear existing pathway_nodes
+  4. For each of 6 date filter configs: filter → process → insert
+  5. Update pathway_refresh_log
+- [ ] Add CLI argument parsing (--minimum-patients, --provider-codes, etc.)
+- [ ] Verify: `python -m cli.refresh_pathways --help`
 
-### 2.3 KPI Row
-- [x] Create `kpi_card()` component:
-  - Large mono number (32-48px)
-  - Label below (caption style)
-  - Subtle background tint
-- [x] Create `kpi_row()` component with responsive grid
-- [x] Initially show: Unique Patients count
-- [x] Leave space for future metrics (Drugs count, Total cost, Match rate)
-- [x] KPIs should be reactive to filter state
+### 2.2 Test Refresh Pipeline
+- [ ] Run refresh with Snowflake data
+- [ ] Verify all 6 date_filter_ids populated in pathway_nodes
+- [ ] Verify pathway structure matches original `generate_icicle_chart()` output
+- [ ] Verify patient counts are correct (compare with original app)
+- [ ] Document estimated processing time (expect 6-12 minutes for 440K records)
 
-### 2.4 Chart Container
-- [x] Create `chart_section()` component
-- [x] Full-width card with appropriate padding
-- [x] Placeholder for Plotly chart (integrate in Phase 4)
-- [x] Loading state with skeleton/spinner
-- [x] Error state with friendly message
+## Phase 3: Reflex Integration
 
-## Phase 3: State Management
+### 3.1 Update AppState
+- [ ] Replace date picker state with dropdown state:
+  - `selected_initiated: str = "all"` ("all", "1yr", "2yr")
+  - `selected_last_seen: str = "6mo"` ("6mo", "12mo")
+- [ ] Add `date_filter_id` computed property: `f"{selected_initiated}_{selected_last_seen}"`
+- [ ] Rewrite `load_pathway_data()` to query `pathway_nodes` table:
+  - Base filter: `WHERE date_filter_id = ?`
+  - Trust/directory/drug filters on denormalized columns
+- [ ] Add `recalculate_parent_totals()` for filtered hierarchies
+- [ ] Update KPI calculations from root node data
 
-### 3.1 Core State Variables
-- [x] Define filter state variables in `AppState`:
-  - `initiated_filter_enabled: bool = False`
-  - `initiated_from_date: str = ""`  (ISO date string)
-  - `initiated_to_date: str = ""`
-  - `last_seen_filter_enabled: bool = True`
-  - `last_seen_from_date: str` (default: 6 months ago, computed at class definition)
-  - `last_seen_to_date: str` (default: today, updated on data load)
-  - `selected_drugs: list[str] = []` (empty = all)
-  - `selected_indications: list[str] = []` (empty = all)
-  - `selected_directorates: list[str] = []` (empty = all)
-- [x] Define data state variables:
-  - `data_loaded: bool = False`
-  - `total_records: int = 0`
-  - `last_updated: str = ""` (ISO timestamp)
-  - `raw_data: list[dict[str, Any]] = []` (list of dicts, Reflex-friendly)
-  - `latest_date_in_data: str = ""` (for "to" date defaults)
-- [x] Define UI state variables:
-  - `chart_loading: bool = False`
-  - `error_message: str = ""`
-  - `current_chart: str = "icicle"`
+### 3.2 Update Icicle Figure
+- [ ] Update `icicle_figure` computed property to use all pathway_nodes columns
+- [ ] Match original 10-field customdata structure:
+  - values, colours, costs, costpp
+  - first_seen, last_seen, first_seen_parent, last_seen_parent
+  - average_spacing, cost_pp_pa
+- [ ] Restore full hover/text templates from `visualization/plotly_generator.py`
+- [ ] Verify chart renders correctly with treatment statistics
 
-### 3.2 Data Loading
-- [x] Create `load_data()` method that reads from SQLite
-- [x] Populate available options for dropdowns (drugs, indications, directorates)
-- [x] Detect latest date in dataset for "to" date defaults
-- [x] Calculate total records and last updated timestamp
-- [x] Call on app initialization
+### 3.3 Update UI Components
+- [ ] Replace date pickers with select dropdowns:
+  - Initiated: "All years", "Last 2 years", "Last 1 year"
+  - Last Seen: "Last 6 months", "Last 12 months"
+- [ ] Add "Data refreshed: X ago" indicator from pathway_refresh_log
+- [ ] Update filter section layout
+- [ ] Verify UI compiles and renders correctly
 
-### 3.3 Filter Logic
-- [x] Create `apply_filters()` computed method that filters the data based on current state
-- [x] Handle initiated date filter (when enabled)
-- [x] Handle last seen date filter (when enabled)
-- [x] Handle drug/indication/directorate multi-select filters
-- [x] Return filtered DataFrame
+## Phase 4: Testing & Validation
 
-### 3.4 KPI Calculations
-- [x] Create computed properties for KPI values:
-  - `unique_patients: int` — COUNT(DISTINCT patient_id) from filtered data
-  - `total_drugs: int` — COUNT(DISTINCT drug_name_std) from filtered data
-  - `total_cost: float` — SUM(price_actual) from filtered data
-  - (Blocked: indication_match_rate requires Snowflake GP data)
-- [x] Ensure KPIs update reactively when filters change
-- Note: KPIs implemented in apply_filters() method, called by all filter event handlers
+### 4.1 End-to-End Validation
+- [ ] **Pathway hierarchy matches original**: Compare specific pathway ids structure
+- [ ] **Patient counts match**: Compare root patient count for same date range
+- [ ] **Treatment statistics display correctly**: Verify "Average treatment duration" hover data
+- [ ] **Drug filtering works**: Filter to FARICIMAB, verify correct pathways shown
+- [ ] **Chart renders with all tooltip data**: Verify 10-field customdata structure
 
-## Phase 4: Interactive Chart
+### 4.2 Performance Testing
+- [ ] Measure filter change response time (target: <500ms)
+- [ ] Measure initial page load (target: <2s including data load)
+- [ ] Verify chart interaction (zoom, hover) is smooth with no lag
+- [ ] Test with full dataset
 
-### 4.1 Chart Data Preparation
-- [x] Create `prepare_chart_data()` method that transforms filtered data for Plotly icicle
-- [x] Reuse/adapt logic from existing `pathway_analyzer.py` (simplified hierarchy: Trust → Directory → Drug)
-- [x] Return data structure compatible with `go.Icicle()` (list of dicts with parents, ids, labels, value, cost, colour)
-- [x] Generate chart_title based on current filter state
-- [x] Call prepare_chart_data() from apply_filters() for reactive updates
-
-### 4.2 Reactive Plotly Integration
-- [x] Create `generate_icicle_chart()` computed property that returns Plotly figure
-- [x] Configure chart colors using design system palette
-- [x] Configure chart interactivity (zoom, pan, click, hover)
-- [x] Set responsive sizing
-
-### 4.3 Chart Component
-- [x] Integrate `rx.plotly()` component in chart_section
-- [x] Pass reactive figure from state
-- [x] Handle loading states (show skeleton while computing)
-- [x] Handle empty data state (friendly message)
-- [x] Verify chart updates when filters change
-
-## Phase 5: Polish & Verification
-
-### 5.1 Visual Polish
-- [x] Review all components against DESIGN_SYSTEM.md
-- [x] Ensure consistent spacing throughout
-- [x] Ensure consistent typography throughout
-- [x] Add hover states and transitions to interactive elements
-- [x] Test responsive behavior (resize browser)
-
-### 5.2 Performance Optimization
-- [x] Profile filter + chart update cycle
-- [x] Ensure debounce is working correctly (not triggering on every keystroke)
-- [x] Optimize any slow computed properties
-- [x] Verify smooth 60fps interactions
-
-### 5.3 Error Handling
-- [x] Handle no data loaded state gracefully
-- [x] Handle filter resulting in zero records
-- [x] Handle any data loading errors
-- [x] User-friendly error messages
-
-### 5.4 Final Verification
-- [x] Load real data from SQLite (440K records, 552 drugs, 29 directorates, 32 indications)
-- [x] Test all filter combinations (no filter, Last Seen, Drug, Directorate, Combined - all working)
-- [x] Verify KPIs update correctly (patients, drugs, cost all compute correctly)
-- [x] Verify chart updates correctly (1,887 hierarchical nodes generated correctly)
-- [ ] Compare key metrics with original app to ensure correctness
-- [ ] Test with large dataset for performance
-
-### 5.5 Cleanup
-- [ ] Remove or comment out old `pathways_app.py` code paths
-- [x] Update any imports/references to use new app (updated __init__.py to re-export from app_v2)
+### 4.3 Documentation
+- [ ] Update CLAUDE.md with new architecture
+- [ ] Document CLI usage for `refresh_pathways`
 - [ ] Update README with new run instructions
-- [ ] Document any breaking changes
+- [ ] Document any breaking changes from original app
 
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [x] App compiles without errors (`reflex run` succeeds)
-- [x] All filters work with instant (debounced) updates
-- [x] KPIs display correct numbers matching filter state (verified via SQL queries)
-- [x] Icicle chart renders and updates reactively (1,887 nodes generated correctly)
-- [x] Visual design matches DESIGN_SYSTEM.md (verified in iteration 15)
+- [ ] App compiles without errors (`reflex run` succeeds)
+- [ ] All 6 date filter combinations work correctly
+- [ ] Drug/directory/trust filters work with instant updates
+- [ ] KPIs display correct numbers matching filter state
+- [ ] Icicle chart renders with full pathway data and statistics
+- [ ] Treatment duration and dosing information displays in tooltips
 - [ ] No console errors during normal operation
-- [x] Verified with real patient data from SQLite (440K records tested)
+- [ ] Verified with real patient data from Snowflake
+
+## Reference
+
+### Date Filter Combinations
+
+| ID | Initiated | Last Seen | Default |
+|----|-----------|-----------|---------|
+| `all_6mo` | All years | Last 6 months | Yes |
+| `all_12mo` | All years | Last 12 months | No |
+| `1yr_6mo` | Last 1 year | Last 6 months | No |
+| `1yr_12mo` | Last 1 year | Last 12 months | No |
+| `2yr_6mo` | Last 2 years | Last 6 months | No |
+| `2yr_12mo` | Last 2 years | Last 12 months | No |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `data_processing/schema.py` | Database schema definitions |
+| `data_processing/pathway_pipeline.py` | New pathway processing pipeline |
+| `cli/refresh_pathways.py` | CLI refresh command |
+| `analysis/pathway_analyzer.py` | Existing pathway analysis logic |
+| `visualization/plotly_generator.py` | Existing chart generation |
+| `pathways_app/app_v2.py` | Reflex application |
