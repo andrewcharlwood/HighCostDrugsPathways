@@ -191,3 +191,70 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - Visual validation blocked until we can run app_v2 via reflex (need to modify rxconfig or __init__.py)
 - For now, code validation is sufficient since components return correct types
+
+## Iteration 4 - 2026-02-04
+### Task: 2.2 Filter Section
+### Why this task:
+- Previous iteration (3) completed Task 2.1 (top navigation bar)
+- Progress.txt explicitly recommended starting Task 2.2 as next step
+- Filter section is foundational for Phase 3 state management
+- Natural progression through Phase 2 Layout Components
+### Status: COMPLETE
+### What was done:
+- Created `date_range_picker()` reusable component:
+  - Checkbox to enable/disable the filter
+  - From/To date inputs using HTML5 date type
+  - Disabled styling when filter is off (opacity reduced)
+  - Uses design system tokens throughout
+- Created `searchable_dropdown()` reusable component:
+  - Trigger button showing selection count ("All N items" or "X of Y selected")
+  - Collapsible dropdown panel with search input
+  - Select All / Clear buttons
+  - Scrollable checkbox list with hover highlighting
+  - Selected items highlighted with Pale Blue background
+  - Uses `rx.foreach()` with `selected_items.contains(item)` pattern
+- Implemented full `filter_section()` component:
+  - Card container with design system styling
+  - Row 1: Two date range pickers (Initiated OFF, Last Seen ON by default)
+  - Row 2: Three searchable dropdowns for Drugs, Indications, Directorates
+  - Responsive flex-wrap layout for smaller screens
+- Added comprehensive state management to AppState:
+  - Filter toggle states (initiated_filter_enabled, last_seen_filter_enabled)
+  - Date value state (initiated_from/to_date, last_seen_from/to_date)
+  - Dropdown visibility state (drug/indication/directorate_dropdown_open)
+  - Selection state (selected_drugs, selected_indications, selected_directorates)
+  - Search state (drug_search, indication_search, directorate_search)
+  - Placeholder available options (will be populated from data in Phase 3)
+  - Event handlers for all interactions (toggles, selections, search)
+  - Computed vars for filtered options (@rx.var filtered_drugs, etc.)
+  - Computed vars for selection text display
+- Fixed text_caption() conflict by manually specifying typography props when overriding color
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - Component type: filter_section() returns Box
+- Tier 2 (Visual): Deferred - requires modifying rxconfig to test app_v2
+- Tier 3 (Functional): State handlers verified via import; actual interaction testing in Phase 3
+### Files changed:
+- Modified: pathways_app/app_v2.py (+544 lines - state, components, handlers)
+- Modified: IMPLEMENTATION_PLAN.md (marked 2.2 subtasks complete)
+### Committed: b2d4afd "feat: implement filter section with date pickers and searchable dropdowns (Task 2.2)"
+### Patterns discovered:
+- Don't use `**text_caption(), color=X` — helper already sets color. Instead, manually specify props.
+- `rx.checkbox(item, checked=selected_items.contains(item), ...)` works for multi-select in rx.foreach
+- When closing one dropdown, close others: `self.indication_dropdown_open = False` in toggle handlers
+- Computed vars with `@rx.var` must have return type annotation to work correctly
+- Use `rx.cond(is_open, dropdown_panel)` for conditional visibility of dropdown
+- Position absolute for dropdown panel, relative for container, z-index for layering
+### Next iteration should:
+- Continue with Task 2.3: KPI Row
+- Implement `kpi_card()` component per design system:
+  - Large mono number (32-48px), caption label below
+  - Subtle shadow, optional Pale Blue tint
+- Implement `kpi_row()` with responsive grid
+- Initially show "Unique Patients" placeholder (actual data in Phase 3)
+- Consider adding more metrics: Drug count, Total cost, Match rate
+### Blocked items:
+- Debounced filter handlers (300ms) deferred to Phase 3.3 — not blocked, just sequenced
+- Visual validation still blocked until rxconfig is updated
