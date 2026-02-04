@@ -82,3 +82,42 @@ The `ids` column in ice_df contains hierarchical paths like:
 - The pipeline needs to: fetch_and_transform_data(), process_pathway_for_date_filter(), extract_denormalized_fields(), convert_to_records()
 ### Blocked items:
 - None
+
+## Iteration 2 — 2026-02-04
+### Task: 1.2 Create Pathway Pipeline Module
+### Why this task:
+- Task 1.1 (Schema) is complete — pipeline module is the logical next step
+- Task 1.3 (Migration Script) and Task 2.1 (CLI Refresh Command) both depend on having the pipeline
+- The pipeline module provides the data processing layer between Snowflake and SQLite
+### Status: COMPLETE
+### What was done:
+- Created `data_processing/pathway_pipeline.py` with:
+  - `DateFilterConfig` dataclass for date filter configuration
+  - `DATE_FILTER_CONFIGS` constant with all 6 pre-defined combinations
+  - `compute_date_ranges(config, max_date)` — computes actual ISO dates from config
+  - `fetch_and_transform_data(start_date, end_date, provider_codes, paths)` — Snowflake fetch + UPID/drug/directory transformations
+  - `process_pathway_for_date_filter(df, config, trust_filter, drug_filter, directory_filter, ...)` — processes single date filter using existing `generate_icicle_chart()`
+  - `extract_denormalized_fields(ice_df)` — parses ids column to extract trust_name, directory, drug_sequence
+  - `convert_to_records(ice_df, date_filter_id, refresh_id)` — converts ice_df to list of dicts for SQLite insertion
+  - `process_all_date_filters(df, ...)` — convenience function to process all 6 filters
+- Integrated with existing `analysis/pathway_analyzer.py` via `generate_icicle_chart()`
+- Integrated with `data_processing/snowflake_connector.py` via `fetch_activity_data()`
+- Integrated with `tools/data.py` transformations (patient_id, drug_names, department_identification)
+### Validation results:
+- Tier 1 (Code): ✅ python -m py_compile passed, all imports successful
+- Tier 2 (Visual): N/A (backend module, no UI)
+- Tier 3 (Functional): ✅ Verified all 6 DATE_FILTER_CONFIGS, tested compute_date_ranges() returns correct dates
+### Files changed:
+- `data_processing/pathway_pipeline.py` — new file (~380 lines)
+- `IMPLEMENTATION_PLAN.md` — marked Task 1.2 subtasks complete
+### Committed: 3c68478 "feat: add pathway pipeline module (Task 1.2)"
+### Patterns discovered:
+- The ids format uses " - " delimiter (space-hyphen-space), not "|" as noted in progress.txt — corrected in extract_denormalized_fields()
+- avg_days column from pathway_analyzer can be a timedelta — need to convert with .total_seconds() / 86400
+- Some ice_df columns may be NaN at certain hierarchy levels — defensive None checks needed
+### Next iteration should:
+- Start Task 1.3: Create Migration Script
+- OR jump to Task 2.1: Create Refresh Command (which can implicitly handle table creation)
+- The refresh command needs: DATE_FILTER_CONFIGS, compute_date_ranges(), and pipeline functions
+### Blocked items:
+- None

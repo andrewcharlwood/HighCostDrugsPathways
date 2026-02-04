@@ -50,13 +50,13 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Verify schema with: `python -c "from data_processing.schema import *"`
 
 ### 1.2 Create Pathway Pipeline Module
-- [ ] Create `data_processing/pathway_pipeline.py` with:
+- [x] Create `data_processing/pathway_pipeline.py` with:
   - `fetch_and_transform_data()` - Snowflake fetch + UPID/drug/directory transformations
   - `process_pathway_for_date_filter(df, date_filter_config)` - Single filter processing
   - `extract_denormalized_fields(ice_df)` - Extract trust, directory, drug_sequence from ids
   - `convert_to_records(ice_df, date_filter_id)` - Convert ice_df to list of dicts for SQLite
-- [ ] Integrate with existing `analysis/pathway_analyzer.py` functions
-- [ ] Verify: `python -c "from data_processing.pathway_pipeline import *"`
+- [x] Integrate with existing `analysis/pathway_analyzer.py` functions
+- [x] Verify: `python -c "from data_processing.pathway_pipeline import *"`
 
 ### 1.3 Create Migration Script
 - [ ] Create script to set up new tables in existing `data/pathways.db`
