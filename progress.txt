@@ -373,7 +373,7 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Files changed:
 - Modified: pathways_app/app_v2.py (+180 lines - 4 new components, rewritten chart_section)
 - Modified: IMPLEMENTATION_PLAN.md (marked 2.4 subtasks complete)
-### Committed: [pending]
+### Committed: 17478c9 "feat: implement chart container with state-based rendering (Task 2.4)"
 ### Patterns discovered:
 - Lucide icon names: triangle-alert not alert-triangle, search-x works
 - CSS animations in Reflex: use animation prop with standard CSS syntax
