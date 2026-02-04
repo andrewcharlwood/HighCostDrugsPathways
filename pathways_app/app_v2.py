@@ -6,6 +6,7 @@ Design reference: DESIGN_SYSTEM.md
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import reflex as rx
@@ -348,6 +349,117 @@ class AppState(rx.State):
             return dt.strftime("%d %b %Y")
         except (ValueError, TypeError):
             return "Unknown"
+
+    # =========================================================================
+    # Data Loading Methods
+    # =========================================================================
+
+    def load_data(self):
+        """
+        Load data from SQLite database on app initialization.
+
+        This method:
+        1. Connects to the SQLite database (data/pathways.db)
+        2. Loads available drugs, indications, directorates from actual data
+        3. Detects the latest date in the dataset for "to" date defaults
+        4. Updates total_records, last_updated, and data_loaded state
+        """
+        import sqlite3
+
+        db_path = Path("data/pathways.db")
+
+        if not db_path.exists():
+            self.error_message = "Database not found. Please run data migration first."
+            return
+
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+
+            # Get total records
+            cursor.execute("SELECT COUNT(*) FROM fact_interventions")
+            self.total_records = cursor.fetchone()[0]
+
+            if self.total_records == 0:
+                self.error_message = "No data in database. Please run data migration."
+                conn.close()
+                return
+
+            # Get available drugs (distinct, sorted)
+            cursor.execute("""
+                SELECT DISTINCT drug_name_std
+                FROM fact_interventions
+                WHERE drug_name_std IS NOT NULL AND drug_name_std != ''
+                ORDER BY drug_name_std
+            """)
+            self.available_drugs = [row[0] for row in cursor.fetchall()]
+
+            # Get available directories (distinct, sorted)
+            cursor.execute("""
+                SELECT DISTINCT directory
+                FROM fact_interventions
+                WHERE directory IS NOT NULL AND directory != ''
+                ORDER BY directory
+            """)
+            self.available_directorates = [row[0] for row in cursor.fetchall()]
+
+            # Get available indications from ref_drug_indication_clusters
+            cursor.execute("""
+                SELECT DISTINCT indication
+                FROM ref_drug_indication_clusters
+                WHERE indication IS NOT NULL AND indication != ''
+                ORDER BY indication
+            """)
+            self.available_indications = [row[0] for row in cursor.fetchall()]
+
+            # If no indications in reference table, use placeholder
+            if not self.available_indications:
+                self.available_indications = ["(No indications available)"]
+
+            # Get date range from data
+            cursor.execute("""
+                SELECT MIN(intervention_date), MAX(intervention_date)
+                FROM fact_interventions
+            """)
+            date_range = cursor.fetchone()
+            min_date, max_date = date_range
+
+            # Update latest_date_in_data and set "to" date defaults
+            if max_date:
+                self.latest_date_in_data = max_date
+                self.last_seen_to_date = max_date
+                self.initiated_to_date = max_date
+
+                # Set "from" date for last_seen filter (6 months before max_date)
+                max_dt = datetime.strptime(max_date, "%Y-%m-%d")
+                six_months_ago = max_dt - timedelta(days=180)
+                self.last_seen_from_date = six_months_ago.strftime("%Y-%m-%d")
+
+            # Get unique patient count for KPIs
+            cursor.execute("SELECT COUNT(DISTINCT upid) FROM fact_interventions")
+            self.unique_patients = cursor.fetchone()[0]
+
+            # Get unique drug count
+            self.total_drugs = len(self.available_drugs)
+
+            # Get total cost
+            cursor.execute("SELECT SUM(price_actual) FROM fact_interventions")
+            total_cost_result = cursor.fetchone()[0]
+            self.total_cost = float(total_cost_result) if total_cost_result else 0.0
+
+            conn.close()
+
+            # Set data_loaded and last_updated
+            self.data_loaded = True
+            self.last_updated = datetime.now().isoformat()
+            self.error_message = ""
+
+        except sqlite3.Error as e:
+            self.error_message = f"Database error: {str(e)}"
+            self.data_loaded = False
+        except Exception as e:
+            self.error_message = f"Failed to load data: {str(e)}"
+            self.data_loaded = False
 
 
 # =============================================================================
@@ -1332,5 +1444,5 @@ app = rx.App(
     ],
 )
 
-# Register page
-app.add_page(index, route="/", title="HCD Analysis | Patient Pathways")
+# Register page with on_load handler to load data on app initialization
+app.add_page(index, route="/", title="HCD Analysis | Patient Pathways", on_load=AppState.load_data)

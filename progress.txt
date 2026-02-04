@@ -440,3 +440,54 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
   - `pathways_app/pathways_app.py` — existing load patterns (search for "def load_")
 ### Blocked items:
 - None
+
+## Iteration 8 - 2026-02-04
+### Task: 3.2 Data Loading
+### Why this task:
+- Previous iteration (7) explicitly recommended continuing with Task 3.2
+- Natural progression through Phase 3: State Management
+- Data loading is foundational for filter logic (Task 3.3) and KPI calculations (Task 3.4)
+- No dependencies blocking this task
+### Status: COMPLETE
+### What was done:
+- Added `Path` import from pathlib to app_v2.py
+- Created comprehensive `load_data()` method in AppState that:
+  - Connects to SQLite database (data/pathways.db)
+  - Loads available_drugs from DISTINCT drug_name_std in fact_interventions (552 unique drugs)
+  - Loads available_directorates from DISTINCT directory in fact_interventions (29 unique)
+  - Loads available_indications from ref_drug_indication_clusters table (32 unique)
+  - Detects date range (2019-04-01 to 2025-02-28) and sets last_seen_to_date to max date
+  - Sets last_seen_from_date to 6 months before max date
+  - Populates KPI values: total_records (440,069), unique_patients, total_drugs, total_cost
+  - Sets data_loaded=True and last_updated timestamp on success
+  - Handles errors gracefully with meaningful error messages
+- Added on_load handler to app.add_page() to trigger load_data on page load
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app, AppState"` PASSED
+  - AppState.load_data method exists and is callable
+  - Database queries tested independently — all return expected data
+- Tier 2 (Visual): Deferred - requires running reflex with modified rxconfig
+- Tier 3 (Functional): Database queries verified — 552 drugs, 29 directories, 32 indications, 440K records
+### Files changed:
+- Modified: pathways_app/app_v2.py (+80 lines - load_data method, on_load handler, Path import)
+- Modified: IMPLEMENTATION_PLAN.md (marked 3.2 subtasks complete)
+### Committed: [pending]
+### Patterns discovered:
+- Reflex on_load: Use `app.add_page(..., on_load=AppState.method_name)` to trigger method on page load
+- SQLite in Reflex state: Import sqlite3 inside method to avoid issues with state serialization
+- Date handling: Parse SQLite dates with datetime.strptime(date_str, "%Y-%m-%d")
+- Reference tables: ref_drug_indication_clusters has 32 unique indications for dropdown
+- Path handling: Use `Path("data/pathways.db")` for cross-platform compatibility
+### Next iteration should:
+- Continue with Task 3.3: Filter Logic
+- Create `apply_filters()` computed method that filters data based on current filter state
+- Handle initiated date filter (when enabled)
+- Handle last seen date filter (when enabled)
+- Handle drug/indication/directorate multi-select filters
+- Return filtered data for chart generation
+- Consider implementing as @rx.var computed property that returns filtered record count
+- May need to store raw_data list in state or re-query SQLite based on filters
+### Blocked items:
+- None

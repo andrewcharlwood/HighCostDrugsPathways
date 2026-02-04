@@ -115,11 +115,11 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
   - `current_chart: str = "icicle"`
 
 ### 3.2 Data Loading
-- [ ] Create `load_data()` method that reads from SQLite
-- [ ] Populate available options for dropdowns (drugs, indications, directorates)
-- [ ] Detect latest date in dataset for "to" date defaults
-- [ ] Calculate total records and last updated timestamp
-- [ ] Call on app initialization
+- [x] Create `load_data()` method that reads from SQLite
+- [x] Populate available options for dropdowns (drugs, indications, directorates)
+- [x] Detect latest date in dataset for "to" date defaults
+- [x] Calculate total records and last updated timestamp
+- [x] Call on app initialization
 
 ### 3.3 Filter Logic
 - [ ] Create `apply_filters()` computed method that filters the data based on current state
