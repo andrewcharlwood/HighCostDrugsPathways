@@ -697,3 +697,50 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
 - Visual validation requires running the app (Phase 5 task)
+
+## Iteration 13 - 2026-02-04
+### Task: 5.4 Final Verification (partial) + 5.5 Cleanup (partial)
+### Why this task:
+- Previous iteration (12) completed Phase 4 and recommended starting Phase 5
+- Progress.txt specifically noted "Visual validation requires running the app"
+- Before any Phase 5 work (visual polish, error handling, etc.), need to actually run the app
+- Updating __init__.py to enable app_v2 unblocks ALL Phase 5 visual validation tasks
+### Status: COMPLETE
+### What was done:
+- Created/updated `pathways_app/__init__.py` to re-export app from app_v2:
+  ```python
+  from pathways_app.app_v2 import app
+  __all__ = ["app"]
+  ```
+- Verified import chain: `from pathways_app import app` now loads app_v2
+- Ran `reflex run` to verify compilation:
+  - Compilation: **33/33 components compiled successfully**
+  - Backend started on port 8002
+  - Frontend running on localhost:3003
+- Note: FileNotFoundError in watchfiles is Windows hot-reload issue, doesn't affect app operation
+- Port conflicts resolved automatically (8000, 8001 in use → used 8002)
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/__init__.py` PASSED
+  - `python -c "from pathways_app import app"` PASSED
+  - `reflex run` compilation: 33/33 PASSED
+- Tier 2 (Visual): App is now accessible at localhost:3003 for visual testing
+- Tier 3 (Functional): Deferred to next iteration — data loading and filter testing
+### Files changed:
+- Created: pathways_app/__init__.py (3 lines)
+- Modified: IMPLEMENTATION_PLAN.md (marked completion criteria items)
+### Committed: e099538 "feat: enable app_v2 via package init, verify reflex compilation"
+### Patterns discovered:
+- Reflex looks for app in `{app_name}/__init__.py` or `{app_name}/{app_name}.py`
+- Re-exporting from __init__.py cleanly switches to app_v2 without changing rxconfig
+- Windows watchfiles error is cosmetic — app still runs
+- Port conflicts auto-resolve to next available port (8002 when 8000/8001 busy)
+### Next iteration should:
+- Open browser to localhost:3003 and visually verify the app renders
+- Test data loading: Does load_data() populate the dropdowns with real drugs/directorates?
+- Test filter interactions: Do KPIs update when filters change?
+- Test chart rendering: Does the icicle chart appear with real data?
+- Document any visual issues or bugs found for Task 5.1 (Visual Polish)
+- If major issues found, fix them before polish work
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
