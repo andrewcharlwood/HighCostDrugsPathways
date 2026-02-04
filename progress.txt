@@ -473,7 +473,7 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Files changed:
 - Modified: pathways_app/app_v2.py (+80 lines - load_data method, on_load handler, Path import)
 - Modified: IMPLEMENTATION_PLAN.md (marked 3.2 subtasks complete)
-### Committed: [pending]
+### Committed: f38ccfc "feat: implement data loading from SQLite (Task 3.2)"
 ### Patterns discovered:
 - Reflex on_load: Use `app.add_page(..., on_load=AppState.method_name)` to trigger method on page load
 - SQLite in Reflex state: Import sqlite3 inside method to avoid issues with state serialization
@@ -491,3 +491,163 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 - May need to store raw_data list in state or re-query SQLite based on filters
 ### Blocked items:
 - None
+
+## Iteration 9 - 2026-02-04
+### Task: 3.3 Filter Logic
+### Why this task:
+- Previous iteration (8) explicitly recommended continuing with Task 3.3
+- Filter logic is foundational for KPI calculations (Task 3.4) and chart generation (Phase 4)
+- Natural progression through Phase 3: State Management
+- Bridges data loading with reactive UI updates
+### Status: COMPLETE
+### What was done:
+- Created `apply_filters()` method that queries SQLite with current filter state
+- Implemented patient-level date filtering using CTE (Common Table Expression):
+  - "Initiated" filter: MIN(intervention_date) per patient within date range
+  - "Last Seen" filter: MAX(intervention_date) per patient within date range
+- Implemented drug and directorate multi-select filters using SQL IN clauses
+- Dynamic WHERE clause building based on which filters have selections
+- Updated KPI values (unique_patients, total_drugs, total_cost) from filtered results
+- Added apply_filters() calls to all filter event handlers:
+  - toggle_initiated_filter(), toggle_last_seen_filter()
+  - set_initiated_from/to(), set_last_seen_from/to()
+  - toggle_drug(), toggle_directorate()
+  - select_all_drugs(), clear_all_drugs()
+  - select_all_directorates(), clear_all_directorates()
+- Called apply_filters() after initial data load in load_data()
+- Note: Indication filter not implemented at DB level (indications are derived from drug mappings)
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app, AppState"` PASSED
+  - AppState.apply_filters exists and is callable
+- Tier 2 (Visual): Deferred - requires running app with modified config
+- Tier 3 (Functional): SQL query patterns tested directly against database:
+  - Total unique patients: 35,032
+  - With Last Seen filter (last 6 months): 19,849 patients, 461 drugs, £211.5M
+  - ADALIMUMAB only: 2,839 patients, 1 drug, £14.4M
+  - RHEUMATOLOGY only: 3,540 patients, 104 drugs, £45.8M
+### Files changed:
+- Modified: pathways_app/app_v2.py (+167 lines - apply_filters method, event handler updates)
+- Modified: IMPLEMENTATION_PLAN.md (marked 3.3 subtasks complete)
+### Committed: cd15ab6 "feat: implement filter logic with reactive KPI updates (Task 3.3)"
+### Patterns discovered:
+- CTE pattern for patient-level aggregation: Use WITH clause to compute per-patient first/last dates, then JOIN back to get full records
+- Dynamic SQL building: Build WHERE clauses incrementally, use HAVING for aggregated conditions
+- COALESCE for null handling: `COALESCE(SUM(price_actual), 0)` prevents None when no records match
+- Directory names in DB are UPPERCASE: "RHEUMATOLOGY" not "Rheumatology"
+- SQLite IN clause with list: Use `",".join("?" * len(items))` for placeholder generation
+### Next iteration should:
+- Continue with Task 3.4: KPI Calculations
+- The KPI calculations are already done inside apply_filters() - Task 3.4 may already be complete
+- Review if any additional computed properties are needed:
+  - Currently: unique_patients, total_drugs, total_cost updated in apply_filters()
+  - indication_match_rate still shows "—" (match rate calculation not implemented)
+- Consider implementing indication match rate calculation (requires Snowflake GP data lookup)
+- OR if 3.4 is effectively complete, move to Phase 4: Interactive Chart (4.1 Chart Data Preparation)
+### Blocked items:
+- indication_match_rate calculation requires GP diagnosis data from Snowflake (not currently available in SQLite)
+- Visual validation still blocked until rxconfig is updated to point to app_v2
+
+## Iteration 10 - 2026-02-04
+### Task: 3.4 (review) + 4.1 Chart Data Preparation
+### Why this task:
+- Previous iteration (9) noted that Task 3.4 might already be complete since KPIs are computed in apply_filters()
+- Reviewed Task 3.4: unique_patients, total_drugs, total_cost all implemented and reactive
+- Only incomplete item (indication_match_rate) is blocked by Snowflake GP data
+- Marked 3.4 complete and moved to Phase 4: Interactive Chart
+- Task 4.1 is next logical step: prepare data for Plotly icicle chart
+### Status: COMPLETE
+### What was done:
+- Reviewed Task 3.4: Confirmed KPI calculations already implemented in apply_filters()
+- Marked Task 3.4 complete in IMPLEMENTATION_PLAN.md
+- Implemented `prepare_chart_data()` method in AppState:
+  - Queries filtered data from SQLite
+  - Builds hierarchical structure: Root → Trust → Directory → Drug
+  - Calculates patient counts and costs at each level
+  - Computes colour values (proportions) for visualization
+  - Stores result in `chart_data` (list of dicts) for Reflex serialization
+- Added `chart_data` and `chart_title` state variables
+- Implemented `_generate_chart_title()` helper for dynamic titles
+- Called `prepare_chart_data()` from `apply_filters()` for reactive updates
+- Fixed SQL query to use correct column names (provider_code, org_name from fact_interventions)
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app, AppState"` PASSED
+  - Methods exist: prepare_chart_data, _generate_chart_title
+- Tier 2 (Visual): Deferred - requires Plotly integration (Task 4.3)
+- Tier 3 (Functional): SQL query tested directly - returns correct hierarchical data:
+  - Sample: "Norfolk and Norwich University | OPHTHALMOLOGY | RANIBIZUMAB | 1801 patients | £9.4M"
+### Files changed:
+- Modified: pathways_app/app_v2.py (+280 lines - prepare_chart_data, _generate_chart_title, chart_data/chart_title vars)
+- Modified: IMPLEMENTATION_PLAN.md (marked 3.4 and 4.1 complete)
+### Committed: 14f970d "feat: implement chart data preparation (Task 4.1)"
+### Patterns discovered:
+- fact_interventions already has org_name column - no need to join ref_organizations
+- Column is provider_code not org_code in fact_interventions
+- Chart data stored as list[dict[str, Any]] for Reflex serialization (DataFrames don't work)
+- Color values computed as proportion of parent total (value/parent_total)
+### Next iteration should:
+- Continue with Task 4.2: Reactive Plotly Integration
+- Create `generate_icicle_chart()` computed property that returns Plotly Figure
+- Use chart_data from state to build go.Icicle()
+- Configure chart colors using design system palette (may need to convert colour to proper colorscale)
+- Set responsive sizing
+- Reference visualization/plotly_generator.py for working go.Icicle() patterns
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Visual validation blocked until Plotly integration complete
+
+## Iteration 11 - 2026-02-04
+### Task: 4.2 Reactive Plotly Integration
+### Why this task:
+- Previous iteration (10) explicitly recommended continuing with Task 4.2
+- Natural progression through Phase 4: Interactive Chart
+- Chart data preparation (Task 4.1) is complete, now need figure generation
+- Task 4.3 (Chart Component) depends on 4.2 being complete
+### Status: COMPLETE
+### What was done:
+- Added `import plotly.graph_objects as go` to app_v2.py
+- Created `icicle_figure` computed property (@rx.var) in AppState
+- Implementation:
+  - Extracts lists from chart_data (parents, ids, labels, values, costs, colours)
+  - Uses NHS-inspired blue gradient colorscale:
+    - [0.0, "#003087"] Heritage Blue
+    - [0.25, "#0066CC"] Primary Blue
+    - [0.5, "#1E88E5"] Vibrant Blue
+    - [0.75, "#4FC3F7"] Sky Blue
+    - [1.0, "#E3F2FD"] Pale Blue
+  - Creates go.Icicle with customdata for hover (values, colours, costs)
+  - Text template shows label + patient count
+  - Hover template shows full details (patients, percentage of parent, cost)
+  - Layout configured with Inter font family, transparent background, 600px height
+  - Maintains hierarchy order with sort=False
+- Returns empty go.Figure() when chart_data is empty
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app, AppState"` PASSED
+  - `hasattr(AppState, 'icicle_figure')` returns True
+  - Tested figure creation with sample data - creates valid go.Figure
+- Tier 2 (Visual): Deferred to Task 4.3 — requires rx.plotly() integration
+- Tier 3 (Functional): Figure generation tested with mock chart_data
+### Files changed:
+- Modified: pathways_app/app_v2.py (+111 lines - plotly import, icicle_figure computed property)
+- Modified: IMPLEMENTATION_PLAN.md (marked 4.2 complete)
+### Committed: ec8f8dc "feat: implement reactive Plotly icicle chart generation (Task 4.2)"
+### Patterns discovered:
+- @rx.var decorated properties can return Plotly Figure objects
+- Custom colorscale: list of [position, color] pairs where position is 0.0-1.0
+- customdata=list(zip(...)) works for packaging multiple values for hover template
+- Transparent background: paper_bgcolor="rgba(0,0,0,0)" and plot_bgcolor="rgba(0,0,0,0)"
+### Next iteration should:
+- Continue with Task 4.3: Chart Component
+- Replace chart_ready_placeholder() with actual rx.plotly() component
+- Pass AppState.icicle_figure to rx.plotly()
+- Test with real data by running reflex (may need to update rxconfig or __init__.py)
+- Handle edge cases: empty figure, loading state transitions
+- Verify chart updates when filters change
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Visual validation still needs running app (Task 4.3 will enable this)
