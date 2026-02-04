@@ -1029,6 +1029,8 @@ def date_range_picker(
     """
     Date range picker with enable/disable checkbox.
 
+    Uses debounced inputs (300ms) to prevent excessive filter updates.
+
     Args:
         label: Label for the date range (e.g., "Initiated", "Last Seen")
         enabled: Whether the filter is active
@@ -1056,21 +1058,24 @@ def date_range_picker(
             align="center",
             spacing="2",
         ),
-        # Date inputs
+        # Date inputs (debounced 300ms)
         rx.hstack(
             rx.vstack(
                 rx.text(
                     "From",
                     **text_caption(),
                 ),
-                rx.input(
-                    type="date",
-                    value=from_value,
-                    on_change=on_from_change,
-                    disabled=~enabled,
-                    **input_style(),
-                    width="140px",
-                    opacity=rx.cond(enabled, "1", "0.5"),
+                rx.debounce_input(
+                    rx.input(
+                        type="date",
+                        value=from_value,
+                        on_change=on_from_change,
+                        disabled=~enabled,
+                        **input_style(),
+                        width="140px",
+                        opacity=rx.cond(enabled, "1", "0.5"),
+                    ),
+                    debounce_timeout=300,
                 ),
                 spacing="1",
                 align="start",
@@ -1080,14 +1085,17 @@ def date_range_picker(
                     "To",
                     **text_caption(),
                 ),
-                rx.input(
-                    type="date",
-                    value=to_value,
-                    on_change=on_to_change,
-                    disabled=~enabled,
-                    **input_style(),
-                    width="140px",
-                    opacity=rx.cond(enabled, "1", "0.5"),
+                rx.debounce_input(
+                    rx.input(
+                        type="date",
+                        value=to_value,
+                        on_change=on_to_change,
+                        disabled=~enabled,
+                        **input_style(),
+                        width="140px",
+                        opacity=rx.cond(enabled, "1", "0.5"),
+                    ),
+                    debounce_timeout=300,
                 ),
                 spacing="1",
                 align="start",
@@ -1115,6 +1123,8 @@ def searchable_dropdown(
 ) -> rx.Component:
     """
     Searchable multi-select dropdown component.
+
+    Uses debounced search input (300ms) for smooth filtering.
 
     Args:
         label: Label for the dropdown
@@ -1170,16 +1180,19 @@ def searchable_dropdown(
                 is_open,
                 rx.box(
                     rx.vstack(
-                        # Search input
+                        # Search input (debounced 300ms)
                         rx.hstack(
                             rx.icon("search", size=14, color=Colors.SLATE_500),
-                            rx.input(
-                                placeholder="Search...",
-                                value=search_value,
-                                on_change=on_search_change,
-                                variant="soft",
-                                size="2",
-                                width="100%",
+                            rx.debounce_input(
+                                rx.input(
+                                    placeholder="Search...",
+                                    value=search_value,
+                                    on_change=on_search_change,
+                                    variant="soft",
+                                    size="2",
+                                    width="100%",
+                                ),
+                                debounce_timeout=300,
                             ),
                             spacing="2",
                             align="center",
