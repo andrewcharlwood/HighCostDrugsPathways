@@ -863,3 +863,56 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
 - Manual browser testing recommended but not strictly blocking
+
+## Iteration 16 - 2026-02-04
+### Task: 5.3 Error Handling
+### Why this task:
+- Previous iteration (15) completed Task 5.1 (Visual Polish) and recommended Phase 5 continuation
+- Error handling is foundational for a good user experience
+- All core error scenarios needed verification and messages needed improvement
+- Task 5.3 specifically addresses error handling requirements in IMPLEMENTATION_PLAN.md
+### Status: COMPLETE
+### What was done:
+- Reviewed existing error handling infrastructure in app_v2.py:
+  - load_data(): Handles missing DB, empty DB, SQLite errors, generic exceptions
+  - apply_filters(): Handles missing DB, SQLite errors, generic exceptions
+  - prepare_chart_data(): Handles missing DB, SQLite errors, generic exceptions
+- Verified UI state rendering handles all error scenarios:
+  - Loading state: chart_loading = True → skeleton animation
+  - Error state: error_message != "" → error state component
+  - Empty state: data_loaded & unique_patients == 0 → empty state component
+  - Ready state: Otherwise → Plotly chart
+- Verified defensive programming: Filter handlers check data_loaded before calling apply_filters()
+- Improved all error messages to be more user-friendly and actionable:
+  - "Database not found" → "Database not found. Please ensure the data has been loaded (data/pathways.db)."
+  - "Database error: X" → "Unable to load/filter/generate chart. Database error: X"
+  - "Failed to load data: X" → "Failed to load data. Please check the database file. Details: X"
+  - Added context to all error messages indicating what action failed
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - All error handling code paths verified via grep analysis
+- Tier 2 (Visual): N/A - error handling is code-level, no visual changes
+- Tier 3 (Functional): Error scenarios analyzed:
+  1. Missing database → error_message set, chart shows error state ✓
+  2. Empty database → error_message set, chart shows error state ✓
+  3. SQLite error → error_message set, chart shows error state ✓
+  4. Zero filter results → empty state shown via unique_patients == 0 ✓
+### Files changed:
+- Modified: pathways_app/app_v2.py (12 error messages updated)
+- Modified: IMPLEMENTATION_PLAN.md (marked 5.3 subtasks complete)
+### Committed: 6c3b3ab "feat: improve error handling with user-friendly messages (Task 5.3)"
+### Patterns discovered:
+- Error handling in Reflex: Set error_message state var, use rx.cond() to show error UI component
+- Defensive programming: Check data_loaded before operations that depend on loaded data
+- User-friendly messages should: describe what failed, suggest what to do, include technical details
+- Priority-based state rendering: loading → error → empty → ready works well for nested rx.cond()
+### Next iteration should:
+- Task 5.2: Performance Optimization (debounce implementation still pending from 2.2)
+- OR Task 5.4 remaining items: Compare metrics with original app
+- OR Task 5.5 remaining items: Update README, document changes
+- Note: Debounce (300ms) was deferred during Phase 2 - implementing it would satisfy completion criteria
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Debounce not implemented yet - needed for "instant (debounced) updates" completion criterion
