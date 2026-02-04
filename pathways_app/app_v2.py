@@ -13,6 +13,7 @@ from pathways_app.styles import (
     Spacing,
     Radii,
     Shadows,
+    Transitions,
     TOP_BAR_HEIGHT,
     PAGE_MAX_WIDTH,
     PAGE_PADDING,
@@ -47,49 +48,114 @@ class AppState(rx.State):
 # Layout Components
 # =============================================================================
 
+def chart_tab(label: str, chart_type: str, is_active: bool = False) -> rx.Component:
+    """
+    Individual chart type tab/pill for top bar navigation.
+
+    Active state: White background with Heritage Blue text
+    Inactive state: Transparent with white text, hover shows Vibrant Blue background
+    """
+    return rx.box(
+        rx.text(
+            label,
+            font_size=Typography.BODY_SMALL_SIZE,
+            font_weight="500",
+            color=Colors.HERITAGE_BLUE if is_active else Colors.WHITE,
+            font_family=Typography.FONT_FAMILY,
+        ),
+        background_color=Colors.WHITE if is_active else "transparent",
+        padding_x=Spacing.LG,
+        padding_y=Spacing.SM,
+        border_radius=Radii.FULL,
+        cursor="pointer",
+        transition=f"background-color {Transitions.COLOR}",
+        _hover={
+            "background_color": Colors.WHITE if is_active else "rgba(255,255,255,0.15)",
+        },
+        # Future: on_click handler to switch chart type
+    )
+
+
 def top_bar() -> rx.Component:
     """
     Top navigation bar component.
 
     Contains: Logo + App Name | Chart Type Tabs | Data Freshness Indicator
     Fixed height: 64px (from design system)
-
-    Will be fully implemented in Task 2.1.
+    Heritage Blue background with white text.
     """
     return rx.box(
         rx.hstack(
-            # Left: Logo and title (placeholder)
+            # Left: Logo and App Title
             rx.hstack(
+                rx.image(
+                    src="/logo.png",
+                    height="36px",
+                    alt="NHS Logo",
+                ),
                 rx.text(
                     "HCD Analysis",
                     font_size=Typography.H2_SIZE,
                     font_weight=Typography.H2_WEIGHT,
                     color=Colors.WHITE,
                     font_family=Typography.FONT_FAMILY,
+                    letter_spacing="-0.01em",
                 ),
                 align="center",
                 spacing="3",
             ),
-            # Center: Chart tabs (placeholder)
+            # Center: Chart Type Tabs
             rx.hstack(
-                rx.text(
-                    "Icicle Chart",
-                    font_size=Typography.BODY_SIZE,
-                    color=Colors.WHITE,
-                    opacity="0.9",
+                chart_tab("Icicle", "icicle", is_active=True),
+                chart_tab("Sankey", "sankey", is_active=False),
+                chart_tab("Timeline", "timeline", is_active=False),
+                spacing="2",
+                align="center",
+                background_color="rgba(255,255,255,0.1)",
+                padding=Spacing.XS,
+                border_radius=Radii.FULL,
+            ),
+            # Right: Data Freshness Indicator
+            rx.hstack(
+                rx.icon(
+                    "database",
+                    size=16,
+                    color=Colors.SKY,
+                ),
+                rx.vstack(
+                    rx.text(
+                        rx.cond(
+                            AppState.data_loaded,
+                            AppState.total_records.to_string() + " records",
+                            "Loading data...",
+                        ),
+                        font_size=Typography.CAPTION_SIZE,
+                        font_weight="500",
+                        color=Colors.WHITE,
+                        font_family=Typography.FONT_FAMILY,
+                    ),
+                    rx.text(
+                        rx.cond(
+                            AppState.data_loaded,
+                            "Last refreshed: recently",
+                            "Connecting...",
+                        ),
+                        font_size="11px",
+                        color=Colors.WHITE,
+                        opacity="0.7",
+                        font_family=Typography.FONT_FAMILY,
+                    ),
+                    spacing="0",
+                    align="end",
                 ),
                 spacing="2",
-            ),
-            # Right: Data freshness (placeholder)
-            rx.text(
-                "Data loading...",
-                font_size=Typography.CAPTION_SIZE,
-                color=Colors.WHITE,
-                opacity="0.7",
+                align="center",
             ),
             justify="between",
             align="center",
             width="100%",
+            max_width=PAGE_MAX_WIDTH,
+            margin_x="auto",
             padding_x=Spacing.XL,
         ),
         background_color=Colors.HERITAGE_BLUE,

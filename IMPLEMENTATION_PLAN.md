@@ -51,14 +51,14 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 ## Phase 2: Layout Components
 
 ### 2.1 Top Navigation Bar
-- [ ] Create `top_bar()` component:
+- [x] Create `top_bar()` component:
   - Logo (use existing NHS person logo from assets)
   - App title "HCD Analysis"
   - Chart type tabs/pills (Icicle active, placeholders for future charts)
   - Data freshness indicator (right side): "12,450 records (2d ago)"
-- [ ] Style with Heritage Blue accents, clean typography
-- [ ] Fixed height: 64px
-- [ ] Verify renders correctly
+- [x] Style with Heritage Blue accents, clean typography
+- [x] Fixed height: 64px
+- [x] Verify renders correctly
 
 ### 2.2 Filter Section
 - [ ] Create `filter_section()` component with card styling
