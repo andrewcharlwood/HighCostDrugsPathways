@@ -69,18 +69,19 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 ## Phase 2: CLI Refresh Command
 
 ### 2.1 Create Refresh Command
-- [ ] Create `cli/refresh_pathways.py` with:
-  - DATE_FILTER_CONFIGS constant (6 combinations)
-  - `compute_date_ranges(config, max_date)` - Calculate actual dates from config
+- [x] Create `cli/refresh_pathways.py` with:
+  - Uses DATE_FILTER_CONFIGS and compute_date_ranges from pathway_pipeline.py
   - `refresh_pathways(minimum_patients, provider_codes, ...)` main function
-- [ ] Implement refresh flow:
-  1. Fetch ALL data from Snowflake (full date range)
-  2. Apply transformations (UPID, drug names, directory)
-  3. Clear existing pathway_nodes
+  - `insert_pathway_records()` for SQLite insertion
+  - `log_refresh_start/complete/failed()` for refresh tracking
+- [x] Implement refresh flow:
+  1. Fetch ALL data from Snowflake (full date range) via fetch_and_transform_data()
+  2. Apply transformations (UPID, drug names, directory) - handled by pipeline
+  3. Clear existing pathway_nodes via clear_pathway_nodes()
   4. For each of 6 date filter configs: filter → process → insert
   5. Update pathway_refresh_log
-- [ ] Add CLI argument parsing (--minimum-patients, --provider-codes, etc.)
-- [ ] Verify: `python -m cli.refresh_pathways --help`
+- [x] Add CLI argument parsing (--minimum-patients, --provider-codes, --dry-run, --verbose)
+- [x] Verify: `python -m cli.refresh_pathways --help`
 
 ### 2.2 Test Refresh Pipeline
 - [ ] Run refresh with Snowflake data
