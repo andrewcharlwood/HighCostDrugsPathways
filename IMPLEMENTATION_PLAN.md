@@ -129,17 +129,22 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Return filtered DataFrame
 
 ### 3.4 KPI Calculations
-- [ ] Create computed properties for KPI values:
+- [x] Create computed properties for KPI values:
   - `unique_patients: int` — COUNT(DISTINCT patient_id) from filtered data
-  - (Future: drug count, total cost, indication match rate)
-- [ ] Ensure KPIs update reactively when filters change
+  - `total_drugs: int` — COUNT(DISTINCT drug_name_std) from filtered data
+  - `total_cost: float` — SUM(price_actual) from filtered data
+  - (Blocked: indication_match_rate requires Snowflake GP data)
+- [x] Ensure KPIs update reactively when filters change
+- Note: KPIs implemented in apply_filters() method, called by all filter event handlers
 
 ## Phase 4: Interactive Chart
 
 ### 4.1 Chart Data Preparation
-- [ ] Create `prepare_chart_data()` method that transforms filtered data for Plotly icicle
-- [ ] Reuse/adapt logic from existing `pathway_analyzer.py`
-- [ ] Return data structure compatible with `plotly.express.icicle()`
+- [x] Create `prepare_chart_data()` method that transforms filtered data for Plotly icicle
+- [x] Reuse/adapt logic from existing `pathway_analyzer.py` (simplified hierarchy: Trust → Directory → Drug)
+- [x] Return data structure compatible with `go.Icicle()` (list of dicts with parents, ids, labels, value, cost, colour)
+- [x] Generate chart_title based on current filter state
+- [x] Call prepare_chart_data() from apply_filters() for reactive updates
 
 ### 4.2 Reactive Plotly Integration
 - [ ] Create `generate_icicle_chart()` computed property that returns Plotly figure
