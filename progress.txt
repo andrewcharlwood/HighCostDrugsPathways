@@ -139,3 +139,55 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 - May need to set up a way to test app_v2.py via reflex run (update __init__.py)
 ### Blocked items:
 - None
+
+## Iteration 3 - 2026-02-04
+### Task: 2.1 Top Navigation Bar
+### Why this task:
+- Previous iteration (2) completed Task 1.2 (app skeleton)
+- Progress.txt explicitly recommended starting Task 2.1 as next step
+- Top bar is foundational for single-page layout structure
+- No dependencies blocking this task; logical first step in Phase 2
+### Status: COMPLETE
+### What was done:
+- Created `chart_tab()` helper component for chart type pills:
+  - Active state: White background with Heritage Blue text
+  - Inactive state: Transparent with white text, hover shows subtle white overlay
+  - Pill shape using Radii.FULL, smooth transition animations
+- Implemented full `top_bar()` component with three sections:
+  - Left: Logo (`/logo.png`) + "HCD Analysis" title with H2 typography
+  - Center: Chart type tabs (Icicle active, Sankey/Timeline placeholders) in a subtle background container
+  - Right: Data freshness indicator with database icon, reactive record count using `rx.cond()`, and "Last refreshed" text
+- Heritage Blue background, white text, 64px fixed height per design system
+- Used design tokens throughout (Colors, Typography, Spacing, Radii, Transitions)
+- Added Transitions import to app_v2.py
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - Component type validation: top_bar() returns Box, chart_tab() returns Box
+- Tier 2 (Visual): Deferred - requires running app with modified config (rxconfig points to pathways_app.py)
+- Tier 3 (Functional): N/A for static layout component (reactive parts tested via rx.cond structure)
+### Files changed:
+- Modified: pathways_app/app_v2.py (added chart_tab, rewrote top_bar, added Transitions import)
+- Modified: IMPLEMENTATION_PLAN.md (marked 2.1 subtasks complete)
+### Committed: a8d9f7b "feat: implement top navigation bar (Task 2.1)"
+### Patterns discovered:
+- `rx.cond(condition, true_val, false_val)` works well for conditional text content
+- For string concatenation with Vars, use `AppState.total_records.to_string() + " records"` pattern
+- Pill-style tabs: Use `Radii.FULL` for border-radius, wrap in container with subtle background
+- The existing app uses `rx.icon("database", size=16, color=...)` for Lucide icons
+### Next iteration should:
+- Continue with Task 2.2: Filter Section
+- Create filter_section() component with:
+  - Two date range pickers: "Initiated" (default OFF) and "Last Seen" (default ON, last 6 months)
+  - Searchable multi-select dropdowns for Drugs, Indications, Directorates
+  - Card styling per design system
+- This is a larger task - may need to break into subtasks:
+  1. Create the card container and layout structure
+  2. Implement date range controls with enable/disable checkboxes
+  3. Implement searchable multi-select dropdowns (this is complex in Reflex)
+- Reference existing pathways_app.py for dropdown patterns
+- Consider debounce implementation (300ms) - may need to defer to Phase 3
+### Blocked items:
+- Visual validation blocked until we can run app_v2 via reflex (need to modify rxconfig or __init__.py)
+- For now, code validation is sufficient since components return correct types
