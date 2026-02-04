@@ -155,3 +155,47 @@ The `ids` column in ice_df contains hierarchical paths like:
 - The CLI needs to: parse args, fetch Snowflake data, process all 6 filters, insert to SQLite, log status
 ### Blocked items:
 - None
+
+## Iteration 4 — 2026-02-04
+### Task: 2.1 Create CLI Refresh Command
+### Why this task:
+- All Phase 1 tasks (Schema, Pipeline, Migration) are complete
+- Task 2.1 is the natural next step — the CLI is needed to populate pathway_nodes before Reflex integration
+- Previous iteration explicitly recommended this task
+- CLI provides a way to test the full pipeline end-to-end before UI work
+### Status: COMPLETE
+### What was done:
+- Created `cli/__init__.py` package marker
+- Created `cli/refresh_pathways.py` with full CLI implementation:
+  - `refresh_pathways()` main function that orchestrates the full pipeline
+  - `insert_pathway_records()` for SQLite insertion using parameterized queries
+  - `log_refresh_start()`, `log_refresh_complete()`, `log_refresh_failed()` for refresh tracking
+  - `get_default_filters()` to load trusts/drugs/directories from CSV files
+  - CLI argument parsing: --minimum-patients, --provider-codes, --db-path, --dry-run, --verbose
+- Integrated with existing pipeline functions (no code duplication):
+  - Uses `fetch_and_transform_data()` from pathway_pipeline.py
+  - Uses `process_all_date_filters()` for all 6 date filter combinations
+  - Uses schema helpers from data_processing/schema.py
+### Validation results:
+- Tier 1 (Code): ✅ python -m py_compile passed
+- Tier 1 (Code): ✅ Import check passed
+- Tier 1 (Code): ✅ `python -m cli.refresh_pathways --help` works correctly
+- Tier 2 (Visual): N/A (CLI, no UI)
+- Tier 3 (Functional): Not yet tested with real Snowflake data (Task 2.2)
+### Files changed:
+- `cli/__init__.py` — new package marker
+- `cli/refresh_pathways.py` — new CLI module (~450 lines)
+- `IMPLEMENTATION_PLAN.md` — marked Task 2.1 subtasks complete
+### Committed: 092fdbb "feat: add CLI refresh command for pathway data (Task 2.1)"
+### Patterns discovered:
+- Reusing pipeline functions rather than duplicating DATE_FILTER_CONFIGS and compute_date_ranges is cleaner
+- setup_logging() function takes logging level constants (logging.DEBUG, logging.INFO), not strings
+- Good to use get_transaction() context manager for multi-statement inserts to ensure atomicity
+### Next iteration should:
+- Start Task 2.2: Test Refresh Pipeline with real Snowflake data
+- This requires Snowflake SSO authentication (browser popup expected)
+- Run: `python -m cli.refresh_pathways --dry-run -v` first to test without DB changes
+- Then run full refresh and verify all 6 date_filter_ids are populated
+- Compare patient counts with original app to validate correctness
+### Blocked items:
+- None
