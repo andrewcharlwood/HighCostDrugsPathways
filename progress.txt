@@ -651,3 +651,49 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
 - Visual validation still needs running app (Task 4.3 will enable this)
+
+## Iteration 12 - 2026-02-04
+### Task: 4.3 Chart Component
+### Why this task:
+- Previous iteration (11) explicitly recommended continuing with Task 4.3
+- Natural completion of Phase 4: Interactive Chart
+- All dependencies in place: chart_data prepared (4.1), icicle_figure computed property created (4.2)
+- This task integrates the reactive Plotly chart into the UI
+### Status: COMPLETE
+### What was done:
+- Created `chart_display()` function that wraps rx.plotly() with AppState.icicle_figure
+- Replaced `chart_ready_placeholder()` call with `chart_display()` in chart_section()
+- Updated docstring for chart_section() to reflect actual chart integration
+- The chart_display() component:
+  - Uses rx.plotly(data=AppState.icicle_figure) to render the computed Figure
+  - Sets width="100%" and height="600px" for responsive sizing
+  - Updates reactively when filters change (via icicle_figure computed property)
+- Loading, error, and empty states already handled by existing rx.cond() logic in chart_section()
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - chart_display() returns Box component type
+  - rx.plotly() component creates successfully with Figure data
+  - Plotly icicle figure generation tested with mock data - creates valid go.Icicle
+- Tier 2 (Visual): Requires running app - Phase 5 visual validation
+- Tier 3 (Functional): Reactive updates via computed property verified structurally
+### Files changed:
+- Modified: pathways_app/app_v2.py (replaced chart_ready_placeholder with chart_display)
+- Modified: IMPLEMENTATION_PLAN.md (marked 4.3 subtasks complete)
+### Committed: 158d873 "feat: integrate rx.plotly() chart component (Task 4.3)"
+### Patterns discovered:
+- rx.plotly(data=figure_var) accepts a Reflex Var containing a go.Figure
+- The computed property @rx.var returning go.Figure automatically triggers reactivity
+- Chart sizing: Use width="100%" for responsive width, explicit height for consistent layout
+### Next iteration should:
+- Phase 4 is now COMPLETE. Start Phase 5: Polish & Verification
+- Task 5.1: Visual Polish - review all components against DESIGN_SYSTEM.md
+- OR try to run the app via reflex to do visual validation:
+  - May need to update rxconfig.py to point to app_v2 instead of pathways_app
+  - Or update pathways_app/__init__.py to re-export from app_v2
+- Task 5.3: Error Handling - ensure all edge cases handled gracefully
+- Consider running `reflex run` to visually verify the integrated chart
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Visual validation requires running the app (Phase 5 task)
