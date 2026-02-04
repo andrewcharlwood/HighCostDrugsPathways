@@ -110,7 +110,7 @@ The `ids` column in ice_df contains hierarchical paths like:
 ### Files changed:
 - `data_processing/pathway_pipeline.py` — new file (~380 lines)
 - `IMPLEMENTATION_PLAN.md` — marked Task 1.2 subtasks complete
-### Committed: 3c68478 "feat: add pathway pipeline module (Task 1.2)"
+### Committed: 5945649 "feat: add pathway pipeline module (Task 1.2)"
 ### Patterns discovered:
 - The ids format uses " - " delimiter (space-hyphen-space), not "|" as noted in progress.txt — corrected in extract_denormalized_fields()
 - avg_days column from pathway_analyzer can be a timedelta — need to convert with .total_seconds() / 86400
