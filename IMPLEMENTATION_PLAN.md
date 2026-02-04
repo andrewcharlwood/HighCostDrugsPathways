@@ -61,17 +61,17 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Verify renders correctly
 
 ### 2.2 Filter Section
-- [ ] Create `filter_section()` component with card styling
-- [ ] Add date range pickers:
+- [x] Create `filter_section()` component with card styling
+- [x] Add date range pickers:
   - "Initiated" range with enable/disable checkbox (default: disabled)
   - "Last Seen" range with enable/disable checkbox (default: enabled, last 6 months)
-  - "To" date defaults to latest date in dataset
-- [ ] Add searchable multi-select dropdowns:
+  - "To" date defaults to latest date in dataset (placeholder — actual data integration in Phase 3)
+- [x] Add searchable multi-select dropdowns:
   - Drugs dropdown with search, select all, count display
   - Indications dropdown with search, select all, count display
   - Directorates dropdown with search, select all, count display
-- [ ] Implement debounced filter change handlers (300ms)
-- [ ] Style according to design system
+- [ ] Implement debounced filter change handlers (300ms) — deferred to Phase 3.3
+- [x] Style according to design system
 
 ### 2.3 KPI Row
 - [ ] Create `kpi_card()` component:
