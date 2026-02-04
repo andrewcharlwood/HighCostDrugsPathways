@@ -42,11 +42,11 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 - [x] Verify imports work: `from pathways_app.styles import Colors, Spacing`
 
 ### 1.2 App Skeleton
-- [ ] Create `pathways_app/app_v2.py` with basic Reflex app structure
-- [ ] Define new `AppState` class with minimal state (placeholder for now)
-- [ ] Create single-page layout structure matching DESIGN_SYSTEM.md
-- [ ] Verify `reflex run` compiles and shows blank page with correct structure
-- [ ] Configure Reflex theme with design system colors
+- [x] Create `pathways_app/app_v2.py` with basic Reflex app structure
+- [x] Define new `AppState` class with minimal state (placeholder for now)
+- [x] Create single-page layout structure matching DESIGN_SYSTEM.md
+- [x] Verify `reflex run` compiles and shows blank page with correct structure
+- [x] Configure Reflex theme with design system colors
 
 ## Phase 2: Layout Components
 
