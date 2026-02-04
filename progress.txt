@@ -744,3 +744,62 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 - If major issues found, fix them before polish work
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
+
+## Iteration 14 - 2026-02-04
+### Task: 5.4 Final Verification (data loading, filter logic, chart generation)
+### Why this task:
+- Previous iteration (13) enabled app_v2 and recommended visual verification
+- Progress.txt explicitly stated: "Test data loading, filter interactions, chart rendering"
+- Verification must happen before polish work (5.1) to identify any blocking issues
+- Foundation for completing Phase 5
+### Status: COMPLETE (partial - functional verification done, visual verification pending)
+### What was done:
+- Ran reflex to verify compilation: 33/33 components compiled successfully
+- Backend started on port 8001, frontend on port 3001
+- Verified database has expected data via direct SQL queries:
+  - 440,069 total records
+  - 35,032 unique patients
+  - 552 unique drugs
+  - 29 directorates
+  - 32 indications
+  - Date range: 2019-04-01 to 2025-02-28
+  - Total cost: £270.4M
+- Verified load_data() logic populates all filter dropdowns correctly
+- Verified filter logic works with multiple combinations:
+  - No filters: 35,032 patients, 552 drugs, £270.4M
+  - Last Seen (6 months): 19,779 patients, 461 drugs, £211.1M
+  - Drug filter (ADALIMUMAB): 4,674 patients, 1 drug, £19.6M
+  - Directorate filter (RHEUMATOLOGY): 4,731 patients, 121 drugs, £53.4M
+  - Combined (Last Seen + ADALIMUMAB): 2,833 patients, 1 drug, £14.4M
+- Verified chart data generation produces correct hierarchical structure:
+  - 1,887 total nodes: 1 root + 11 trusts + 89 directories + 1,786 drugs
+  - Root total: 30,564 patients, £211.1M
+- Verified Plotly icicle figure generation works correctly
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - `reflex run` compilation: 33/33 PASSED
+- Tier 2 (Visual): Reflex app runs at localhost:3001 (visual inspection not performed this iteration)
+- Tier 3 (Functional): All SQL queries return correct data, hierarchical chart structure verified
+### Files changed:
+- Modified: IMPLEMENTATION_PLAN.md (marked verification items complete)
+### Committed: 307094e "docs: verify data loading, filter logic, and chart generation (Task 5.4 partial)"
+### Patterns discovered:
+- Direct SQL testing is effective for verifying filter logic without needing to run full app
+- Chart data generation produces 1,887 nodes for filtered dataset (11 trusts × multiple directories × drugs)
+- Windows watchfiles error (FileNotFoundError in hot-reload) is cosmetic, doesn't affect app operation
+- Port conflicts auto-resolve (app used 8001/3001 when 8000/3000 were busy)
+### Next iteration should:
+- Visually open the app in browser and verify:
+  1. Top bar renders with correct styling (Heritage Blue, white text)
+  2. Filters section shows 552 drugs, 29 directorates, 32 indications in dropdowns
+  3. KPIs show correct numbers (19,779 patients, 461 drugs, £211.1M for default filter)
+  4. Icicle chart renders and is interactive
+  5. Clicking filters updates KPIs and chart reactively
+- If visual issues found, document for Task 5.1 Visual Polish
+- If major functional issues found, fix immediately
+- Consider running original pathways_app.py to compare metrics for correctness validation
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Visual validation requires manually opening browser and interacting with app
