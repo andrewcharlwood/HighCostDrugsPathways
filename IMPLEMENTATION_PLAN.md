@@ -32,14 +32,14 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 ## Phase 1: Foundation
 
 ### 1.1 Design Tokens Module
-- [ ] Create `pathways_app/styles.py` with design token classes:
+- [x] Create `pathways_app/styles.py` with design token classes:
   - `Colors` class with all palette colors as constants
   - `Typography` class with font sizes, weights
   - `Spacing` class with spacing scale
   - `Shadows` class with shadow values
   - `Radii` class with border radius values
-- [ ] Create helper functions for common style patterns (e.g., `card_style()`, `button_primary_style()`)
-- [ ] Verify imports work: `from pathways_app.styles import Colors, Spacing`
+- [x] Create helper functions for common style patterns (e.g., `card_style()`, `button_primary_style()`)
+- [x] Verify imports work: `from pathways_app.styles import Colors, Spacing`
 
 ### 1.2 App Skeleton
 - [ ] Create `pathways_app/app_v2.py` with basic Reflex app structure
