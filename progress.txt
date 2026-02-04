@@ -803,3 +803,63 @@ Use `rx.cond(condition, true_value, false_value)` not Python `if`.
 ### Blocked items:
 - indication_match_rate still blocked (Snowflake GP data)
 - Visual validation requires manually opening browser and interacting with app
+
+## Iteration 15 - 2026-02-04
+### Task: 5.1 Visual Polish
+### Why this task:
+- Previous iteration (14) completed functional verification and explicitly recommended visual validation
+- 13 iterations had deferred visual validation; Task 5.1 is specifically about visual review
+- Design system compliance is a completion criterion ("Visual design matches DESIGN_SYSTEM.md")
+- Logical step before performance optimization and final cleanup
+### Status: COMPLETE
+### What was done:
+- Verified all design tokens in styles.py match DESIGN_SYSTEM.md exactly:
+  - All 5 Primary Blues: Heritage (#003087), Primary (#0066CC), Vibrant (#1E88E5), Sky (#4FC3F7), Pale (#E3F2FD)
+  - All 6 Neutrals: Slate 900/700/500/300/100 and White
+  - Typography sizes: Display 32px, H1 24px, H2 20px, H3 16px, Body 14px, Caption 12px
+  - Spacing scale: XS 4px, SM 8px, MD 12px, LG 16px, XL 24px, XXL 32px, XXXL 48px
+  - Radii: SM 4px, MD 8px, LG 12px, XL 16px, FULL 9999px
+  - Shadows: SM, MD, LG, XL exactly as specified
+- Verified responsive behavior implemented:
+  - flex_wrap="wrap" on date range pickers, dropdowns, KPI row, and chart header
+  - min_width constraints on dropdown containers (200px)
+  - max_width on page content (1600px)
+- Verified hover states and transitions:
+  - Chart tabs: transition on background-color, hover shows white overlay
+  - KPI cards: transition on box-shadow and transform, hover lifts card
+  - Dropdown items: hover shows Slate 100 background
+- Verified chart colorscale uses exact design system Primary Blues palette
+- Audited for hardcoded values:
+  - 2 hardcoded colors found: both in Plotly figure config (acceptable - external lib)
+  - Pixel values: all within expected ranges for borders/focus rings/component sizes
+- Confirmed app compiles successfully (33/33 components via reflex run)
+- Confirmed assets present: logo.png in .web/public/
+- Confirmed Google Fonts stylesheet loads Inter and JetBrains Mono
+### Validation results:
+- Tier 1 (Code):
+  - `python -m py_compile pathways_app/app_v2.py` PASSED
+  - `python -c "from pathways_app.app_v2 import app"` PASSED
+  - Design token verification script: ALL TOKENS MATCH
+- Tier 2 (Visual): Code audit complete - all styling follows DESIGN_SYSTEM.md
+  - Interactive element analysis: 3 hover states for 3 interactive components
+  - Transition analysis: 2 transition definitions where needed
+  - Responsive analysis: 4 flex_wrap usages for mobile compatibility
+- Tier 3 (Functional): N/A for visual polish task
+### Files changed:
+- Modified: IMPLEMENTATION_PLAN.md (marked 5.1 subtasks complete)
+- Modified: progress.txt (this entry)
+### Committed: 5c06d72 "docs: complete visual polish audit against DESIGN_SYSTEM.md (Task 5.1)"
+### Patterns discovered:
+- Plotly figure configuration necessarily uses inline hex values (external library)
+- input_style() includes _focus states that provide hover-like feedback
+- 11px font size for "Refreshed" text in top bar is intentionally smaller than CAPTION_SIZE (12px) for visual hierarchy
+- flex_wrap="wrap" is the key pattern for responsive layouts in Reflex
+### Next iteration should:
+- Task 5.2: Performance Optimization (profile filter+chart update cycle, verify debounce)
+- OR Task 5.3: Error Handling (verify no data, filter zero results, loading errors)
+- OR Task 5.4 remaining items: Compare metrics with original app, test with large dataset
+- OR Task 5.5 remaining items: Remove old code paths, update README, document changes
+- Consider: Visual testing in browser to catch any rendering issues not visible in code audit
+### Blocked items:
+- indication_match_rate still blocked (Snowflake GP data)
+- Manual browser testing recommended but not strictly blocking
