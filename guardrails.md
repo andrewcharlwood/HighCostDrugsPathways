@@ -73,6 +73,30 @@ def filtered_count(self) -> int:
 
 ---
 
+## Data Processing Guardrails
+
+### Use existing pathway_analyzer functions
+- **When**: Processing pathway data for the icicle chart
+- **Rule**: Reuse functions from `analysis/pathway_analyzer.py` — don't reinvent
+- **Why**: The existing code handles edge cases (empty groups, statistics calculation, color mapping)
+
+### Extract denormalized fields from ids string
+- **When**: Creating denormalized columns (trust_name, directory, drug_sequence)
+- **Rule**: Parse the `ids` column which contains the full hierarchical path
+- **Why**: The ids format is "Trust|Directory|Drug1|Drug2|..." — split on "|" to extract components
+
+### Handle None/NULL values in pathway data
+- **When**: Reading pathway_nodes from SQLite
+- **Rule**: Always use `or ""` / `or 0` / `or "N/A"` when accessing optional columns
+- **Why**: Many columns (costpp, average_spacing, etc.) can be NULL for certain hierarchy levels
+
+### Use parameterized queries for SQLite
+- **When**: Building WHERE clauses with user-selected filters
+- **Rule**: Use `?` placeholders and pass params tuple — never string interpolation
+- **Why**: Prevents SQL injection and handles special characters in drug/directory names
+
+---
+
 ## Code Quality Guardrails
 
 ### Verify compilation before committing
@@ -110,11 +134,89 @@ def filtered_count(self) -> int:
 - **Why**: The next iteration has zero memory. If you don't write it down, it's lost.
 
 ### Check existing code for patterns
-- **When**: Unsure how to implement something in Reflex
-- **Rule**: Look at `pathways_app.py` for working examples before inventing new patterns
-- **Why**: The existing codebase has solved many Reflex quirks already
+- **When**: Unsure how to implement something in Reflex or pathway processing
+- **Rule**: Look at `pathways_app/app_v2.py`, `analysis/pathway_analyzer.py`, `visualization/plotly_generator.py`
+- **Why**: The existing codebase has solved many quirks already
 
 ---
+
+---
+
+## UI Redesign Guardrails
+
+### Clear Reflex cache before running
+- **When**: Before running `reflex run` or `reflex compile`, especially after style/layout changes
+- **Rule**: Delete `.states` and `.web` folders first: `Remove-Item -Recurse -Force .states, .web -ErrorAction SilentlyContinue`
+- **Why**: Stale cache causes old styles/components to persist, making it appear changes didn't work
+
+### Test visual changes with reflex run
+- **When**: After any layout or styling changes
+- **Rule**: Run `reflex run` and visually verify in browser. Screenshots are not enough.
+- **Why**: CSS calculations and flex layouts often behave differently than expected
+
+### Don't break existing functionality
+- **When**: Refactoring layout components
+- **Rule**: Ensure all filter handlers, KPI updates, and chart rendering still work after changes
+- **Why**: It's easy to accidentally disconnect event handlers when restructuring components
+
+### Use calc() for responsive heights
+- **When**: Making elements fill remaining viewport space
+- **Rule**: Use `height="calc(100vh - Xpx)"` where X is the sum of fixed-height elements above
+- **Why**: Fixed heights don't adapt to content changes; calc() keeps things responsive
+
+### Test at multiple viewport widths
+- **When**: Making full-width changes
+- **Rule**: Test at 1366px, 1920px, and 2560px widths minimum
+- **Why**: Full-width layouts can break or look sparse at extreme sizes
+
+### Keep filter dropdown z-index high
+- **When**: Restructuring filter section
+- **Rule**: Dropdown panels need `z_index="50"` or higher to appear above chart
+- **Why**: Plotly charts have their own stacking context and can overlap dropdowns
+
+---
+
+## SNOMED Mapping Guardrails
+
+### Use Search_Term for grouping, not Indication
+- **When**: Creating indication-based pathway hierarchy
+- **Rule**: Group patients by `Search_Term` column, NOT `Indication` column
+- **Why**: Indication has 603 granular values; Search_Term has 187 broader categories suitable for chart grouping
+
+### Handle unmatched patients in indication chart
+- **When**: Patient has no GP diagnosis matching their drug's SNOMED codes
+- **Rule**: Use their assigned directorate (from fallback logic) as the grouping label, not "Unknown"
+- **Why**: User wants mixed labels - indication Search_Terms for matched patients, directorate names for unmatched
+
+### Use most recent SNOMED code for multiple matches
+- **When**: Patient has GP records matching multiple SNOMED codes for their drug
+- **Rule**: Use the match with the most recent `EventDateTime` from PrimaryCareClinicalCoding
+- **Why**: Most recent diagnosis reflects current clinical state
+
+### Batch Snowflake queries for performance
+- **When**: Looking up GP records for many patients
+- **Rule**: Batch SNOMED lookups (e.g., 1000 patients at a time) rather than one query per patient
+- **Why**: Individual queries for 35K+ patients would be extremely slow
+
+### Track diagnosis match source
+- **When**: Assigning directorate to a patient
+- **Rule**: Track whether assignment came from "DIAGNOSIS" (SNOMED match) or "FALLBACK" (department_identification)
+- **Why**: Needed for coverage metrics and debugging
+
+### Chart type column in pathway_nodes
+- **When**: Inserting pathway records to SQLite
+- **Rule**: Include `chart_type` column with value "directory" or "indication"
+- **Why**: Needed to filter pathways when user toggles chart type in UI
+
+### Use PseudoNHSNoLinked for GP record matching
+- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
+- **Rule**: Use `PseudoNHSNoLinked` column, NOT `PersonKey` (LocalPatientID)
+- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records. Using PersonKey caused 0% GP match rate.
+
+### Handle scientific notation in SNOMED codes
+- **When**: Loading SNOMED codes from CSV files
+- **Rule**: Convert scientific notation (e.g., "1.06e+16") back to full integers before storing
+- **Why**: Large SNOMED codes (15-16 digits) exceed float precision. Pandas/Excel exports them as scientific notation. String matching will fail unless converted.
 
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.
