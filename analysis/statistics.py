@@ -153,7 +153,7 @@ def calculate_cost_per_patient_per_annum(
     patients with different treatment durations.
 
     Args:
-        total_cost: Total cost for the patient
+        total_cost: Total cost for the patient (can be Decimal or float)
         days_treated: Treatment duration as timedelta
 
     Returns:
@@ -171,7 +171,8 @@ def calculate_cost_per_patient_per_annum(
     if days <= 0:
         return None
 
-    return total_cost / (days / 365)
+    # Convert total_cost to float to handle Decimal from Snowflake
+    return float(total_cost) / (days / 365)
 
 
 def calculate_treatment_duration(

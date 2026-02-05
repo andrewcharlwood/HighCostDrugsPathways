@@ -10,11 +10,11 @@
 [connection]
 # Snowflake account identifier (e.g., "xy12345.uk-south.azure")
 # Ask your Snowflake administrator for the correct account name
-account = ""
+account = "ZK91403.uk-south.azure"
 
 # Default warehouse to use for queries
 # Common options: ANALYST_WH, COMPUTE_WH
-warehouse = "ANALYST_WH"
+warehouse = "WH__XSMALL"
 
 # Default database for queries
 # DATA_HUB is the primary analyst-curated data warehouse
@@ -30,7 +30,7 @@ authenticator = "externalbrowser"
 
 # User principal (email address for externalbrowser auth)
 # Leave empty to use current Windows user or prompt
-user = ""
+user = "ANDREW.CHARLWOOD@NHS.NET"
 
 # Role to use (optional, uses default role if empty)
 role = ""

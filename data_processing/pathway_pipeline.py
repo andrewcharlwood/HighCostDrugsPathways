@@ -355,14 +355,27 @@ def convert_to_records(
         if pd.notna(row.get('Last seen (Parent)')):
             last_seen_parent = str(row['Last seen (Parent)'])
 
-        # Handle average_administered (could be list or None)
+        # Handle average_administered (could be list, ndarray, or None)
         average_administered = None
-        if pd.notna(row.get('average_administered')):
-            val = row['average_administered']
-            if isinstance(val, list):
-                average_administered = json.dumps(val)
-            else:
-                average_administered = str(val)
+        val = row.get('average_administered')
+        if val is not None:
+            # Check for scalar None-like values
+            try:
+                if pd.isna(val):
+                    average_administered = None
+                elif isinstance(val, (list, np.ndarray)):
+                    average_administered = json.dumps(list(val) if hasattr(val, 'tolist') else val)
+                else:
+                    average_administered = str(val)
+            except (ValueError, TypeError):
+                # pd.isna raises ValueError for arrays with >1 element
+                # In that case, val is an array/list, so convert to JSON
+                if hasattr(val, 'tolist'):
+                    average_administered = json.dumps(val.tolist())
+                elif isinstance(val, list):
+                    average_administered = json.dumps(val)
+                else:
+                    average_administered = str(val)
 
         record = {
             'date_filter_id': date_filter_id,

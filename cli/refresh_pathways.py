@@ -56,8 +56,12 @@ def get_default_filters(paths: PathConfig) -> tuple[list[str], list[str], list[s
     if paths.default_trusts_csv.exists():
         try:
             trusts_df = pd.read_csv(paths.default_trusts_csv)
-            # Assume first column contains trust names
-            trust_filter = trusts_df.iloc[:, 0].dropna().tolist()
+            # Use the "Name" column which contains trust names
+            if 'Name' in trusts_df.columns:
+                trust_filter = trusts_df['Name'].dropna().tolist()
+            else:
+                # Fallback to first column if no Name column
+                trust_filter = trusts_df.iloc[:, 0].dropna().tolist()
             logger.info(f"Loaded {len(trust_filter)} default trusts")
         except Exception as e:
             logger.warning(f"Could not load default trusts: {e}")
@@ -471,10 +475,10 @@ Examples:
     )
 
     if success:
-        print(f"\n✓ {message}")
+        print(f"\n[OK] {message}")
         return 0
     else:
-        print(f"\n✗ {message}", file=sys.stderr)
+        print(f"\n[FAILED] {message}", file=sys.stderr)
         return 1
 
 
