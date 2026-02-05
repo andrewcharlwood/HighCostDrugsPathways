@@ -149,3 +149,47 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
   - This is independent of Task 1.1 if you mock the gp_matches_df input
 ### Blocked items:
 - None
+
+## Iteration 3 — 2026-02-05
+### Task: 1.1 — Update get_patient_indication_groups() to return ALL matches with code_frequency
+### Why this task:
+- Previous iteration recommended this as the next task
+- This is the last remaining Phase 1 dependency — Tasks 2.1/2.2 need the GP matches data in the right format (multiple rows per patient with code_frequency)
+- Task 1.1 changes the query fundamentals; better to do this before building assign_drug_indications() which consumes the output
+### Status: COMPLETE
+### What was done:
+- Modified `get_patient_indication_groups()` in `diagnosis_lookup.py`:
+  1. **Removed** `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1`
+  2. **Replaced** with `GROUP BY pc."PatientPseudonym", aic.Search_Term` + `COUNT(*) AS "code_frequency"`
+  3. **Added** `earliest_hcd_date: Optional[str] = None` parameter
+  4. **Added** optional `AND pc."EventDateTime" >= %s` when earliest_hcd_date is provided
+  5. **Updated** return columns from `(PatientPseudonym, Search_Term, EventDateTime)` to `(PatientPseudonym, Search_Term, code_frequency)`
+  6. **Updated** all empty DataFrame returns to use new column names
+  7. **Updated** logging to show multiple-rows-per-patient stats (avg indications per patient)
+  8. **Updated** docstring to describe new behavior and parameters
+- Backward compatible: `earliest_hcd_date` defaults to `None`, existing callers still work
+- Note: caller in `refresh_pathways.py` (line 424-428) does `dict(zip(...))` which will only keep last match per patient with new multi-row format — this will be updated in Task 3.1
+### Validation results:
+- Tier 1 (Code): py_compile PASSED, import check PASSED, function signature verified
+- Tier 2 (Data): Empty DataFrame returns correct columns ['PatientPseudonym', 'Search_Term', 'code_frequency']; live Snowflake test deferred to Phase 3/4
+- Tier 3 (Functional): N/A (no UI changes)
+### Files changed:
+- data_processing/diagnosis_lookup.py (modified get_patient_indication_groups function)
+- IMPLEMENTATION_PLAN.md (marked 1.1 subtasks [x])
+### Committed: [pending]
+### Patterns discovered:
+- The `earliest_hcd_date` parameter is passed as a string in ISO format (YYYY-MM-DD) via Snowflake %s placeholder — Snowflake handles string-to-timestamp comparison implicitly
+- The GROUP BY approach naturally deduplicates SNOMED codes within the same Search_Term — a patient with the same SNOMED code recorded 5 times gets code_frequency=5 (reflecting clinical activity intensity)
+- params list is built dynamically: `batch_pseudonyms + [earliest_hcd_date]` only when date filter is active
+### Next iteration should:
+- Work on Task 2.1: Create `assign_drug_indications()` function
+  - This is now unblocked since 1.1 is complete (return format is known)
+  - Input: HCD df, gp_matches_df (PatientPseudonym, Search_Term, code_frequency), drug_mapping from load_drug_indication_mapping()
+  - Output: (modified_df with UPID|search_term, indication_df mapping modified_UPID → Search_Term)
+  - Can be built and tested with mock data (no Snowflake needed)
+  - Key logic: for each UPID+Drug pair, intersect drug's Search_Terms with patient's GP matches, pick highest code_frequency as tiebreaker
+  - The function needs PseudoNHSNoLinked to look up GP matches, so the df must have that column
+  - Task 2.2 (tiebreaker logic) can be done within 2.1 or as a follow-up
+- The final Phase 1 subtask (1.1 verify with live Snowflake) will be tested during Phase 3/4 integration
+### Blocked items:
+- Task 1.1 final subtask "Verify: Query returns more rows" requires live Snowflake — deferred to Phase 3/4

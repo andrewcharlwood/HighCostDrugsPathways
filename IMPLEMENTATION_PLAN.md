@@ -57,7 +57,7 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
 ## Phase 1: Update Snowflake Query & Drug Mapping
 
 ### 1.1 Update `get_patient_indication_groups()` to return ALL matches with frequency
-- [ ] Modify the Snowflake query in `get_patient_indication_groups()` (diagnosis_lookup.py):
+- [x] Modify the Snowflake query in `get_patient_indication_groups()` (diagnosis_lookup.py):
   - Remove `QUALIFY ROW_NUMBER() OVER (PARTITION BY ... ORDER BY EventDateTime DESC) = 1`
   - Return ALL matching Search_Terms per patient with code frequency:
     ```sql
@@ -73,10 +73,10 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
   - `code_frequency` = number of matching SNOMED codes per Search_Term per patient
   - Higher frequency = more clinical activity = stronger signal for tiebreaker
   - `earliest_hcd_date` = `MIN(Intervention Date)` from the HCD DataFrame — restricts GP codes to the HCD data window, reducing noise from old/irrelevant diagnoses
-- [ ] Accept `earliest_hcd_date` parameter in `get_patient_indication_groups()` and pass to query
-- [ ] Keep batch processing (500 patients per query)
-- [ ] Update return type: DataFrame now has multiple rows per patient (PatientPseudonym, Search_Term, code_frequency)
-- [ ] Verify: Query returns more rows than before (patients with multiple matching diagnoses)
+- [x] Accept `earliest_hcd_date` parameter in `get_patient_indication_groups()` and pass to query
+- [x] Keep batch processing (500 patients per query)
+- [x] Update return type: DataFrame now has multiple rows per patient (PatientPseudonym, Search_Term, code_frequency)
+- [ ] Verify: Query returns more rows than before (patients with multiple matching diagnoses) *(requires live Snowflake — will be verified in Phase 3/4)*
 
 ### 1.2 Merge related asthma Search_Terms in CLUSTER_MAPPING_SQL
 - [x] In `CLUSTER_MAPPING_SQL` (diagnosis_lookup.py), merge these 3 Search_Terms into one `"asthma"` entry:
