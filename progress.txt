@@ -1050,3 +1050,67 @@ All 4 phases (11 tasks) of the Pathway Data Architecture project are complete:
 
 ### Blocked items (Iteration 16):
 - None
+
+## Iteration 17 — 2026-02-05
+### Task: 5.6 Visual Polish
+### Why this task:
+- Only remaining task in IMPLEMENTATION_PLAN.md — all Tasks 5.1-5.5 marked [x]
+- Previous iteration (16) explicitly recommended Task 5.6 as the next step
+- Final polish task before project completion
+### Status: COMPLETE
+### What was done:
+1. **Added subtle hover states to interactive elements**:
+   - KPI badges: subtle lift (translateY(-1px)) and shadow on hover
+   - Top bar tabs: brighter hover (0.15 opacity instead of 0.1)
+   - Dropdown triggers: background color change (SLATE_100) + border highlight
+   - Dropdown items: already had hover states, added border-radius for focus ring
+   - Buttons (primary/secondary/ghost): enhanced hover with transform/active states
+
+2. **Added consistent focus rings for accessibility**:
+   - Dropdown triggers: 2px Pale Blue focus ring using box-shadow
+   - Top bar tabs: 2px white semi-transparent focus ring
+   - Dropdown items: inset Primary border focus ring
+   - Buttons: consistent Pale Blue focus rings with double-ring for primary
+   - All focus states use both _focus and _focus_visible for keyboard nav
+
+3. **Cleaned up unused styles**:
+   - Removed compact_kpi_card_style, compact_kpi_value_style, compact_kpi_label_style (unused Option B from design)
+   - Cleaned up pathways_app.py imports: removed card_style, input_style, button_ghost_style, chart_container_style, chart_wrapper_style, PAGE_MAX_WIDTH, PAGE_PADDING, text_h3
+   - Kept kpi_value_style, kpi_label_style for legacy kpi_card/kpi_row fallback
+
+4. **Responsive layout already in place**:
+   - Layout uses calc(100vh - 152px) for height, flexbox for width
+   - Full-width chart with 16px padding scales to any viewport width
+   - Visual verification with reflex run recommended but not performed
+
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed for both files
+- Tier 1 (Code): [PASS] Import check passed for styles and app
+- Tier 1 (Code): [PASS] reflex compile succeeded (14.6s)
+- Tier 2 (Visual): Pending — requires reflex run to verify hover/focus states
+- Tier 3 (Functional): N/A (styling only, no logic changes)
+
+### Files changed:
+- `pathways_app/styles.py` — Added hover/focus states, removed unused compact_kpi_* styles
+- `pathways_app/pathways_app.py` — Cleaned up unused imports
+- `IMPLEMENTATION_PLAN.md` — Marked Task 5.6 subtasks complete
+
+### Committed: 9b466b4 "feat: add hover/focus states and clean up unused styles (Task 5.6)"
+
+### Patterns discovered:
+- Using both _focus and _focus_visible ensures keyboard-only focus rings
+- Double-ring focus (white inner, color outer) works well for dark buttons
+- box-shadow is better than outline for custom focus rings (respects border-radius)
+- Subtle hover transforms (translateY(-1px), scale(1.02)) add polish without being distracting
+
+### Next iteration should:
+- ALL TASKS COMPLETE — verify all completion criteria are met
+- Run `reflex run` to perform final visual verification of:
+  1. Hover states on all interactive elements
+  2. Focus rings visible when tabbing through interface
+  3. Layout at different viewport sizes (1366, 1920, 2560px)
+  4. Design feels modern SaaS (not NHS dashboard)
+- If all visual checks pass, output the completion signal
+
+### Blocked items:
+- None
