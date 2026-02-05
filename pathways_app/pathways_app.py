@@ -13,41 +13,34 @@ import plotly.graph_objects as go
 import reflex as rx
 
 from pathways_app.styles import (
+    # Core design tokens
     Colors,
     Typography,
     Spacing,
     Radii,
     Shadows,
     Transitions,
+    # Layout constants
     TOP_BAR_HEIGHT,
     FILTER_STRIP_HEIGHT,
-    PAGE_MAX_WIDTH,
-    PAGE_PADDING,
-    card_style,
-    input_style,
+    # Typography helpers
     text_h1,
-    text_h3,
     text_caption,
-    button_ghost_style,
-    kpi_card_style,
-    kpi_value_style,
-    kpi_label_style,
-    # v2.1 compact styles
+    # v2.1 filter strip styles
     filter_strip_style,
     compact_dropdown_trigger_style,
     searchable_dropdown_panel_style,
-    searchable_dropdown_item_style,
     # v2.1 KPI badge styles
     kpi_badge_style,
     kpi_badge_value_style,
     kpi_badge_label_style,
-    # v2.1 chart styles (full-width layout)
-    chart_container_style,
-    chart_wrapper_style,
     # v2.1 top bar styles
     top_bar_style,
     top_bar_tab_style,
     logo_style,
+    # Legacy styles (kept for kpi_card/kpi_row fallback)
+    kpi_value_style,
+    kpi_label_style,
 )
 
 

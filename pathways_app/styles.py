@@ -181,6 +181,7 @@ def card_style(hoverable: bool = False) -> dict:
 def button_primary_style() -> dict:
     """
     Primary button styling following DESIGN_SYSTEM.md specifications.
+    Includes accessible focus ring.
     """
     return {
         "background_color": Colors.PRIMARY,
@@ -191,17 +192,29 @@ def button_primary_style() -> dict:
         "font_size": Typography.BODY_SIZE,
         "cursor": "pointer",
         "border": "none",
-        "transition": f"background-color {Transitions.COLOR}, transform {Transitions.TRANSFORM}",
+        "transition": f"background-color {Transitions.COLOR}, transform {Transitions.TRANSFORM}, box-shadow {Transitions.SHADOW}",
         "_hover": {
             "background_color": Colors.VIBRANT,
             "transform": "scale(1.02)",
-        }
+        },
+        "_focus": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.WHITE}, 0 0 0 4px {Colors.PRIMARY}",
+        },
+        "_focus_visible": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.WHITE}, 0 0 0 4px {Colors.PRIMARY}",
+        },
+        "_active": {
+            "transform": "scale(0.98)",
+        },
     }
 
 
 def button_secondary_style() -> dict:
     """
     Secondary button styling following DESIGN_SYSTEM.md specifications.
+    Includes accessible focus ring.
     """
     return {
         "background_color": Colors.WHITE,
@@ -212,16 +225,28 @@ def button_secondary_style() -> dict:
         "font_weight": "500",
         "font_size": Typography.BODY_SIZE,
         "cursor": "pointer",
-        "transition": f"background-color {Transitions.COLOR}",
+        "transition": f"background-color {Transitions.COLOR}, box-shadow {Transitions.SHADOW}",
         "_hover": {
             "background_color": Colors.PALE,
-        }
+        },
+        "_focus": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
+        "_focus_visible": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
+        "_active": {
+            "background_color": Colors.SLATE_100,
+        },
     }
 
 
 def button_ghost_style() -> dict:
     """
     Ghost button styling following DESIGN_SYSTEM.md specifications.
+    Includes accessible focus ring.
     """
     return {
         "background_color": "transparent",
@@ -232,10 +257,21 @@ def button_ghost_style() -> dict:
         "font_weight": "500",
         "font_size": Typography.BODY_SIZE,
         "cursor": "pointer",
-        "transition": f"background-color {Transitions.COLOR}",
+        "transition": f"background-color {Transitions.COLOR}, box-shadow {Transitions.SHADOW}",
         "_hover": {
             "background_color": Colors.PALE,
-        }
+        },
+        "_focus": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
+        "_focus_visible": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
+        "_active": {
+            "background_color": Colors.SLATE_100,
+        },
     }
 
 
@@ -303,52 +339,13 @@ def kpi_label_style() -> dict:
     }
 
 
-def compact_kpi_card_style() -> dict:
-    """
-    COMPACT KPI card styling for v2.1 redesign.
-
-    - Smaller padding (12px)
-    - Smaller value font (24px)
-    - Reduced visual weight
-    """
-    return {
-        "background_color": Colors.WHITE,
-        "border": f"1px solid {Colors.SLATE_300}",
-        "border_radius": Radii.LG,
-        "padding": Spacing.LG,  # 12px instead of 16px
-        "box_shadow": Shadows.SM,
-        "text_align": "center",
-        "min_width": "100px",
-    }
-
-
-def compact_kpi_value_style() -> dict:
-    """Style for the value in a COMPACT KPI card."""
-    return {
-        "font_family": Typography.FONT_MONO,
-        "font_size": "24px",  # Reduced from 32px
-        "font_weight": "600",
-        "color": Colors.SLATE_900,
-        "line_height": "1.2",
-    }
-
-
-def compact_kpi_label_style() -> dict:
-    """Style for the label in a COMPACT KPI card."""
-    return {
-        "font_size": Typography.CAPTION_SIZE,  # 11px
-        "font_weight": Typography.CAPTION_WEIGHT,
-        "color": Colors.SLATE_500,
-        "margin_top": Spacing.XS,  # 4px tighter
-    }
-
-
 def kpi_badge_style() -> dict:
     """
     KPI as inline pill/badge (Option A from design system).
     Zero extra height - embeds in filter row.
 
     Example: "12,345 patients"
+    Includes subtle hover state for interactivity feedback.
     """
     return {
         "display": "inline-flex",
@@ -357,6 +354,12 @@ def kpi_badge_style() -> dict:
         "padding": f"{Spacing.XS} {Spacing.LG}",  # 4px 12px
         "background_color": Colors.SLATE_100,
         "border_radius": Radii.FULL,  # Pill shape
+        "transition": f"transform {Transitions.TRANSFORM}, box-shadow {Transitions.SHADOW}",
+        "cursor": "default",
+        "_hover": {
+            "transform": "translateY(-1px)",
+            "box_shadow": Shadows.SM,
+        },
     }
 
 
@@ -410,6 +413,7 @@ def compact_dropdown_trigger_style() -> dict:
     - Height: 32px
     - Padding: 8px 12px
     - Smaller font: 13px
+    - Accessible focus ring
     """
     return {
         "height": "32px",
@@ -424,10 +428,21 @@ def compact_dropdown_trigger_style() -> dict:
         "display": "flex",
         "align_items": "center",
         "gap": Spacing.SM,
-        "transition": f"border-color {Transitions.COLOR}",
+        "transition": f"border-color {Transitions.COLOR}, box-shadow {Transitions.SHADOW}",
         "_hover": {
             "border_color": Colors.PRIMARY,
-        }
+            "background_color": Colors.SLATE_100,
+        },
+        "_focus": {
+            "outline": "none",
+            "border_color": Colors.PRIMARY,
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
+        "_focus_visible": {
+            "outline": "none",
+            "border_color": Colors.PRIMARY,
+            "box_shadow": f"0 0 0 2px {Colors.PALE}",
+        },
     }
 
 
@@ -456,6 +471,7 @@ def searchable_dropdown_item_style(selected: bool = False) -> dict:
 
     - Tighter padding: 6px 8px
     - Visual selected state
+    - Accessible focus state
     """
     base = {
         "padding": f"{Spacing.SM} {Spacing.MD}",  # 6px 8px
@@ -465,12 +481,21 @@ def searchable_dropdown_item_style(selected: bool = False) -> dict:
         "align_items": "center",
         "gap": Spacing.SM,
         "transition": f"background-color {Transitions.COLOR}",
+        "border_radius": Radii.SM,  # Slight rounding for focus state
+        "_focus": {
+            "outline": "none",
+            "background_color": Colors.SLATE_100,
+            "box_shadow": f"inset 0 0 0 1px {Colors.PRIMARY}",
+        },
     }
 
     if selected:
         base.update({
             "background_color": Colors.PALE,
             "color": Colors.PRIMARY,
+            "_hover": {
+                "background_color": Colors.PALE,
+            },
         })
     else:
         base.update({
@@ -478,7 +503,7 @@ def searchable_dropdown_item_style(selected: bool = False) -> dict:
             "color": Colors.SLATE_900,
             "_hover": {
                 "background_color": Colors.SLATE_100,
-            }
+            },
         })
 
     return base
@@ -645,6 +670,7 @@ def top_bar_tab_style(active: bool = False) -> dict:
 
     - Height: 28px
     - Smaller pills
+    - Accessible focus ring
     """
     base = {
         "height": "28px",
@@ -653,7 +679,15 @@ def top_bar_tab_style(active: bool = False) -> dict:
         "font_size": Typography.BODY_SMALL_SIZE,
         "font_weight": "500",
         "cursor": "pointer",
-        "transition": f"background-color {Transitions.COLOR}",
+        "transition": f"background-color {Transitions.COLOR}, box-shadow {Transitions.SHADOW}",
+        "_focus": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px rgba(255,255,255,0.4)",
+        },
+        "_focus_visible": {
+            "outline": "none",
+            "box_shadow": f"0 0 0 2px rgba(255,255,255,0.4)",
+        },
     }
 
     if active:
@@ -666,7 +700,7 @@ def top_bar_tab_style(active: bool = False) -> dict:
             "background_color": "transparent",
             "color": Colors.WHITE,
             "_hover": {
-                "background_color": "rgba(255,255,255,0.1)",
+                "background_color": "rgba(255,255,255,0.15)",
             }
         })
 
