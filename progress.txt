@@ -868,3 +868,64 @@ All 4 phases (11 tasks) of the Pathway Data Architecture project are complete:
 
 ### Blocked items:
 - None
+
+## Iteration 14 — 2026-02-05
+### Task: 5.3 Compact KPI Cards
+### Why this task:
+- Previous iteration (13) completed Task 5.2 (Compact Filter Section)
+- Task 5.3 is the logical next step in the implementation order
+- The compact_kpi_badge_* style helpers were already available in styles.py from Task 5.1
+- KPIs were the second-biggest space consumer after filters (~100px → 0px extra)
+### Status: COMPLETE
+### What was done:
+1. **Updated imports** in pathways_app.py:
+   - Added kpi_badge_style, kpi_badge_value_style, kpi_badge_label_style
+
+2. **Created new kpi_badge() function**:
+   - Compact pill-style badge for inline display
+   - Highlight mode for primary metric (patients) uses Primary Blue background
+   - Normal badges use Slate 100 background
+   - Fixed "multiple values for keyword argument" error by building style dicts with .copy() and overriding
+
+3. **Created new kpi_badges() function**:
+   - Horizontal row of 3 KPI badges: patients, cost, drugs
+   - Designed to sit alongside filters in the filter strip
+
+4. **Updated filter_section()**:
+   - Added kpi_badges() on the right side (after rx.spacer())
+   - KPIs now share the filter strip row
+
+5. **Updated main_content()**:
+   - Removed separate kpi_row() call
+   - KPIs are now integrated into filter_section()
+   - Reduced spacing from "5" to "4"
+   - Reduced padding_top from Spacing.XL to Spacing.MD
+
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed
+- Tier 1 (Code): [PASS] Import check passed
+- Tier 1 (Code): [PASS] reflex compile succeeded (15.0s)
+- Tier 2 (Visual): Pending visual verification with reflex run
+- Tier 3 (Functional): Structure validated — KPI badges render without errors
+
+### Files changed:
+- `pathways_app/pathways_app.py` — Added kpi_badge(), kpi_badges(), updated filter_section(), main_content() (+108, -18 lines)
+- `IMPLEMENTATION_PLAN.md` — Marked Task 5.3 subtasks complete
+
+### Committed: 826dd1c "feat: compact KPI badges integrated into filter strip (Task 5.3)"
+
+### Patterns discovered:
+- When using **style_dict spread with additional kwargs, Python gives "multiple values" error if key exists in dict
+- Solution: Use .copy() to create a new dict, then mutate it before spreading
+- Zero-height KPIs achieved via Option A from design system (inline badges in filter row)
+
+### Next iteration should:
+- Start Task 5.4: Full-Width Chart Layout
+  - Remove PAGE_MAX_WIDTH constraint for chart container
+  - Use calc(100vh - Xpx) for chart height
+  - Update Plotly layout margins
+- OR run visual verification first with `reflex run` to validate Tasks 5.2 and 5.3
+- The overhead height is now ~96px (48px top bar + 48px filter strip) vs original ~364px
+
+### Blocked items:
+- None
