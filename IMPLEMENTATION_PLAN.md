@@ -1,25 +1,25 @@
-# Implementation Plan - Direct SNOMED Indication Mapping
+# Implementation Plan - Indication-Based Pathway Charts
 
 ## Project Overview
 
-Extend the pathway analysis application to use direct SNOMED code matching from GP records to:
-1. **Improve directorate assignment** - Use diagnosis-based directorate as primary method
-2. **Add indication-based icicle chart** - New chart type showing Trust → Search_Term → Drug → Pathway
-
-### Data Source
-`data/drug_snomed_mapping_enriched.csv` - 163K rows mapping:
-- Drug → Indication → TA_ID → Search_Term → SNOMEDCode → PrimaryDirectorate
+Extend the pathway analysis application to show indication-based icicle charts alongside directory-based charts. Patient diagnoses are matched from GP records using SNOMED cluster codes.
 
 ### Key Design Decisions
 | Aspect | Decision |
 |--------|----------|
-| Primary directorate method | Diagnosis-based (SNOMED match → PrimaryDirectorate) |
-| Fallback | department_identification() chain |
-| Grouping level | `Search_Term` column (187 unique values) |
-| Chart types | Two: "By Directory" and "By Indication" (user toggle) |
+| SNOMED source | Query `ClinicalCodingClusterSnomedCodes` clusters directly in Snowflake |
+| Grouping level | `Search_Term` from cluster mapping (~148 conditions) |
+| Chart types | Two: "By Directory" (existing) and "By Indication" (new toggle) |
 | No-match display | Show assigned directorate in indication chart (mixed labels) |
 | Multiple matches | Use most recent SNOMED code by GP record date |
-| Data storage | SQLite table `ref_drug_snomed_mapping`, accessed at ingestion |
+| Data storage | No local SNOMED mapping — query Snowflake at refresh time |
+
+### SNOMED Cluster Query
+The `snomed_indication_mapping_query.sql` file contains the master query:
+- Maps Search_Term → Cluster_ID for ~148 conditions
+- Joins `ClinicalCodingClusterSnomedCodes` to get SNOMED codes per cluster
+- Includes explicit manual mappings for conditions not in clusters
+- Returns: Search_Term, SNOMEDCode, SNOMEDDescription
 
 ## Quality Checks
 
@@ -39,101 +39,62 @@ python -m reflex compile
 
 ---
 
-## Phase 1: Data Infrastructure
+## Phase 1: Snowflake Integration
 
-### 1.1 Create SQLite Table for SNOMED Mapping
-- [x] Add `REF_DRUG_SNOMED_MAPPING_SCHEMA` to `data_processing/schema.py`:
-  - Columns: drug_name, indication, ta_id, search_term, snomed_code, snomed_description, cleaned_drug_name, primary_directorate, all_directorates
-  - Index on: cleaned_drug_name, snomed_code, search_term
-- [x] Add `create_drug_snomed_mapping_table()` helper function
-- [x] Add to `ALL_TABLES_SCHEMA` and migration
-- [x] Verify: `python -m data_processing.migrate` creates table
+### 1.1 Create Indication Lookup Query
+- [x] Add `get_patient_indication_groups()` function to `data_processing/diagnosis_lookup.py`:
+  - Takes: list of patient pseudonyms (PseudoNHSNoLinked values)
+  - Uses the cluster query from `snomed_indication_mapping_query.sql` as a CTE
+  - Joins with `PrimaryCareClinicalCoding` to find patients with matching diagnoses
+  - Returns: DataFrame with PatientPseudonym, Search_Term, EventDateTime
+  - Uses most recent match per patient (ORDER BY EventDateTime DESC)
+- [x] Handle edge cases: Snowflake unavailable, empty patient list
+- [ ] Verify: Function returns expected Search_Terms for test patients
 
-### 1.2 Load Enriched Mapping Data
-- [x] Create `data_processing/load_snomed_mapping.py` script:
-  - Read `data/drug_snomed_mapping_enriched.csv`
-  - Insert into `ref_drug_snomed_mapping` table
-  - Log: row count, unique drugs, unique search terms
-- [x] Add CLI entry point: `python -m data_processing.load_snomed_mapping`
-- [x] Verify: Query confirms 163K+ rows, 187 search terms
-
-### 1.3 Extend Diagnosis Lookup Module
-- [x] Add `get_drug_snomed_codes(drug_name)` to `diagnosis_lookup.py`:
-  - Query `ref_drug_snomed_mapping` for all SNOMED codes for a drug
-  - Return list of DrugSnomedMapping(snomed_code, snomed_description, search_term, primary_directorate, indication, ta_id)
-- [x] Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)`:
-  - Query `PrimaryCareClinicalCoding` directly for exact SNOMED code matches
-  - Return most recent match by EventDateTime
-  - Return: DirectSnomedMatchResult(matched_code, search_term, primary_directorate, event_date) or unmatched
-- [x] Verify: Tested with ADALIMUMAB (1320 mappings, 10 Search_Terms), RANIBIZUMAB (104 mappings), case-insensitivity
+### 1.2 Update Data Pipeline to Include Indications
+- [ ] Modify `cli/refresh_pathways.py` to call indication lookup during refresh:
+  - After fetching HCD data, extract unique PseudoNHSNoLinked values
+  - Call `get_patient_indication_groups()` with patient list
+  - Create `indication_df` mapping UPID → Indication_Group
+  - For patients with no GP match: Indication_Group = fallback directorate
+- [ ] Log coverage: X% diagnosis-matched, Y% fallback
+- [ ] Verify: indication_df has correct structure for pathway processing
 
 ---
 
-## Phase 2: Pathway Processing Updates
+## Phase 2: Schema & Processing Updates
 
-### 2.1 Update Directorate Assignment Logic
-- [x] Modify `tools/data.py` `department_identification()` or create wrapper:
-  - Add `get_directorate_from_diagnosis(upid, drug_name, connector)` function
-  - Logic: Try diagnosis-based first → fallback to department_identification()
-  - Return: (directorate, source) where source is "DIAGNOSIS" or "FALLBACK"
-- [x] Track assignment source for metrics (how many diagnosis-based vs fallback)
-- [x] Verify: Test with sample patient data
+### 2.1 Add Chart Type Support to Schema
+- [x] Add `chart_type` column to `pathway_nodes` table (ALREADY DONE)
+- [x] Update UNIQUE constraint to include chart_type (ALREADY DONE)
+- [x] Add indexes for chart_type filtering (ALREADY DONE)
+- [ ] Verify: Existing migration works correctly
 
-### 2.2 Add Chart Type Support to Schema
-- [x] Add `chart_type` column to `pathway_nodes` table:
-  - Values: "directory" (existing), "indication" (new)
-  - Update schema in `data_processing/schema.py`
-- [x] Update UNIQUE constraint to include chart_type: `UNIQUE(date_filter_id, chart_type, ids)`
-- [x] Add `idx_pathway_nodes_chart_type` index for filtering by chart type
-- [x] Add `migrate_pathway_nodes_chart_type()` function for existing databases
-- [x] Update `initialize_database()` to run migration automatically
-- [x] Verify: Migration adds column, existing data defaults to "directory"
+### 2.2 Create Indication Pathway Processing
+- [x] Add `generate_icicle_chart_indication()` to `pathway_analyzer.py` (ALREADY DONE)
+- [x] Add `process_indication_pathway_for_date_filter()` to `pathway_pipeline.py` (ALREADY DONE)
+- [x] Add `extract_indication_fields()` for denormalized columns (ALREADY DONE)
+- [x] Update `convert_to_records()` with `chart_type` parameter (ALREADY DONE)
+- [ ] Verify: Code compiles, imports work correctly
 
-### 2.3 Create Indication Pathway Processing
-- [x] Add `process_indication_pathway_for_date_filter()` to `pathway_pipeline.py`:
-  - Group by: Trust → Search_Term → Drug → Pathway
-  - For unmatched patients: use directorate name as Search_Term fallback
-  - Output: Same structure as directory pathways but with indication grouping
-- [x] Add `generate_icicle_chart_indication()` to `pathway_analyzer.py`:
-  - Variant of `generate_icicle_chart()` that uses indication_df instead of directory_df
-  - Takes `indication_df` parameter mapping UPID → Indication_Group
-- [x] Add `extract_indication_fields()` for denormalized columns:
-  - Extract: trust_name, search_term (or fallback_directorate), drug_sequence
-- [x] Update `convert_to_records()` to include `chart_type` parameter
-- [x] Add `ChartType` type alias ("directory" | "indication")
-- [x] Verify: Code compiles, imports work correctly
+### 2.3 Update Refresh Command for Dual Charts
+- [x] Add `--chart-type` argument: "all", "directory", "indication" (ALREADY DONE)
+- [ ] Update indication processing to use new `get_patient_indication_groups()`:
+  - Replace `batch_lookup_indication_groups()` with the new Snowflake-direct approach
+  - Pass indication_df to `process_indication_pathway_for_date_filter()`
+- [ ] Process all 6 date filters for both chart types
+- [ ] Verify: Both chart types generate pathway data
 
 ---
 
-## Phase 3: CLI & Data Refresh Updates
+## Phase 3: Test Full Pipeline
 
-### 3.1 Update Refresh Command for Dual Chart Types
-- [x] Modify `cli/refresh_pathways.py`:
-  - Process both "directory" and "indication" chart types
-  - For each of 6 date filters: generate 2 chart datasets
-  - Total: 12 pathway datasets (6 dates × 2 chart types)
-- [x] Add `--chart-type` argument: "all" (default), "directory", "indication"
-- [x] Update progress logging to show both chart types
-- [x] Verify: Dry run shows both chart types being processed (Task 3.2 complete)
-
-### 3.2 Integrate Diagnosis-Based Directorate in Pipeline
-- [x] Add `batch_lookup_indication_groups()` to `diagnosis_lookup.py`:
-  - Batch lookup SNOMED matches for all patients (500 patients per batch)
-  - Returns DataFrame with UPID, Indication_Group, Source columns
-  - Source is "DIAGNOSIS" (GP match found) or "FALLBACK" (no match)
-- [x] Update `cli/refresh_pathways.py` indication processing:
-  - Call `batch_lookup_indication_groups()` before processing indication charts
-  - Build `indication_df` for use with `process_indication_pathway_for_date_filter()`
-  - Process all 6 date filters with indication grouping
-- [x] Handle Snowflake connection for GP record queries (batched for performance)
-- [x] Log coverage: X% diagnosis-matched, Y% fallback
-- [ ] Verify: Test refresh with --dry-run, check coverage stats
-
-### 3.3 Test Full Refresh Pipeline
-- [~] Run `python -m cli.refresh_pathways` with real data
-- [ ] Verify pathway_nodes table has both chart_type values
-- [ ] Verify indication chart has expected hierarchy (Trust → SearchTerm → Drug)
-- [ ] Verify unmatched patients appear with directorate fallback label
+### 3.1 Test Refresh with Real Data
+- [ ] Run `python -m cli.refresh_pathways --chart-type all` with Snowflake
+- [ ] Verify pathway_nodes table has both chart_type values:
+  - `SELECT chart_type, COUNT(*) FROM pathway_nodes GROUP BY chart_type`
+- [ ] Verify indication hierarchy: Trust → Search_Term → Drug → Pathway
+- [ ] Verify unmatched patients show with directorate fallback label
 - [ ] Document: Processing time, record counts, coverage percentages
 
 ---
@@ -166,20 +127,14 @@ python -m reflex compile
 
 ## Phase 5: Validation & Documentation
 
-### 5.1 Measure Coverage Improvement
-- [ ] Compare match rates: cluster-only vs cluster+direct SNOMED
-- [ ] Generate report: % of patients with diagnosis-based directorate
-- [ ] Identify drugs with best/worst coverage improvement
-- [ ] Document results in progress.txt
-
-### 5.2 End-to-End Validation
+### 5.1 End-to-End Validation
 - [ ] Run full app with both chart types
 - [ ] Verify chart toggle works correctly
 - [ ] Verify filter interactions (drugs, directorates) work for both types
 - [ ] Verify KPIs update correctly for both chart types
 - [ ] Test at multiple viewport sizes
 
-### 5.3 Update Documentation
+### 5.2 Update Documentation
 - [ ] Update CLAUDE.md with new architecture
 - [ ] Document new CLI arguments
 - [ ] Document chart_type toggle behavior
@@ -193,7 +148,7 @@ All tasks marked `[x]` AND:
 - [ ] App compiles without errors (`reflex compile` succeeds)
 - [ ] Both chart types generate pathway data (12 total: 6 dates × 2 types)
 - [ ] Chart type toggle switches between Directory and Indication views
-- [ ] Diagnosis-based directorate is primary method with fallback working
+- [ ] GP diagnosis matching works via Snowflake cluster query
 - [ ] Unmatched patients show in indication chart with directorate fallback label
 - [ ] Coverage metrics logged (% diagnosis-matched vs fallback)
 - [ ] All filters work correctly for both chart types
@@ -202,6 +157,35 @@ All tasks marked `[x]` AND:
 ---
 
 ## Reference
+
+### SNOMED Cluster Query Structure
+```sql
+-- From snomed_indication_mapping_query.sql
+WITH SearchTermClusters AS (
+    SELECT Search_Term, Cluster_ID FROM (VALUES
+        ('rheumatoid arthritis', 'eFI2_InflammatoryArthritis'),
+        ('macular degeneration', 'CUST_ICB_VISUAL_IMPAIRMENT'),
+        -- ... ~148 mappings
+    ) AS t(Search_Term, Cluster_ID)
+),
+ClusterCodes AS (
+    SELECT stc.Search_Term, c."SNOMEDCode", c."SNOMEDDescription"
+    FROM SearchTermClusters stc
+    JOIN DATA_HUB.PHM."ClinicalCodingClusterSnomedCodes" c
+        ON stc.Cluster_ID = c."Cluster_ID"
+    WHERE c."SNOMEDCode" IS NOT NULL
+),
+ExplicitCodes AS (
+    -- Manual mappings for conditions not in clusters
+    SELECT Search_Term, SNOMEDCode, SNOMEDDescription FROM (VALUES
+        ('ankylosing spondylitis', '162930007', 'Manual mapping'),
+        -- ...
+    ) AS t(Search_Term, SNOMEDCode, SNOMEDDescription)
+)
+SELECT * FROM ClusterCodes
+UNION ALL
+SELECT * FROM ExplicitCodes
+```
 
 ### Current Pathway Hierarchy (Directory-based)
 ```
@@ -226,20 +210,17 @@ Root (N&W ICS)
 
 | File | Purpose |
 |------|---------|
-| `data_processing/schema.py` | SQLite schema for ref_drug_snomed_mapping |
-| `data_processing/diagnosis_lookup.py` | Direct SNOMED lookup functions |
+| `snomed_indication_mapping_query.sql` | Master SNOMED cluster query |
+| `data_processing/diagnosis_lookup.py` | GP diagnosis lookup functions |
 | `data_processing/pathway_pipeline.py` | Indication pathway processing |
 | `cli/refresh_pathways.py` | CLI for dual chart type refresh |
 | `pathways_app/pathways_app.py` | Reflex UI with chart type toggle |
-| `data/drug_snomed_mapping_enriched.csv` | Source mapping data |
 
 ### Expected Data Volumes
 
 | Metric | Expected |
 |--------|----------|
-| SNOMED mapping rows | ~163K |
-| Unique Search_Terms | 187 |
-| Unique drugs | ~364 |
+| Search_Term conditions | ~148 (from cluster mapping) |
 | Pathway nodes (directory, per date filter) | ~300 |
 | Pathway nodes (indication, per date filter) | ~400-600 (more granular) |
 | Total pathway nodes (6 dates × 2 types) | ~4,000-5,000 |
