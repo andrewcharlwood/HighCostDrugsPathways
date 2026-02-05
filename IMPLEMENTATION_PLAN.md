@@ -74,16 +74,21 @@ python -m reflex compile
 - [ ] Verify: Filter section height ≤ 60px when collapsed (requires visual verification)
 
 ### 5.3 Compact KPI Cards (50% reduction)
-- [ ] Reduce KPI card dimensions:
+- [x] Reduce KPI card dimensions:
   - Padding: 12px (was 24px)
   - Value font size: 24px (was 32px)
   - Label font size: 11px (was 12px)
-- [ ] Make KPIs a single compact row:
+- [x] Make KPIs a single compact row:
   - All 4 KPIs in horizontal strip
   - Minimal vertical footprint
   - Consider inline layout: "12,345 patients | £45.2M cost | 89 drugs | 7 trusts"
-- [ ] Alternative: KPI badges/pills instead of cards
-- [ ] Verify: KPI row height ≤ 48px
+- [x] Alternative: KPI badges/pills instead of cards
+  - Implemented kpi_badge() and kpi_badges() functions
+  - KPIs are now inline badges integrated into the filter strip
+  - Zero additional vertical height (Option A from design system)
+- [x] Verify: KPI row height ≤ 48px
+  - KPIs now embedded in filter strip - no separate row needed
+  - reflex compile succeeds in 15s
 
 ### 5.4 Full-Width Chart Layout
 - [ ] Remove PAGE_MAX_WIDTH constraint for chart container

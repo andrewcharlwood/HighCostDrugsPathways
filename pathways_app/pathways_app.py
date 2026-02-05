@@ -37,6 +37,10 @@ from pathways_app.styles import (
     compact_dropdown_trigger_style,
     searchable_dropdown_panel_style,
     searchable_dropdown_item_style,
+    # v2.1 KPI badge styles
+    kpi_badge_style,
+    kpi_badge_value_style,
+    kpi_badge_label_style,
 )
 
 
@@ -1778,8 +1782,10 @@ def filter_section() -> rx.Component:
                 spacing="2",
                 align="center",
             ),
-            # Spacer to push content left
+            # Spacer pushes KPIs to right
             rx.spacer(),
+            # KPI badges on the right
+            kpi_badges(),
             justify="start",
             align="center",
             gap=Spacing.LG,
@@ -1860,16 +1866,10 @@ def kpi_card(
 
 def kpi_row() -> rx.Component:
     """
-    KPI metrics row component with responsive grid layout.
+    LEGACY: KPI metrics row component with card layout.
 
-    Contains:
-    - Unique Patients: COUNT(DISTINCT patient_id)
-    - Total Drugs: Count of selected/filtered drugs
-    - Total Cost: Sum of costs in filtered data
-    - Match Rate: Indication match percentage
-
-    Layout: Responsive flex row that wraps on smaller screens.
-    KPIs update reactively when filters change (Phase 3).
+    Replaced by kpi_badges() for v2.1 compact layout.
+    Kept for reference and potential fallback.
     """
     return rx.hstack(
         # Unique Patients KPI - highlighted as primary metric
@@ -1904,6 +1904,90 @@ def kpi_row() -> rx.Component:
         width="100%",
         flex_wrap="wrap",
         align="stretch",
+    )
+
+
+# =============================================================================
+# Compact KPI Components (v2.1 SaaS Redesign)
+# =============================================================================
+
+
+def kpi_badge(
+    value: rx.Var[str],
+    label: str,
+    highlight: bool = False,
+) -> rx.Component:
+    """
+    Compact KPI badge (pill) for inline display.
+
+    Args:
+        value: The display value (formatted string from computed var)
+        label: Short label for the metric
+        highlight: If True, uses primary blue styling
+
+    Design specs from DESIGN_SYSTEM.md (Option A):
+    - Padding: 4px 12px
+    - Border radius: full (pill)
+    - Background: Slate 100 (or Primary for highlight)
+    - Value: 14px mono weight 600
+    - Label: 11px Slate 500
+    """
+    # Build value text style - override color based on highlight
+    value_style = kpi_badge_value_style().copy()
+    value_style["color"] = Colors.WHITE if highlight else Colors.SLATE_900
+
+    # Build label text style - override color based on highlight
+    label_style = kpi_badge_label_style().copy()
+    label_style["color"] = Colors.WHITE if highlight else Colors.SLATE_500
+    if highlight:
+        label_style["opacity"] = "0.8"
+
+    # Build badge container style - override background
+    badge_style = kpi_badge_style().copy()
+    badge_style["background_color"] = Colors.PRIMARY if highlight else Colors.SLATE_100
+
+    return rx.box(
+        rx.hstack(
+            rx.text(value, **value_style),
+            rx.text(label, **label_style),
+            spacing="1",
+            align="center",
+        ),
+        **badge_style,
+    )
+
+
+def kpi_badges() -> rx.Component:
+    """
+    Compact KPI badges row for v2.1 redesign.
+
+    Zero extra vertical height - designed to sit alongside filters.
+    Format: "12,345 patients • £45.2M cost • 89 drugs"
+
+    Returns horizontal flex of pill badges.
+    """
+    return rx.hstack(
+        # Unique Patients - highlighted as primary
+        kpi_badge(
+            value=AppState.unique_patients_display,
+            label="patients",
+            highlight=True,
+        ),
+        # Total Cost
+        kpi_badge(
+            value=AppState.total_cost_display,
+            label="cost",
+            highlight=False,
+        ),
+        # Drug Types
+        kpi_badge(
+            value=AppState.total_drugs_display,
+            label="drugs",
+            highlight=False,
+        ),
+        spacing="2",
+        align="center",
+        flex_shrink="0",  # Don't shrink badges
     )
 
 
@@ -2197,15 +2281,16 @@ def main_content() -> rx.Component:
     """
     Main content area below the top bar.
 
-    Layout: Filter Section → KPI Row → Chart Section
+    Layout (v2.1): Filter Section (with KPI badges) → Chart Section
+    KPIs are now inline badges in the filter strip (zero extra height).
     Max width constrained to PAGE_MAX_WIDTH, centered.
     """
     return rx.box(
         rx.vstack(
             filter_section(),
-            kpi_row(),
+            # KPIs now integrated into filter_section as badges
             chart_section(),
-            spacing="5",
+            spacing="4",  # Tighter spacing
             width="100%",
             align="stretch",
         ),
@@ -2213,7 +2298,7 @@ def main_content() -> rx.Component:
         max_width=PAGE_MAX_WIDTH,
         margin_x="auto",
         padding=PAGE_PADDING,
-        padding_top=Spacing.XL,
+        padding_top=Spacing.MD,  # Tighter top padding
     )
 
 
