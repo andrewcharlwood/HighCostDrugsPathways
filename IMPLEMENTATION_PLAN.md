@@ -72,12 +72,12 @@ python -m reflex compile
 ## Phase 2: Pathway Processing Updates
 
 ### 2.1 Update Directorate Assignment Logic
-- [ ] Modify `tools/data.py` `department_identification()` or create wrapper:
+- [x] Modify `tools/data.py` `department_identification()` or create wrapper:
   - Add `get_directorate_from_diagnosis(upid, drug_name, connector)` function
   - Logic: Try diagnosis-based first → fallback to department_identification()
   - Return: (directorate, source) where source is "DIAGNOSIS" or "FALLBACK"
-- [ ] Track assignment source for metrics (how many diagnosis-based vs fallback)
-- [ ] Verify: Test with sample patient data
+- [x] Track assignment source for metrics (how many diagnosis-based vs fallback)
+- [x] Verify: Test with sample patient data
 
 ### 2.2 Add Chart Type Support to Schema
 - [ ] Add `chart_type` column to `pathway_nodes` table:
