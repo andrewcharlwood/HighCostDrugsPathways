@@ -345,7 +345,7 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - `analysis/pathway_analyzer.py` — added `df = df.copy()` in `prepare_data()` to fix mutation bug
 - `guardrails.md` — added "Copy DataFrames in functions that modify columns" guardrail
 - `IMPLEMENTATION_PLAN.md` — marked Task 3.1 fully complete, updated completion criteria
-### Committed: pending
+### Committed: 6331d44 "fix: prevent DataFrame mutation in prepare_data() causing indication charts to fail"
 ### Patterns discovered:
 - `prepare_data()` is called 12+ times on the same DataFrame during `--chart-type all` processing
 - The `.map()` operation is destructive — it replaces values, so second mapping produces NaN
@@ -359,3 +359,60 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - The database is now fully populated — UI testing should be unblocked
 ### Blocked items:
 - None — all data is in the database, ready for UI validation
+
+## Iteration 7 — 2026-02-05
+### Task: 5.1 End-to-End Validation
+### Why this task:
+- Phase 5 is the final phase — validation must come before documentation
+- Previous iteration said UI testing was unblocked with data in database
+- Need to verify the chart type toggle, filters, and KPIs work correctly
+### Status: COMPLETE (with one deferred sub-item)
+### What was done:
+1. **Found and fixed critical UNIQUE constraint bug**:
+   - Database had `UNIQUE(date_filter_id, ids)` — MISSING `chart_type`
+   - Schema in code had correct `UNIQUE(date_filter_id, chart_type, ids)` but DB was created before this change
+   - Effect: `INSERT OR REPLACE` silently overwrote directory root/trust nodes when indication nodes were inserted
+   - Directory charts had NO level 0 or level 1 nodes — KPIs would show 0 patients
+   - Fix: Dropped and recreated `pathway_nodes` table with correct constraint
+
+2. **Re-ran full data refresh** (`--chart-type all`):
+   - 903 seconds (~15 min), 3,633 total nodes
+   - Directory: 1,101 nodes (all 6 levels: 0-5), Indication: 2,532 nodes (all 6 levels)
+   - Both chart types now have correct root/trust nodes
+
+3. **Comprehensive end-to-end validation**:
+   - Chart type toggle: Both types generate valid Plotly icicle charts
+   - All 12 date filter combinations tested — all produce valid charts
+   - Drug filter works for both chart types
+   - KPIs: 11,118 patients, £130.6M cost for all_6mo (consistent across chart types)
+   - Reflex compile: 21/21 components, 58s
+
+4. **Added guardrails**: UNIQUE constraint and schema verification
+
+5. **Known limitation**: `reflex run` crashes on Windows due to Granian/watchfiles `FileNotFoundError`
+   - This is a Windows environment issue, not a code issue
+   - Frontend-only mode works (app compiles and serves on port 3001)
+   - Full manual UI testing deferred to when `reflex run` works (e.g., after WSL setup or Reflex update)
+
+### Validation results:
+- Tier 1 (Code): ✅ `python -m py_compile` passed, `reflex compile` passed (21/21, 58s)
+- Tier 2 (Data): ✅ 3,633 nodes, both chart types have levels 0-5, matching root patient counts
+- Tier 3 (Functional): ⚠️ Data layer fully validated, UI cannot be live-tested due to Granian crash
+### Files changed:
+- `data/pathways.db` — recreated pathway_nodes table with correct UNIQUE constraint, re-populated
+- `guardrails.md` — added UNIQUE constraint and schema verification guardrails
+- `IMPLEMENTATION_PLAN.md` — marked Task 5.1 items, updated completion criteria
+### Committed: 89182e2 "fix: recreate pathway_nodes with correct UNIQUE constraint and validate end-to-end (Task 5.1)"
+### Patterns discovered:
+- SQLite doesn't alter UNIQUE constraints — must DROP and recreate table
+- `INSERT OR REPLACE` with wrong UNIQUE constraint silently destroys data
+- Always verify DB schema matches code after schema changes
+- Granian/watchfiles on Windows has FileNotFoundError for watch paths — known issue
+### Next iteration should:
+- Complete Task 5.2 (Documentation updates)
+- If `reflex run` works, do manual visual testing at multiple viewport sizes
+- Consider whether directorate filter should be disabled when in indication mode
+  (the `directory` column stores Search_Terms for indication charts, so filtering by "RHEUMATOLOGY" returns 0 results)
+- The app is feature-complete — only documentation and optional visual polish remain
+### Blocked items:
+- Visual testing at multiple viewport sizes blocked by Granian/watchfiles Windows crash

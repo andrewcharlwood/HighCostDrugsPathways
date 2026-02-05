@@ -226,6 +226,16 @@ def filtered_count(self) -> int:
 - **Rule**: Always `df = df.copy()` at the start of any function that modifies column values on the input DataFrame
 - **Why**: `prepare_data()` mapped Provider Code → Name in-place. When called for directory charts first, then indication charts second, the second call tried to map already-mapped names → NaN, silently dropping all data. The fix: `df = df.copy()` prevents destructive mutation of the caller's DataFrame.
 
+### Include chart_type in UNIQUE constraints for pathway_nodes
+- **When**: Creating or modifying the pathway_nodes table schema
+- **Rule**: The UNIQUE constraint MUST include `chart_type`: `UNIQUE(date_filter_id, chart_type, ids)`
+- **Why**: Without `chart_type`, `INSERT OR REPLACE` silently overwrites directory chart root/trust nodes when indication chart nodes with the same `ids` are inserted. This caused directory charts to lose all level 0 (root) and level 1 (trust) nodes, making KPIs show 0 patients. If the database exists with an old schema, you must DROP and recreate the table.
+
+### Verify database schema matches code after migrations
+- **When**: After running data refresh and seeing unexpected results (e.g., missing nodes, wrong counts)
+- **Rule**: Compare actual table schema (`SELECT sql FROM sqlite_master WHERE name='tablename'`) with the schema defined in `data_processing/schema.py`
+- **Why**: SQLite doesn't alter UNIQUE constraints in place. If the schema was created before a constraint was updated in code, the old constraint persists silently.
+
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.
 
