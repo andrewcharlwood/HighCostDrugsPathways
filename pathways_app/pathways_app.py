@@ -20,6 +20,7 @@ from pathways_app.styles import (
     Shadows,
     Transitions,
     TOP_BAR_HEIGHT,
+    FILTER_STRIP_HEIGHT,
     PAGE_MAX_WIDTH,
     PAGE_PADDING,
     card_style,
@@ -31,6 +32,11 @@ from pathways_app.styles import (
     kpi_card_style,
     kpi_value_style,
     kpi_label_style,
+    # v2.1 compact styles
+    filter_strip_style,
+    compact_dropdown_trigger_style,
+    searchable_dropdown_panel_style,
+    searchable_dropdown_item_style,
 )
 
 
@@ -1372,84 +1378,54 @@ class AppState(rx.State):
 
 def initiated_filter_dropdown() -> rx.Component:
     """
-    Dropdown for selecting the treatment initiated time period.
+    Compact dropdown for selecting the treatment initiated time period.
 
+    Redesigned for v2.1 filter strip - single row, no external label.
     Options: All years, Last 2 years, Last 1 year
     Values: "all", "2yr", "1yr"
     """
-    return rx.vstack(
-        # Label
-        rx.text(
-            "Treatment Initiated",
-            font_size=Typography.H3_SIZE,
-            font_weight=Typography.H3_WEIGHT,
-            color=Colors.SLATE_900,
-            font_family=Typography.FONT_FAMILY,
+    return rx.select.root(
+        rx.select.trigger(
+            placeholder="Initiated...",
+            **compact_dropdown_trigger_style(),
         ),
-        # Dropdown using rx.select with Root > Trigger > Content > Item pattern
-        rx.select.root(
-            rx.select.trigger(placeholder="Select period..."),
-            rx.select.content(
-                rx.select.group(
-                    rx.select.item("All years", value="all"),
-                    rx.select.item("Last 2 years", value="2yr"),
-                    rx.select.item("Last 1 year", value="1yr"),
-                ),
+        rx.select.content(
+            rx.select.group(
+                rx.select.label("Treatment Initiated"),
+                rx.select.item("All years", value="all"),
+                rx.select.item("Last 2 years", value="2yr"),
+                rx.select.item("Last 1 year", value="1yr"),
             ),
-            value=AppState.selected_initiated,
-            on_change=AppState.set_initiated_filter,
-            size="2",
         ),
-        # Description
-        rx.text(
-            "When patients first received treatment",
-            font_size=Typography.CAPTION_SIZE,
-            color=Colors.SLATE_500,
-            font_family=Typography.FONT_FAMILY,
-        ),
-        spacing="1",
-        align="start",
+        value=AppState.selected_initiated,
+        on_change=AppState.set_initiated_filter,
+        size="1",
     )
 
 
 def last_seen_filter_dropdown() -> rx.Component:
     """
-    Dropdown for selecting the last seen time period.
+    Compact dropdown for selecting the last seen time period.
 
+    Redesigned for v2.1 filter strip - single row, no external label.
     Options: Last 6 months, Last 12 months
     Values: "6mo", "12mo"
     """
-    return rx.vstack(
-        # Label
-        rx.text(
-            "Last Seen",
-            font_size=Typography.H3_SIZE,
-            font_weight=Typography.H3_WEIGHT,
-            color=Colors.SLATE_900,
-            font_family=Typography.FONT_FAMILY,
+    return rx.select.root(
+        rx.select.trigger(
+            placeholder="Last seen...",
+            **compact_dropdown_trigger_style(),
         ),
-        # Dropdown using rx.select with Root > Trigger > Content > Item pattern
-        rx.select.root(
-            rx.select.trigger(placeholder="Select period..."),
-            rx.select.content(
-                rx.select.group(
-                    rx.select.item("Last 6 months", value="6mo"),
-                    rx.select.item("Last 12 months", value="12mo"),
-                ),
+        rx.select.content(
+            rx.select.group(
+                rx.select.label("Last Seen"),
+                rx.select.item("Last 6 months", value="6mo"),
+                rx.select.item("Last 12 months", value="12mo"),
             ),
-            value=AppState.selected_last_seen,
-            on_change=AppState.set_last_seen_filter,
-            size="2",
         ),
-        # Description
-        rx.text(
-            "Most recent treatment activity",
-            font_size=Typography.CAPTION_SIZE,
-            color=Colors.SLATE_500,
-            font_family=Typography.FONT_FAMILY,
-        ),
-        spacing="1",
-        align="start",
+        value=AppState.selected_last_seen,
+        on_change=AppState.set_last_seen_filter,
+        size="1",
     )
 
 
@@ -1467,12 +1443,13 @@ def searchable_dropdown(
     clear_all_handler,
 ) -> rx.Component:
     """
-    Searchable multi-select dropdown component.
+    Compact searchable multi-select dropdown component.
 
+    Redesigned for v2.1 filter strip - 32px trigger, no external label.
     Uses debounced search input (300ms) for smooth filtering.
 
     Args:
-        label: Label for the dropdown
+        label: Label shown inside dropdown panel header
         selection_text: Text showing selection count
         is_open: Whether dropdown is expanded
         toggle_handler: Handler to toggle dropdown open/close
@@ -1485,137 +1462,127 @@ def searchable_dropdown(
         clear_all_handler: Handler to clear selection
     """
     return rx.box(
-        rx.vstack(
-            # Label
-            rx.text(
-                label,
-                font_size=Typography.CAPTION_SIZE,
-                font_weight=Typography.CAPTION_WEIGHT,
-                color=Colors.SLATE_700,
-                font_family=Typography.FONT_FAMILY,
+        # Compact trigger button (no external label)
+        rx.box(
+            rx.hstack(
+                rx.text(
+                    selection_text,
+                    font_size=Typography.BODY_SMALL_SIZE,
+                    color=Colors.SLATE_900,
+                    font_family=Typography.FONT_FAMILY,
+                    flex="1",
+                    white_space="nowrap",
+                    overflow="hidden",
+                    text_overflow="ellipsis",
+                ),
+                rx.icon(
+                    rx.cond(is_open, "chevron-up", "chevron-down"),
+                    size=14,
+                    color=Colors.SLATE_500,
+                ),
+                justify="between",
+                align="center",
+                gap=Spacing.SM,
             ),
-            # Dropdown trigger button
+            **compact_dropdown_trigger_style(),
+            on_click=toggle_handler,
+            min_width="120px",
+        ),
+        # Dropdown panel
+        rx.cond(
+            is_open,
             rx.box(
-                rx.hstack(
+                rx.vstack(
+                    # Header with label
                     rx.text(
-                        selection_text,
-                        font_size=Typography.BODY_SIZE,
-                        color=Colors.SLATE_900,
-                        font_family=Typography.FONT_FAMILY,
-                        flex="1",
-                    ),
-                    rx.icon(
-                        rx.cond(is_open, "chevron-up", "chevron-down"),
-                        size=16,
+                        label,
+                        font_size=Typography.CAPTION_SIZE,
+                        font_weight=Typography.CAPTION_WEIGHT,
                         color=Colors.SLATE_500,
+                        font_family=Typography.FONT_FAMILY,
+                        padding_x=Spacing.MD,
+                        padding_top=Spacing.SM,
                     ),
-                    justify="between",
-                    align="center",
-                    width="100%",
-                ),
-                **input_style(),
-                display="flex",
-                align_items="center",
-                cursor="pointer",
-                on_click=toggle_handler,
-                width="100%",
-            ),
-            # Dropdown panel
-            rx.cond(
-                is_open,
-                rx.box(
-                    rx.vstack(
-                        # Search input (debounced 300ms)
-                        rx.hstack(
-                            rx.icon("search", size=14, color=Colors.SLATE_500),
-                            rx.debounce_input(
-                                rx.input(
-                                    placeholder="Search...",
-                                    value=search_value,
-                                    on_change=on_search_change,
-                                    variant="soft",
-                                    size="2",
-                                    width="100%",
-                                ),
-                                debounce_timeout=300,
-                            ),
-                            spacing="2",
-                            align="center",
-                            width="100%",
-                            padding=Spacing.SM,
-                            background_color=Colors.SLATE_100,
-                            border_radius=Radii.SM,
-                        ),
-                        # Action buttons
-                        rx.hstack(
-                            rx.button(
-                                "Select All",
-                                on_click=select_all_handler,
-                                variant="ghost",
+                    # Search input (debounced 300ms)
+                    rx.hstack(
+                        rx.icon("search", size=12, color=Colors.SLATE_500),
+                        rx.debounce_input(
+                            rx.input(
+                                placeholder="Search...",
+                                value=search_value,
+                                on_change=on_search_change,
+                                variant="soft",
                                 size="1",
-                                color_scheme="blue",
+                                width="100%",
                             ),
-                            rx.button(
-                                "Clear",
-                                on_click=clear_all_handler,
-                                variant="ghost",
-                                size="1",
-                                color_scheme="gray",
-                            ),
-                            spacing="2",
+                            debounce_timeout=300,
                         ),
-                        # Items list
-                        rx.box(
-                            rx.foreach(
-                                filtered_items,
-                                lambda item: rx.box(
-                                    rx.checkbox(
-                                        item,
-                                        checked=selected_items.contains(item),
-                                        on_change=lambda: toggle_item_handler(item),
-                                        size="2",
-                                    ),
-                                    padding_y=Spacing.XS,
-                                    padding_x=Spacing.SM,
-                                    border_radius=Radii.SM,
-                                    background_color=rx.cond(
-                                        selected_items.contains(item),
-                                        Colors.PALE,
-                                        "transparent",
-                                    ),
-                                    _hover={
-                                        "background_color": Colors.SLATE_100,
-                                    },
-                                    width="100%",
-                                ),
-                            ),
-                            max_height="200px",
-                            overflow_y="auto",
-                            width="100%",
-                        ),
-                        spacing="2",
-                        align="start",
+                        spacing="1",
+                        align="center",
                         width="100%",
-                        padding=Spacing.SM,
+                        padding_x=Spacing.SM,
                     ),
-                    position="absolute",
-                    top="100%",
-                    left="0",
-                    right="0",
-                    background_color=Colors.WHITE,
-                    border=f"1px solid {Colors.SLATE_300}",
-                    border_radius=Radii.MD,
-                    box_shadow=Shadows.LG,
-                    z_index="50",
-                    margin_top=Spacing.XS,
+                    # Action buttons (more compact)
+                    rx.hstack(
+                        rx.button(
+                            "All",
+                            on_click=select_all_handler,
+                            variant="ghost",
+                            size="1",
+                            color_scheme="blue",
+                        ),
+                        rx.button(
+                            "None",
+                            on_click=clear_all_handler,
+                            variant="ghost",
+                            size="1",
+                            color_scheme="gray",
+                        ),
+                        spacing="1",
+                        padding_x=Spacing.SM,
+                    ),
+                    # Items list (reduced height)
+                    rx.box(
+                        rx.foreach(
+                            filtered_items,
+                            lambda item: rx.box(
+                                rx.checkbox(
+                                    item,
+                                    checked=selected_items.contains(item),
+                                    on_change=lambda: toggle_item_handler(item),
+                                    size="1",
+                                ),
+                                padding=f"{Spacing.SM} {Spacing.MD}",
+                                font_size=Typography.BODY_SMALL_SIZE,
+                                cursor="pointer",
+                                background_color=rx.cond(
+                                    selected_items.contains(item),
+                                    Colors.PALE,
+                                    "transparent",
+                                ),
+                                _hover={
+                                    "background_color": Colors.SLATE_100,
+                                },
+                                width="100%",
+                            ),
+                        ),
+                        max_height="150px",
+                        overflow_y="auto",
+                        width="100%",
+                    ),
+                    spacing="1",
+                    align="start",
+                    width="100%",
+                    padding_bottom=Spacing.SM,
                 ),
+                **searchable_dropdown_panel_style(),
+                position="absolute",
+                top="100%",
+                left="0",
+                margin_top=Spacing.XS,
             ),
-            spacing="1",
-            align="start",
-            width="100%",
         ),
         position="relative",
-        width="100%",
     )
 
 
@@ -1743,97 +1710,82 @@ def top_bar() -> rx.Component:
 
 def filter_section() -> rx.Component:
     """
-    Filter section component.
+    Compact filter strip component (v2.1 redesign).
 
-    Contains:
-    - Two date filter dropdowns: Treatment Initiated, Last Seen
-    - Three searchable multi-select dropdowns: Drugs, Indications, Directorates
+    Single horizontal row containing ALL filters:
+    - Date filters: Treatment Initiated, Last Seen
+    - Multi-select filters: Drugs, Indications, Directorates
 
-    Layout: Two rows
-    - Row 1: Date filter dropdowns side by side
-    - Row 2: Three searchable dropdowns in a grid
+    Target height: 48px (single row)
+    No "Filters" header - labels are in dropdown triggers/panels.
     """
     return rx.box(
-        rx.vstack(
-            # Header
-            rx.text(
-                "Filters",
-                **text_h1(),
-            ),
-            # Row 1: Date filter dropdowns
+        rx.hstack(
+            # Date filters group
             rx.hstack(
                 initiated_filter_dropdown(),
-                rx.divider(orientation="vertical", size="3"),
                 last_seen_filter_dropdown(),
-                spacing="5",
-                align="start",
-                flex_wrap="wrap",
+                spacing="2",
+                align="center",
             ),
-            # Divider
-            rx.divider(size="4"),
-            # Row 2: Searchable dropdowns
+            # Separator
+            rx.divider(
+                orientation="vertical",
+                size="2",
+                color_scheme="gray",
+            ),
+            # Multi-select filters group
             rx.hstack(
-                rx.box(
-                    searchable_dropdown(
-                        label="Drugs",
-                        selection_text=AppState.drug_selection_text,
-                        is_open=AppState.drug_dropdown_open,
-                        toggle_handler=AppState.toggle_drug_dropdown,
-                        search_value=AppState.drug_search,
-                        on_search_change=AppState.set_drug_search,
-                        filtered_items=AppState.filtered_drugs,
-                        selected_items=AppState.selected_drugs,
-                        toggle_item_handler=AppState.toggle_drug,
-                        select_all_handler=AppState.select_all_drugs,
-                        clear_all_handler=AppState.clear_all_drugs,
-                    ),
-                    flex="1",
-                    min_width="200px",
+                searchable_dropdown(
+                    label="Drugs",
+                    selection_text=AppState.drug_selection_text,
+                    is_open=AppState.drug_dropdown_open,
+                    toggle_handler=AppState.toggle_drug_dropdown,
+                    search_value=AppState.drug_search,
+                    on_search_change=AppState.set_drug_search,
+                    filtered_items=AppState.filtered_drugs,
+                    selected_items=AppState.selected_drugs,
+                    toggle_item_handler=AppState.toggle_drug,
+                    select_all_handler=AppState.select_all_drugs,
+                    clear_all_handler=AppState.clear_all_drugs,
                 ),
-                rx.box(
-                    searchable_dropdown(
-                        label="Indications",
-                        selection_text=AppState.indication_selection_text,
-                        is_open=AppState.indication_dropdown_open,
-                        toggle_handler=AppState.toggle_indication_dropdown,
-                        search_value=AppState.indication_search,
-                        on_search_change=AppState.set_indication_search,
-                        filtered_items=AppState.filtered_indications,
-                        selected_items=AppState.selected_indications,
-                        toggle_item_handler=AppState.toggle_indication,
-                        select_all_handler=AppState.select_all_indications,
-                        clear_all_handler=AppState.clear_all_indications,
-                    ),
-                    flex="1",
-                    min_width="200px",
+                searchable_dropdown(
+                    label="Indications",
+                    selection_text=AppState.indication_selection_text,
+                    is_open=AppState.indication_dropdown_open,
+                    toggle_handler=AppState.toggle_indication_dropdown,
+                    search_value=AppState.indication_search,
+                    on_search_change=AppState.set_indication_search,
+                    filtered_items=AppState.filtered_indications,
+                    selected_items=AppState.selected_indications,
+                    toggle_item_handler=AppState.toggle_indication,
+                    select_all_handler=AppState.select_all_indications,
+                    clear_all_handler=AppState.clear_all_indications,
                 ),
-                rx.box(
-                    searchable_dropdown(
-                        label="Directorates",
-                        selection_text=AppState.directorate_selection_text,
-                        is_open=AppState.directorate_dropdown_open,
-                        toggle_handler=AppState.toggle_directorate_dropdown,
-                        search_value=AppState.directorate_search,
-                        on_search_change=AppState.set_directorate_search,
-                        filtered_items=AppState.filtered_directorates,
-                        selected_items=AppState.selected_directorates,
-                        toggle_item_handler=AppState.toggle_directorate,
-                        select_all_handler=AppState.select_all_directorates,
-                        clear_all_handler=AppState.clear_all_directorates,
-                    ),
-                    flex="1",
-                    min_width="200px",
+                searchable_dropdown(
+                    label="Directorates",
+                    selection_text=AppState.directorate_selection_text,
+                    is_open=AppState.directorate_dropdown_open,
+                    toggle_handler=AppState.toggle_directorate_dropdown,
+                    search_value=AppState.directorate_search,
+                    on_search_change=AppState.set_directorate_search,
+                    filtered_items=AppState.filtered_directorates,
+                    selected_items=AppState.selected_directorates,
+                    toggle_item_handler=AppState.toggle_directorate,
+                    select_all_handler=AppState.select_all_directorates,
+                    clear_all_handler=AppState.clear_all_directorates,
                 ),
-                spacing="4",
-                width="100%",
-                flex_wrap="wrap",
+                spacing="2",
+                align="center",
             ),
-            spacing="4",
+            # Spacer to push content left
+            rx.spacer(),
+            justify="start",
+            align="center",
+            gap=Spacing.LG,
             width="100%",
-            align="start",
         ),
-        **card_style(),
-        width="100%",
+        **filter_strip_style(),
     )
 
 

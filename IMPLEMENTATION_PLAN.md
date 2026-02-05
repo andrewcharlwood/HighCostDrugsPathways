@@ -60,17 +60,18 @@ python -m reflex compile
 - [x] Verify: `python -c "from pathways_app.styles import *"` - PASSED
 
 ### 5.2 Compact Filter Section (50-67% height reduction)
-- [ ] Redesign filter_section() as a single horizontal strip:
+- [x] Redesign filter_section() as a single horizontal strip:
   - All filters in ONE row: Date dropdowns | Drugs | Indications | Directorates
   - Remove "Filters" header (saves vertical space)
   - Use smaller dropdown triggers (height: 32px instead of 40px)
   - Use icon-only labels where possible
-- [ ] Reduce searchable_dropdown() panel heights:
+- [x] Reduce searchable_dropdown() panel heights:
   - Max item list height: 150px (was 200px)
-  - Smaller search input
-  - Tighter spacing (4px gaps instead of 8px)
-- [ ] Make filter dropdowns collapsible/expandable (optional advanced feature)
-- [ ] Verify: Filter section height ≤ 60px when collapsed
+  - Smaller search input (size="1" instead of size="2")
+  - Tighter spacing (6px/8px gaps via Spacing.SM/MD)
+- [x] Make filter dropdowns collapsible/expandable (optional advanced feature)
+  - Note: This was already implemented - dropdowns open/close on click
+- [ ] Verify: Filter section height ≤ 60px when collapsed (requires visual verification)
 
 ### 5.3 Compact KPI Cards (50% reduction)
 - [ ] Reduce KPI card dimensions:
