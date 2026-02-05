@@ -130,7 +130,7 @@ python -m reflex compile
 - [ ] Verify: Test refresh with --dry-run, check coverage stats
 
 ### 3.3 Test Full Refresh Pipeline
-- [ ] Run `python -m cli.refresh_pathways` with real data
+- [~] Run `python -m cli.refresh_pathways` with real data
 - [ ] Verify pathway_nodes table has both chart_type values
 - [ ] Verify indication chart has expected hierarchy (Trust → SearchTerm → Drug)
 - [ ] Verify unmatched patients appear with directorate fallback label

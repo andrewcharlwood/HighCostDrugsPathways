@@ -36,23 +36,40 @@ DEFAULT_CSV_PATH = Path("./data/drug_snomed_mapping_enriched.csv")
 
 def clean_snomed_code(snomed_code: str) -> str:
     """
-    Clean SNOMED code by removing trailing .0 suffix.
+    Clean SNOMED code by removing trailing .0 suffix and handling scientific notation.
 
-    The enriched CSV has SNOMED codes with decimal notation (e.g., "156370009.0")
-    that need to be converted to clean integer strings.
+    The enriched CSV has SNOMED codes that may be in decimal notation (e.g., "156370009.0")
+    or scientific notation (e.g., "1.0629311000119108e+16") due to pandas/Excel export.
+    These need to be converted to clean integer strings.
 
     Args:
         snomed_code: Raw SNOMED code from CSV.
 
     Returns:
-        Cleaned SNOMED code as string (e.g., "156370009").
+        Cleaned SNOMED code as string (e.g., "156370009" or "10629311000119108").
     """
     if not snomed_code:
         return ""
 
     code = snomed_code.strip()
 
-    # Remove trailing .0 if present
+    # Handle scientific notation (e.g., "1.0629311000119108e+16")
+    if 'e' in code.lower():
+        try:
+            # Convert to float first, then to int, then to string
+            # Using int() directly on the float preserves precision for SNOMED codes
+            value = float(code)
+            # Check if it's a whole number (no decimal part)
+            if value == int(value):
+                return str(int(value))
+            else:
+                # Has decimal part - return as cleaned float
+                return str(value).replace('.0', '')
+        except (ValueError, OverflowError):
+            # If conversion fails, return as-is but cleaned
+            return code
+
+    # Remove trailing .0 if present (for non-scientific notation)
     if code.endswith(".0"):
         code = code[:-2]
 

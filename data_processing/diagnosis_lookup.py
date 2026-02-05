@@ -902,10 +902,11 @@ def batch_lookup_indication_groups(
 
     logger.info(f"Starting batch indication lookup for {len(df)} records...")
 
-    # Step 1: Get unique (UPID, Drug Name, PersonKey, Directory) combinations
-    # We need PersonKey to query Snowflake (it's the PatientPseudonym)
-    if 'PersonKey' not in df.columns:
-        logger.error("DataFrame missing 'PersonKey' column - cannot lookup GP records")
+    # Step 1: Get unique (UPID, Drug Name, PseudoNHSNoLinked, Directory) combinations
+    # We need PseudoNHSNoLinked to query Snowflake - this matches PatientPseudonym in GP records
+    # Note: PersonKey is LocalPatientID which is provider-specific and does NOT match GP records
+    if 'PseudoNHSNoLinked' not in df.columns:
+        logger.error("DataFrame missing 'PseudoNHSNoLinked' column - cannot lookup GP records")
         # Return fallback for all patients
         result_df = df[['UPID', 'Directory']].drop_duplicates().copy()
         result_df['Indication_Group'] = result_df['Directory'] + " (no GP dx)"
@@ -913,7 +914,7 @@ def batch_lookup_indication_groups(
         return result_df[['UPID', 'Indication_Group', 'Source']]
 
     # Get unique patient-drug combinations (we need one lookup per patient-drug pair)
-    unique_pairs = df[['UPID', 'Drug Name', 'PersonKey', 'Directory']].drop_duplicates()
+    unique_pairs = df[['UPID', 'Drug Name', 'PseudoNHSNoLinked', 'Directory']].drop_duplicates()
     logger.info(f"Found {len(unique_pairs)} unique patient-drug combinations")
 
     # Step 2: Get all unique drugs and their SNOMED codes
@@ -953,11 +954,11 @@ def batch_lookup_indication_groups(
     # Step 4: Query GP records for all patients in batches
     # The query finds the most recent matching SNOMED code for each patient
 
-    # Get unique PersonKeys (each PersonKey = one patient)
-    unique_patients = unique_pairs[['PersonKey', 'UPID', 'Directory']].drop_duplicates(subset=['PersonKey'])
-    person_keys = unique_patients['PersonKey'].tolist()
+    # Get unique PseudoNHSNoLinked values (each = one patient in GP records)
+    unique_patients = unique_pairs[['PseudoNHSNoLinked', 'UPID', 'Directory']].drop_duplicates(subset=['PseudoNHSNoLinked'])
+    patient_pseudonyms = unique_patients['PseudoNHSNoLinked'].tolist()
 
-    logger.info(f"Querying GP records for {len(person_keys)} unique patients in batches of {batch_size}...")
+    logger.info(f"Querying GP records for {len(patient_pseudonyms)} unique patients in batches of {batch_size}...")
 
     # Results dict: PersonKey -> (snomed_code, event_date)
     gp_matches: dict[str, tuple[str, Any]] = {}
@@ -976,14 +977,14 @@ def batch_lookup_indication_groups(
     snomed_placeholders = ", ".join(["%s"] * len(snomed_list))
 
     # Process patients in batches
-    for batch_start in range(0, len(person_keys), batch_size):
-        batch_end = min(batch_start + batch_size, len(person_keys))
-        batch_person_keys = person_keys[batch_start:batch_end]
+    for batch_start in range(0, len(patient_pseudonyms), batch_size):
+        batch_end = min(batch_start + batch_size, len(patient_pseudonyms))
+        batch_pseudonyms = patient_pseudonyms[batch_start:batch_end]
 
         logger.info(f"Batch {batch_start//batch_size + 1}: patients {batch_start} to {batch_end}")
 
         # Build patient IN clause
-        patient_placeholders = ", ".join(["%s"] * len(batch_person_keys))
+        patient_placeholders = ", ".join(["%s"] * len(batch_pseudonyms))
 
         # Query to find all matching SNOMED codes for these patients
         # We'll get all matches and pick the most recent per patient in Python
@@ -998,7 +999,7 @@ def batch_lookup_indication_groups(
             ORDER BY "PatientPseudonym", "EventDateTime" DESC
         '''
 
-        params = tuple(batch_person_keys) + tuple(snomed_list)
+        params = tuple(batch_pseudonyms) + tuple(snomed_list)
 
         try:
             results = connector.execute_dict(query, params)
@@ -1031,12 +1032,12 @@ def batch_lookup_indication_groups(
     for _, row in unique_pairs.iterrows():
         upid = row['UPID']
         drug_name = row['Drug Name']
-        person_key = row['PersonKey']
+        patient_pseudonym = row['PseudoNHSNoLinked']
         directory = row['Directory']
 
-        # Check if patient has GP match
-        if person_key in gp_matches:
-            matched_snomed, event_date = gp_matches[person_key]
+        # Check if patient has GP match (using PseudoNHSNoLinked which matches PatientPseudonym in GP)
+        if patient_pseudonym in gp_matches:
+            matched_snomed, event_date = gp_matches[patient_pseudonym]
 
             # Find the search_term for this SNOMED code and drug
             # (A SNOMED code might map to multiple drugs with different search_terms)
