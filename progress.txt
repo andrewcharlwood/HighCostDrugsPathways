@@ -1,486 +1,100 @@
-# Progress Log - Indication-Based Pathway Charts
+# Progress Log - Drug-Aware Indication Matching
 
 ## Project Context
 
-This project adds indication-based icicle charts alongside the existing directory-based charts. Patient diagnoses are matched from GP records using SNOMED cluster codes queried directly from Snowflake.
+This project extends the indication-based pathway charts (Phase 1-5 complete) with drug-aware matching.
 
-**Key Change from Previous Approach**: Instead of maintaining a local CSV/SQLite mapping of SNOMED codes, we now query the `ClinicalCodingClusterSnomedCodes` clusters directly in Snowflake during the data refresh. This simplifies the architecture and ensures we always use the latest cluster definitions.
+**Previous state**: Patients get ONE indication based on their most recent GP diagnosis match (SNOMED cluster codes). This ignores which drugs the patient is taking.
 
-## Key Files Reference
+**New goal**: Match each drug to an indication by cross-referencing the patient's GP diagnoses AND the drug's Search_Term mapping from DimSearchTerm.csv.
 
-**Existing (reuse these):**
-- `data_processing/schema.py` - SQLite schema (chart_type column already added)
-- `data_processing/diagnosis_lookup.py` - Extend with new Snowflake query
-- `data_processing/pathway_pipeline.py` - Pathway processing (indication functions exist)
-- `cli/refresh_pathways.py` - CLI refresh command (chart_type arg exists)
-- `pathways_app/pathways_app.py` - Reflex app (add chart type toggle)
-- `tools/data.py` - Data transformations including department_identification()
+## Key Data/Patterns
 
-**New/Key:**
-- `snomed_indication_mapping_query.sql` - Master SNOMED cluster query to embed in Snowflake calls
+### DimSearchTerm.csv
+- Located at `data/DimSearchTerm.csv`
+- Columns: Search_Term, CleanedDrugName (pipe-separated), PrimaryDirectorate
+- ~165 rows mapping clinical conditions to drug name fragments
+- Drug fragments are substrings that match standardized drug names from HCD data
+- Some entries have generic fragments: INHALED, CONTINUOUS, STANDARD-DOSE, PEGYLATED
 
-## Known Patterns
+### Current get_patient_indication_groups() in diagnosis_lookup.py
+- Uses CLUSTER_MAPPING_SQL as CTE in Snowflake query
+- Returns ONLY the most recent match per patient (QUALIFY ROW_NUMBER() = 1)
+- Needs to return ALL matching Search_Terms per patient (remove QUALIFY)
+- Batches 500 patients per query
 
-### SNOMED Cluster Query Approach
-The `snomed_indication_mapping_query.sql` contains the Search_Term → Cluster_ID mappings:
-- ~148 conditions mapped to clinical coding clusters
-- Joins with `DATA_HUB.PHM."ClinicalCodingClusterSnomedCodes"` to get SNOMED codes
-- Includes explicit manual mappings for conditions not in clusters
-- Returns: Search_Term, SNOMEDCode, SNOMEDDescription
+### Modified UPID approach
+- Current: UPID = Provider Code[:3] + PersonKey (e.g., "RMV12345")
+- New: UPID = original + "|" + search_term (e.g., "RMV12345|rheumatoid arthritis")
+- The pipe delimiter "|" is safe because existing UPIDs are alphanumeric
+- generate_icicle_chart_indication() treats UPID as an opaque identifier — modified UPIDs work transparently
+- The " - " delimiter in pathway ids is used for hierarchy levels, not within UPIDs
 
-### GP Record Matching
-To find a patient's indication:
-1. Use the cluster query as a CTE
-2. Join with `PrimaryCareClinicalCoding` on SNOMEDCode
-3. Filter by PatientPseudonym (use PseudoNHSNoLinked from HCD data)
-4. Use most recent match by EventDateTime
-5. Return Search_Term for matched patients
+### PseudoNHSNoLinked mapping
+- HCD data has PseudoNHSNoLinked column that matches PatientPseudonym in GP records
+- PersonKey is provider-specific local ID — do NOT use for GP matching
+- One PseudoNHSNoLinked can map to multiple UPIDs (multi-provider patients)
+- GP match lookup: PseudoNHSNoLinked → list of matched Search_Terms
 
-### Patient Identifier Mapping
-- HCD data has `PseudoNHSNoLinked` column - this matches `PatientPseudonym` in GP records
-- DO NOT use `PersonKey` (LocalPatientID) - this is provider-specific and won't match GP records
-- UPID = Provider Code (3 chars) + PersonKey
+### Drug matching logic
+- For each HCD row (UPID + Drug Name):
+  1. Get patient's GP-matched Search_Terms with code_frequency (via PseudoNHSNoLinked)
+  2. Get which Search_Terms list this drug (from DimSearchTerm.csv)
+  3. Intersection = valid indications
+  4. If 1: use it. If multiple: pick highest code_frequency (most GP coding = most likely indication). If 0: fallback to directory.
+- Modified UPID groups drugs under same indication together naturally
+- code_frequency = COUNT(*) of matching SNOMED codes per Search_Term per patient in GP records
+- GP code time range: only count codes from MIN(Intervention Date) onwards (the HCD data window)
+  - Reduces noise from old/irrelevant diagnoses, makes frequency more meaningful
+  - Pass earliest_hcd_date as parameter to get_patient_indication_groups()
+- Tiebreaker rationale: 47 RA codes vs 2 crohn's codes → RA is clearly the active condition
 
-### Chart Type Architecture
-- `chart_type` column in pathway_nodes: "directory" or "indication"
-- 12 total pathway datasets: 6 date filters x 2 chart types
-- Indication chart: mixed labels (Search_Term for matched, Directorate for unmatched)
-
-### Date Filter Combinations
-| ID | Initiated | Last Seen | Default |
-|----|-----------|-----------|---------|
-| `all_6mo` | All years | Last 6 months | Yes |
-| `all_12mo` | All years | Last 12 months | No |
-| `1yr_6mo` | Last 1 year | Last 6 months | No |
-| `1yr_12mo` | Last 1 year | Last 12 months | No |
-| `2yr_6mo` | Last 2 years | Last 6 months | No |
-| `2yr_12mo` | Last 2 years | Last 12 months | No |
-
-### Previous Work (Reusable)
-These components from the previous approach are still valid:
-- `chart_type` column and schema migration (Task 2.1 - complete)
-- `generate_icicle_chart_indication()` function (Task 2.2 - complete)
-- `process_indication_pathway_for_date_filter()` function (Task 2.2 - complete)
-- `extract_indication_fields()` function (Task 2.2 - complete)
-- `--chart-type` CLI argument (Task 2.3 - complete)
-
-### What Needs Replacement
-The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py` used a local SQLite table. This needs to be replaced with a new function that queries Snowflake directly using the cluster query.
-
----
+### Known edge cases
+- Some DimSearchTerm drug fragments are generic (INHALED, ORAL, CONTINUOUS)
+  - These could match broadly but are constrained by GP diagnosis requirement
+- A patient visiting multiple providers has multiple UPIDs
+  - Each UPID gets its own drug-indication matching independently
+- Same Search_Term appears twice in DimSearchTerm.csv with different directorates
+  - e.g., "diabetes" → DIABETIC MEDICINE and OPHTHALMOLOGY
+  - For indication charts, we use Search_Term not directorate, so this is fine
 
 ## Iteration Log
 
-<!-- Each iteration appends a structured entry below -->
-
 ## Iteration 1 — 2026-02-05
-### Task: 1.1 Create Indication Lookup Query
+### Task: 1.2 — Build drug-to-Search_Term lookup from DimSearchTerm.csv
 ### Why this task:
-- This is the foundation task — other tasks (1.2 CLI integration, 2.3 refresh command) depend on this function
-- The progress.txt explicitly noted the old approach needs replacement
-- Logical flow: data query function must exist before pipeline integration
+- First iteration, chose Phase 1 foundations. Task 1.2 (CSV loading) is self-contained and testable locally without Snowflake.
+- Task 1.1 (Snowflake query update) can't be verified without a live connection — better to do 1.2 first.
+- Both 1.1 and 1.2 are independent, so order doesn't matter for dependencies.
 ### Status: COMPLETE
 ### What was done:
-- Created `get_patient_indication_groups()` function in `data_processing/diagnosis_lookup.py`
-- Embedded the full cluster mapping SQL (from snomed_indication_mapping_query.sql) as `CLUSTER_MAPPING_SQL` constant
-- Function takes list of PseudoNHSNoLinked values and queries Snowflake directly
-- Uses QUALIFY ROW_NUMBER() OVER (PARTITION BY PatientPseudonym ORDER BY EventDateTime DESC) = 1 to get most recent match
-- Returns DataFrame with PatientPseudonym, Search_Term, EventDateTime columns
-- Handles edge cases: empty patient list, Snowflake unavailable/unconfigured
-- Added batch processing (default 500 patients per batch) for large datasets
-- Added logging for match statistics (match rate, unique Search_Terms, top 5 indications)
-- Added both function and CLUSTER_MAPPING_SQL to __all__ exports
+- Added `load_drug_indication_mapping()` to `diagnosis_lookup.py`:
+  - Loads `data/DimSearchTerm.csv`, builds two dicts:
+    - `fragment_to_search_terms`: drug fragment (UPPER) → list of Search_Terms
+    - `search_term_to_fragments`: search_term → list of drug fragments (UPPER)
+  - Handles duplicate Search_Terms (e.g., "diabetes" rows combined)
+  - Result: 164 Search_Terms, 346 drug fragments
+- Added `get_search_terms_for_drug()` to `diagnosis_lookup.py`:
+  - Returns all Search_Terms whose drug fragments are substrings of the drug name (case-insensitive)
+  - Named differently from plan's `drug_matches_search_term()` — returns all matches at once rather than single boolean, more practical for Phase 2
+- Updated `__all__` exports
 ### Validation results:
-- Tier 1 (Code): ✅ `python -m py_compile` passed, import check passed
-- Tier 2 (Data): ✅ Empty list returns correct empty DataFrame with expected columns
-- Tier 3 (Functional): N/A (not a UI task)
+- Tier 1 (Code): py_compile passed, import check passed
+- Tier 2 (Data): ADALIMUMAB → 7 indications (including axial spondyloarthritis, rheumatoid arthritis), OMALIZUMAB → 4 indications (asthma, allergic asthma, etc.), PEGYLATED LIPOSOMAL DOXORUBICIN → 4 matches via substring, "ADALIMUMAB 40MG" matches correctly with dosage info, diabetes fragments combined from 2 CSV rows
+- Tier 3 (Functional): N/A (no UI changes)
 ### Files changed:
-- `data_processing/diagnosis_lookup.py` — added CLUSTER_MAPPING_SQL constant and get_patient_indication_groups() function
-- `IMPLEMENTATION_PLAN.md` — marked Task 1.1 items complete
-### Committed: 052256c "feat: add get_patient_indication_groups() for Snowflake-direct GP lookup (Task 1.1)"
+- data_processing/diagnosis_lookup.py (added load_drug_indication_mapping, get_search_terms_for_drug)
+- IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
+### Committed: 0779df7 "feat: add drug-to-indication mapping from DimSearchTerm.csv (Task 1.2)"
 ### Patterns discovered:
-- Snowflake's QUALIFY clause is cleaner than subquery for row_number filtering
-- The cluster CTE has 148 Search_Term mappings plus 13 explicit SNOMED codes
+- DimSearchTerm.csv has 164 unique Search_Terms (not 165 as noted) because diabetes appears twice with different directorates but same Search_Term
+- Some drug fragments are very generic: INHALED, CONTINUOUS, ORAL, STANDARD-DOSE, INTRAVENOUS, PEGYLATED, ROUTINE, INDUCTION — these will match broadly but are constrained by the GP diagnosis requirement in Phase 2
+- Function signatures for Phase 2: `get_search_terms_for_drug(drug_name, search_term_to_fragments)` returns list[str] — use this to get candidate indications per drug
 ### Next iteration should:
-- Test the function with real patient data to verify it returns expected Search_Terms (Task 1.1 verification)
-- OR proceed to Task 1.2 (integrate with CLI refresh command) if confident in the function
-- The key integration point: extract unique PseudoNHSNoLinked values from HCD data, call this function, map results back to UPID for indication_df
+- Work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
+  - The current query at line ~1352 of diagnosis_lookup.py uses `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1` — this must be replaced with GROUP BY + COUNT(*)
+  - Add `earliest_hcd_date` parameter to restrict GP codes to HCD data window
+  - Return columns: PatientPseudonym, Search_Term, code_frequency (not EventDateTime)
+- OR if Snowflake isn't available to test, skip to Task 2.1 (assign_drug_indications function) which can be built and tested with mock data
 ### Blocked items:
 - None
-
-## Iteration 2 — 2026-02-05
-### Task: 1.2 Update Data Pipeline to Include Indications & 2.3 Update Refresh Command
-### Why this task:
-- Task 1.1 verification would naturally happen when running the full pipeline with real data
-- Task 1.2 is the logical next step - integrates the new function into the CLI
-- Task 2.3 overlaps with 1.2 - both involve updating refresh_pathways.py to use the new approach
-- Combined these tasks since they're tightly coupled
-### Status: COMPLETE
-### What was done:
-- Modified `cli/refresh_pathways.py` to use `get_patient_indication_groups()` instead of `batch_lookup_indication_groups()`
-- Updated import statement to use the new function
-- Replaced the indication chart processing section (lines 361-441) with new logic:
-  1. Extracts unique PseudoNHSNoLinked values from df
-  2. Calls `get_patient_indication_groups()` with patient list
-  3. Builds indication_df mapping UPID → Indication_Group:
-     - For matched patients: Search_Term (from GP record)
-     - For unmatched patients: Directory + " (no GP dx)"
-  4. Logs coverage statistics and top indications
-  5. Passes indication_df to existing `process_indication_pathway_for_date_filter()`
-### Validation results:
-- Tier 1 (Code): ✅ `python -m py_compile cli/refresh_pathways.py` passed
-- Tier 1 (Import): ✅ `from cli.refresh_pathways import refresh_pathways` works
-- Tier 1 (Import): ✅ `from data_processing.diagnosis_lookup import get_patient_indication_groups` works
-- Tier 2 (Data): Pending - needs live Snowflake test with `--chart-type indication`
-- Tier 3 (Functional): Pending - needs full pipeline test
-### Files changed:
-- `cli/refresh_pathways.py` — replaced batch_lookup_indication_groups with get_patient_indication_groups integration
-- `IMPLEMENTATION_PLAN.md` — marked Task 1.2 and 2.3 subtasks complete
-### Committed: ad10b37 "feat: integrate Snowflake-direct indication lookup into CLI refresh (Task 1.2, 2.3)"
-### Patterns discovered:
-- The indication processing follows the same flow as before, just with different data source
-- patient_lookup DataFrame helps map PseudoNHSNoLinked → UPID for the final indication_df
-- match_lookup dict (PatientPseudonym → Search_Term) makes joining simple
-### Next iteration should:
-- Run a live test with `python -m cli.refresh_pathways --chart-type indication --dry-run` to verify the full pipeline
-- This will test Task 1.1 verification (function returns expected Search_Terms) and Task 3.1 (full pipeline test)
-- Alternatively, proceed to Phase 4 (Reflex UI) if confident
-- Key verification points: coverage statistics logged, indication_df structure correct
-### Blocked items:
-- None
-
-## Iteration 3 — 2026-02-05
-### Task: 3.1 Test Refresh with Real Data
-### Why this task:
-- Previous iteration recommended testing the full pipeline with Snowflake
-- Task 3.1 validates Tasks 1.1, 1.2, 2.1-2.3 in one comprehensive test
-- Must verify data layer works before building UI (Phase 4)
-### Status: IN PROGRESS (bugs identified and fixed, need another test run)
-### What was done:
-1. Ran `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
-2. Identified and fixed THREE bugs:
-
-**Bug 1: Snowflake column name casing**
-- Issue: `Search_Term` returned as `SEARCH_TERM` (uppercase) from Snowflake
-- Symptom: "Unique Search_Terms found: 0" despite 34,006 patient matches
-- Root cause: Unquoted column aliases in SQL are uppercased by Snowflake
-- Fix: Added quoted aliases: `aic.Search_Term AS "Search_Term"`
-
-**Bug 2: Duplicate UPID index in indication_df**
-- Issue: `indication_df_for_chart.set_index('UPID')` failed with non-unique index
-- Symptom: `InvalidIndexError: Reindexing only valid with uniquely valued Index objects`
-- Root cause: Same patient could appear multiple times if data had edge cases
-- Fix: Added `drop_duplicates(subset=['UPID'], keep='first')` before set_index()
-
-**Bug 3: Missing UPIDs in indication mapping**
-- Issue: Old code built indication_df from unique PseudoNHSNoLinked, not unique UPIDs
-- Symptom: `TypeError: can only concatenate str (not "float") to str` in build_hierarchy
-- Root cause: Patients with multiple UPIDs (from different providers) had some UPIDs unmapped
-- Fix: Changed to build indication_df from ALL unique UPIDs, with NaN handling
-
-### Validation results:
-- Tier 1 (Code): ✅ Both files compile, imports work
-- Tier 2 (Data):
-  - ✅ 36,628 patients queried
-  - ✅ 34,006 (92.8%) matched GP diagnoses
-  - ✅ 139 unique Search_Terms found (was 0 before fix)
-  - ✅ Top 5 indications: drug misuse (8602), influenza (6239), diabetes (2476), sepsis (1980), cardiovascular disease (940)
-- Tier 3 (Functional): ❌ Pipeline still fails after indication lookup — need another test run
-### Files changed:
-- `data_processing/diagnosis_lookup.py` — fixed column aliasing in SQL query
-- `cli/refresh_pathways.py` — fixed UPID mapping logic, added deduplication, NaN handling
-- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 as in progress
-### Committed: 22222fe "fix: resolve Snowflake column casing and UPID mapping issues (Task 3.1)"
-### Patterns discovered:
-- Snowflake ALWAYS uppercases unquoted identifiers — must use AS "column" for mixed case
-- Patients can have multiple UPIDs if they visited different providers (UPID = ProviderCode[:3] + PersonKey)
-- Must handle NaN values in Directory column or get TypeError in string concatenation
-- ~92.8% of patients have matching GP diagnoses — this is excellent coverage!
-### Next iteration should:
-- Run another `python -m cli.refresh_pathways --chart-type indication --dry-run -v` to verify fixes work end-to-end
-- The indication lookup now works (139 Search_Terms found) — need to confirm pathway processing also works
-- If successful, mark Task 3.1 complete and proceed to Phase 4 (Reflex UI)
-- Test run takes ~35 minutes total (7 min data fetch/transform, 25 min indication lookup, 3 min pathway processing)
-### Blocked items:
-- None
-
-## Iteration 4 — 2026-02-05
-### Task: 3.1 Test Refresh with Real Data (verification run)
-### Why this task:
-- Previous iteration fixed three bugs but didn't complete the verification
-- Pipeline must be verified before proceeding to Phase 4 (Reflex UI)
-- This is the blocking task for all subsequent work
-### Status: COMPLETE
-### What was done:
-1. Ran `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
-2. **FULL PIPELINE SUCCESS** — all fixes from iteration 3 work correctly:
-   - Data fetch: 656,000+ rows in ~7 seconds
-   - Indication lookup: 36,628 patients queried, 34,006 (92.8%) matched
-   - Pathway processing: 695 nodes generated for all_6mo filter
-   - Dry run completed: "695 records would be inserted"
-
-### Key Results:
-- **Indication coverage**: 92.7% diagnosis-matched (34,545/37,257 UPIDs)
-- **Unique Search_Terms**: 139 distinct indications found
-- **Top 5 indications**:
-  - drug misuse: 8,749 patients
-  - influenza: 6,336 patients
-  - diabetes: 2,516 patients
-  - sepsis: 1,991 patients
-  - cardiovascular disease: 954 patients
-- **Pathway nodes**: 695 for all_6mo (8 trusts, 91 search_terms in hierarchy)
-
-### Note on Date Filters:
-- Only `all_6mo` filter produced data — other 5 filters returned "No data found"
-- This is expected: test data was fetched with specific date parameters
-- Full production run with `--chart-type all` will need broader date range in HCD data
-
-### Validation results:
-- Tier 1 (Code): ✅ All files compile, imports work
-- Tier 2 (Data): ✅ 695 pathway nodes generated, 92.8% match rate
-- Tier 3 (Functional): ✅ Full pipeline completes without errors
-### Files changed:
-- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 verification items complete
-- `progress.txt` — this entry
-### Committed: 2deaa2f "docs: mark Task 3.1 complete - indication pipeline verified (Task 3.1)"
-### Patterns discovered:
-- Pipeline processing time breakdown: data fetch (7s) + indication lookup (~9 min) + pathway processing (~50s)
-- The indication lookup batches (500 patients/batch × 74 batches) are the slowest part
-- Future optimization: could use larger batch sizes or parallel processing
-### Next iteration should:
-- Proceed to **Phase 4: Reflex UI Updates** (Task 4.1)
-- Add `selected_chart_type` state variable and `set_chart_type()` handler
-- Add `chart_type_options` list for the toggle UI
-- Update `load_pathway_data()` to filter by chart_type
-- **Important**: Run `--chart-type all` (non-dry-run) to populate database before UI testing
-### Blocked items:
-- None — Phase 3 complete, Phase 4 ready to begin
-
-## Iteration 5 — 2026-02-05
-### Task: 4.1, 4.2, 4.3 — Reflex UI Chart Type Toggle
-### Why this task:
-- Phase 3 (data pipeline) is fully verified — the next logical step is the UI
-- Tasks 4.1, 4.2, 4.3 are tightly coupled (state → toggle → display) and all live in the same file
-- Combined them since they're interdependent and small individually
-### Status: COMPLETE
-### What was done:
-1. **Task 4.1 — Chart Type State**:
-   - Added `selected_chart_type: str = "directory"` state variable
-   - Added `chart_type_options` list for dropdown configuration
-   - Added `set_chart_type()` event handler that triggers `load_pathway_data()`
-   - Updated `load_pathway_data()` to include `chart_type = ?` in WHERE clause
-   - Added computed vars: `chart_hierarchy_label`, `chart_type_label`
-   - Updated `_generate_pathway_chart_title()` to include chart type prefix
-
-2. **Task 4.2 — Chart Type Toggle UI**:
-   - Created `chart_type_toggle()` component — segmented control with two pill-style buttons
-   - "By Directory" and "By Indication" with active state using Primary Blue
-   - Placed in filter strip as first element (before date filters), with separator
-   - Wired to `set_chart_type()` handler via `on_click`
-
-3. **Task 4.3 — Chart Display Updates**:
-   - Updated chart section hierarchy label to use dynamic `AppState.chart_hierarchy_label`
-   - Shows "Trust → Directorate → Drug → Patient Pathway" or "Trust → Indication → Drug → Patient Pathway"
-   - No hover template changes needed — labels come from pre-computed pathway_nodes data
-   - Mixed labels (Search_Term + directorate fallback) already handled by pipeline
-
-### Validation results:
-- Tier 1 (Code): ✅ `python -m py_compile pathways_app/pathways_app.py` passed
-- Tier 1 (Import): ✅ AppState imports with all new attributes (selected_chart_type, set_chart_type, chart_hierarchy_label)
-- Tier 3 (Functional): ✅ `reflex compile` succeeded in 16s (21/21 components)
-### Files changed:
-- `pathways_app/pathways_app.py` — added chart type state, toggle component, dynamic labels
-- `IMPLEMENTATION_PLAN.md` — marked Tasks 4.1, 4.2, 4.3 complete
-### Committed: 1c35d23 "feat: add chart type toggle for Directory/Indication views (Task 4.1, 4.2, 4.3)"
-### Patterns discovered:
-- Reflex `rx.cond()` works well for toggle active states — use it for background_color and text color
-- Segmented control pattern: wrap two boxes in an hstack with background, use rx.cond for active styling
-- No `SLATE_200` in design system — used `SLATE_300` for hover states instead
-### Next iteration should:
-- **Run `python -m cli.refresh_pathways --chart-type all`** (non-dry-run) to populate database with BOTH chart types
-  - This is needed before UI testing can verify the toggle actually switches data
-  - The 3.1 sub-item "Run full refresh with --chart-type all" is still unchecked
-- Then run `reflex run` and verify:
-  - Toggle appears in filter strip
-  - Clicking "By Indication" loads indication pathway data
-  - Clicking "By Directory" loads directory pathway data
-  - KPIs update for both chart types
-- After verification, proceed to Phase 5 (end-to-end validation and documentation)
-### Blocked items:
-- **UI testing blocked by data**: Need to run `--chart-type all` to populate indication data in SQLite before the toggle can show indication pathways
-
-## Iteration 6 — 2026-02-05
-### Task: 3.1 Run full refresh with --chart-type all + Fix DataFrame mutation bug
-### Why this task:
-- Previous iteration identified that UI testing is blocked until indication data is in the database
-- This is the last sub-item of Task 3.1 and gates all of Phase 5 validation
-- Must be done before any end-to-end UI testing can proceed
-### Status: COMPLETE
-### What was done:
-1. **First refresh attempt** — Ran `python -m cli.refresh_pathways --chart-type all -v`
-   - Directory charts: 293 nodes for all_6mo, all other 5 date filters returned "No data found"
-   - Indication charts: ALL 6 date filters returned "No data found" (0 nodes total)
-   - Root cause identified: DataFrame mutation bug in `prepare_data()`
-
-2. **Bug identified and fixed** — DataFrame mutation in `prepare_data()` (analysis/pathway_analyzer.py)
-   - `prepare_data()` modifies `df["Provider Code"]` via `.map()` in-place (line 60)
-   - First call (directory chart) correctly maps "RGT" → "Norfolk and Norwich University..."
-   - Subsequent calls try to re-map already-mapped values → NaN → all rows filtered out
-   - **Fix**: Added `df = df.copy()` at start of `prepare_data()` to prevent destructive mutation
-   - This also fixed the directory chart issue (only 1 of 6 date filters worked before)
-
-3. **Second refresh attempt** — Successful! All 12 datasets generated:
-   - Directory: all_6mo(293), all_12mo(329), 1yr_6mo(93), 1yr_12mo(105), 2yr_6mo(134), 2yr_12mo(147) = 1,101 total
-   - Indication: all_6mo(695), all_12mo(785), 1yr_6mo(167), 1yr_12mo(198), 2yr_6mo(315), 2yr_12mo(372) = 2,532 total
-   - Grand total: 3,633 nodes processed, 3,589 in database (minor dedup)
-   - Processing time: 916.5 seconds (~15 min)
-
-4. **Added guardrail** — "Copy DataFrames in functions that modify columns"
-
-### Validation results:
-- Tier 1 (Code): ✅ All files compile, imports work
-- Tier 2 (Data): ✅ 3,589 nodes in database across 12 datasets (6 dates × 2 chart types)
-- Tier 3 (Functional): Pending — need `reflex run` to verify UI toggle works with real data
-### Files changed:
-- `analysis/pathway_analyzer.py` — added `df = df.copy()` in `prepare_data()` to fix mutation bug
-- `guardrails.md` — added "Copy DataFrames in functions that modify columns" guardrail
-- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 fully complete, updated completion criteria
-### Committed: 6331d44 "fix: prevent DataFrame mutation in prepare_data() causing indication charts to fail"
-### Patterns discovered:
-- `prepare_data()` is called 12+ times on the same DataFrame during `--chart-type all` processing
-- The `.map()` operation is destructive — it replaces values, so second mapping produces NaN
-- This bug was hidden when running `--chart-type indication` alone (only 6 calls, no prior directory processing)
-- The bug also explains why only all_6mo worked for directory — it was the first call in the loop
-### Next iteration should:
-- Run `reflex run` and verify the chart toggle works end-to-end with real data
-- Verify filter interactions (drugs, directorates) work for both chart types
-- Verify KPIs update correctly when switching chart types
-- Complete Phase 5.1 (end-to-end validation) and 5.2 (documentation)
-- The database is now fully populated — UI testing should be unblocked
-### Blocked items:
-- None — all data is in the database, ready for UI validation
-
-## Iteration 7 — 2026-02-05
-### Task: 5.1 End-to-End Validation
-### Why this task:
-- Phase 5 is the final phase — validation must come before documentation
-- Previous iteration said UI testing was unblocked with data in database
-- Need to verify the chart type toggle, filters, and KPIs work correctly
-### Status: COMPLETE (with one deferred sub-item)
-### What was done:
-1. **Found and fixed critical UNIQUE constraint bug**:
-   - Database had `UNIQUE(date_filter_id, ids)` — MISSING `chart_type`
-   - Schema in code had correct `UNIQUE(date_filter_id, chart_type, ids)` but DB was created before this change
-   - Effect: `INSERT OR REPLACE` silently overwrote directory root/trust nodes when indication nodes were inserted
-   - Directory charts had NO level 0 or level 1 nodes — KPIs would show 0 patients
-   - Fix: Dropped and recreated `pathway_nodes` table with correct constraint
-
-2. **Re-ran full data refresh** (`--chart-type all`):
-   - 903 seconds (~15 min), 3,633 total nodes
-   - Directory: 1,101 nodes (all 6 levels: 0-5), Indication: 2,532 nodes (all 6 levels)
-   - Both chart types now have correct root/trust nodes
-
-3. **Comprehensive end-to-end validation**:
-   - Chart type toggle: Both types generate valid Plotly icicle charts
-   - All 12 date filter combinations tested — all produce valid charts
-   - Drug filter works for both chart types
-   - KPIs: 11,118 patients, £130.6M cost for all_6mo (consistent across chart types)
-   - Reflex compile: 21/21 components, 58s
-
-4. **Added guardrails**: UNIQUE constraint and schema verification
-
-5. **Known limitation**: `reflex run` crashes on Windows due to Granian/watchfiles `FileNotFoundError`
-   - This is a Windows environment issue, not a code issue
-   - Frontend-only mode works (app compiles and serves on port 3001)
-   - Full manual UI testing deferred to when `reflex run` works (e.g., after WSL setup or Reflex update)
-
-### Validation results:
-- Tier 1 (Code): ✅ `python -m py_compile` passed, `reflex compile` passed (21/21, 58s)
-- Tier 2 (Data): ✅ 3,633 nodes, both chart types have levels 0-5, matching root patient counts
-- Tier 3 (Functional): ⚠️ Data layer fully validated, UI cannot be live-tested due to Granian crash
-### Files changed:
-- `data/pathways.db` — recreated pathway_nodes table with correct UNIQUE constraint, re-populated
-- `guardrails.md` — added UNIQUE constraint and schema verification guardrails
-- `IMPLEMENTATION_PLAN.md` — marked Task 5.1 items, updated completion criteria
-### Committed: 89182e2 "fix: recreate pathway_nodes with correct UNIQUE constraint and validate end-to-end (Task 5.1)"
-### Patterns discovered:
-- SQLite doesn't alter UNIQUE constraints — must DROP and recreate table
-- `INSERT OR REPLACE` with wrong UNIQUE constraint silently destroys data
-- Always verify DB schema matches code after schema changes
-- Granian/watchfiles on Windows has FileNotFoundError for watch paths — known issue
-### Next iteration should:
-- Complete Task 5.2 (Documentation updates)
-- If `reflex run` works, do manual visual testing at multiple viewport sizes
-- Consider whether directorate filter should be disabled when in indication mode
-  (the `directory` column stores Search_Terms for indication charts, so filtering by "RHEUMATOLOGY" returns 0 results)
-- The app is feature-complete — only documentation and optional visual polish remain
-### Blocked items:
-- Visual testing at multiple viewport sizes blocked by Granian/watchfiles Windows crash
-
-## Iteration 8 — 2026-02-05
-### Task: 5.2 Update Documentation
-### Why this task:
-- This is the only remaining non-blocked task in the implementation plan
-- Previous iteration explicitly recommended completing Task 5.2 next
-- All code is complete and validated — only documentation remains
-### Status: COMPLETE
-### What was done:
-Updated CLAUDE.md comprehensively to document all indication chart features:
-
-1. **Project Overview** — Added dual chart types as key feature, GP diagnosis matching with ~93% match rate
-2. **CLI Commands** — Documented `--chart-type` argument (all/directory/indication) with timing estimates
-3. **Pathway Data Architecture** — Added chart types table, indication hierarchy, chart_type in node structure, UNIQUE constraint
-4. **Data Processing Module** — Documented `get_patient_indication_groups()`, `CLUSTER_MAPPING_SQL`, indication pipeline functions
-5. **Analysis Module** — Added `generate_icicle_chart_indication()` documentation
-6. **Reflex Application** — Documented chart type state, toggle component, known limitation (directory filter)
-7. **Data Flow Diagram** — Rewrote to show dual chart type processing with GP diagnosis lookup branch
-8. **Database Schema** — Added `chart_type` column, updated UNIQUE constraint, indexes
-9. **Key Patterns** — Added indication lookup workflow, kept legacy validation workflow
-10. **Breaking Changes** — Added chart type toggle section, updated state variables
-11. **Input Data** — Added `PseudoNHSNoLinked` column requirement
-12. **Output** — Updated to describe both chart views
-
-### Validation results:
-- Tier 1 (Code): N/A (documentation only)
-- Tier 2 (Data): N/A
-- Tier 3 (Functional): N/A
-### Files changed:
-- `CLAUDE.md` — comprehensive documentation updates for indication chart features
-- `IMPLEMENTATION_PLAN.md` — marked Task 5.2 items complete
-### Committed: 315065c "docs: update CLAUDE.md with indication chart architecture and CLI docs (Task 5.2)"
-### Patterns discovered:
-- None (documentation task)
-### Next iteration should:
-- All implementation plan tasks are now complete except the deferred viewport testing (blocked by Granian crash)
-- Check if `<promise>COMPLETE</promise>` signal can be issued (all tasks [x] except one deferred sub-item)
-- If the deferred viewport testing sub-item prevents completion, consider whether it should be marked [B] (blocked)
-### Blocked items:
-- Task 5.1 sub-item "Test at multiple viewport sizes" still blocked by Granian/watchfiles Windows crash
-
-## Iteration 9 — 2026-02-05
-### Task: Completion check and signal
-### Why this task:
-- Previous iteration (8) completed all implementation tasks and recommended checking for completion signal
-- All tasks are [x] except one sub-item that is environment-blocked (not code-blocked)
-- The blocked viewport testing sub-item was marked [B] since it cannot be resolved in current environment
-### Status: COMPLETE
-### What was done:
-1. Reviewed all files: progress.txt, IMPLEMENTATION_PLAN.md, guardrails.md, CLAUDE.md
-2. Verified all completion criteria are met (8/8 checked)
-3. Marked the viewport testing sub-item as [B] (blocked by environment, not code)
-4. Confirmed no [ ] items remain in IMPLEMENTATION_PLAN.md — all are [x] or [B]
-5. Issuing completion signal
-### Validation results:
-- All completion criteria satisfied
-- No unchecked [ ] tasks remaining
-- One [B] item (viewport testing) blocked by Windows environment, not code
-### Files changed:
-- `IMPLEMENTATION_PLAN.md` — marked viewport testing sub-item as [B]
-- `progress.txt` — this entry
-### Committed: (pending)
-### Patterns discovered:
-- None
-### Next iteration should:
-- N/A — project is complete
-### Blocked items:
-- Task 5.1 viewport testing remains [B] — needs Granian/watchfiles fix or WSL/Linux environment
