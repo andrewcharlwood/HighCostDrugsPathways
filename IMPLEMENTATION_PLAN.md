@@ -107,7 +107,7 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
 ## Phase 2: Drug-Aware Indication Matching Logic
 
 ### 2.1 Create `assign_drug_indications()` function
-- [ ] Add to `diagnosis_lookup.py` or `pathway_pipeline.py`:
+- [x] Add to `diagnosis_lookup.py` or `pathway_pipeline.py`:
   ```
   def assign_drug_indications(
       df: pd.DataFrame,              # HCD data with UPID, Drug Name columns
@@ -118,25 +118,25 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
       - modified_df: HCD data with UPID replaced by {UPID}|{indication}
       - indication_df: mapping modified_UPID → Search_Term
   ```
-- [ ] Logic per UPID + Drug Name pair:
+- [x] Logic per UPID + Drug Name pair:
   1. Get patient's GP-matched Search_Terms with code_frequency (from gp_matches_df via PseudoNHSNoLinked)
   2. Get which Search_Terms include this drug (from drug_mapping)
   3. Intersection = valid indications for this drug-patient pair
   4. If 1 match: use it
   5. If multiple matches: use highest code_frequency as tiebreaker (most GP coding activity = most likely treatment indication)
   6. If 0 matches: use fallback directory
-- [ ] Modify UPID in df rows: `{original_UPID}|{matched_search_term}`
-- [ ] Build indication_df: `{modified_UPID}` → `Search_Term` (or fallback label)
-- [ ] Verify: Function compiles, handles edge cases (no GP match, no drug match)
+- [x] Modify UPID in df rows: `{original_UPID}|{matched_search_term}`
+- [x] Build indication_df: `{modified_UPID}` → `Search_Term` (or fallback label)
+- [x] Verify: Function compiles, handles edge cases (no GP match, no drug match)
 
 ### 2.2 Handle tiebreaker for multiple indication matches
-- [ ] When a drug matches multiple Search_Terms AND patient has GP dx for multiple:
+- [x] When a drug matches multiple Search_Terms AND patient has GP dx for multiple:
   - Use `code_frequency` from the GP query (COUNT of matching SNOMED codes per Search_Term)
   - Higher code_frequency = more clinical activity for that condition = more likely treatment indication
   - E.g., patient with 47 RA codes and 2 crohn's codes → ADALIMUMAB assigned to RA
   - code_frequency is already returned by the updated query in Task 1.1
-- [ ] Verify: Tiebreaker logic correctly picks highest-frequency diagnosis
-- [ ] Verify: Tie on frequency (rare but possible) falls back to alphabetical Search_Term for determinism
+- [x] Verify: Tiebreaker logic correctly picks highest-frequency diagnosis
+- [x] Verify: Tie on frequency (rare but possible) falls back to alphabetical Search_Term for determinism
 
 ---
 
