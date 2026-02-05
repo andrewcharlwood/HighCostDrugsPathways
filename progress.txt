@@ -128,7 +128,7 @@ For a patient on drug X:
 - Tier 2 (Data): SNOMED codes cleaned — 0 rows with .0 suffix remaining
 ### Files changed:
 - `data_processing/load_snomed_mapping.py` — new file
-### Committed: 6ce45b5 "feat: add SNOMED mapping loader script (Task 1.2)"
+### Committed: 6d68b5e "feat: add SNOMED mapping loader script (Task 1.2)"
 ### Patterns discovered:
 - CSV has 163,937 rows but only 144,056 unique (drug_name, indication, snomed_code) combinations
 - SNOMED codes in CSV have `.0` suffix from float formatting — need `clean_snomed_code()` function
@@ -138,6 +138,109 @@ For a patient on drug X:
 - Add `get_drug_snomed_codes(drug_name)` to `data_processing/diagnosis_lookup.py`
 - Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)` function
 - Look at existing `diagnosis_lookup.py` for patterns to follow
+### Blocked items:
+- None
+
+## Iteration 3 — 2026-02-05
+### Task: 1.3 Extend Diagnosis Lookup Module
+### Why this task:
+- Tasks 1.1 and 1.2 are complete — the data infrastructure (schema + loaded data) is in place
+- Task 1.3 is the next logical step — functions to query the data before using it in the pipeline
+- Phase 2 (Pathway Processing) depends on having these lookup functions
+- Following the "data infrastructure first" principle
+### Status: COMPLETE
+### What was done:
+- Added two new dataclasses to `data_processing/diagnosis_lookup.py`:
+  - `DrugSnomedMapping`: Holds SNOMED code mapping with snomed_code, snomed_description, search_term, primary_directorate, indication, ta_id
+  - `DirectSnomedMatchResult`: Result of direct SNOMED lookup with matched flag, snomed_code, search_term, primary_directorate, event_date, source
+- Added `get_drug_snomed_codes(drug_name)` function:
+  - Queries `ref_drug_snomed_mapping` table for all SNOMED codes for a drug
+  - Case-insensitive matching on both `cleaned_drug_name` and `drug_name` columns
+  - Returns list of DrugSnomedMapping dataclass instances
+- Added `patient_has_indication_direct(patient_pseudonym, drug_snomed_mappings, connector)` function:
+  - Queries `PrimaryCareClinicalCoding` directly for exact SNOMED code matches
+  - Returns most recent match by EventDateTime (ORDER BY DESC LIMIT 1)
+  - Handles Snowflake unavailability gracefully
+- Updated `__all__` exports to include new dataclasses and functions
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/diagnosis_lookup.py` — PASSED
+- Tier 1 (Code): Import check — PASSED
+- Tier 2 (Data): ADALIMUMAB returns 1320 SNOMED mappings across 10 Search_Terms
+- Tier 2 (Data): RANIBIZUMAB returns 104 SNOMED mappings
+- Tier 2 (Data): Case insensitivity verified (upper/lower/mixed all return same results)
+- Tier 2 (Data): Empty mappings returns unmatched result correctly
+### Files changed:
+- `data_processing/diagnosis_lookup.py` — added 2 dataclasses, 2 functions, updated __all__
+- `IMPLEMENTATION_PLAN.md` — marked Task 1.3 complete
+### Committed: b44d22d "feat: add direct SNOMED lookup functions (Task 1.3)"
+### Patterns discovered:
+- ADALIMUMAB has 10 unique Search_Terms with varying SNOMED code counts:
+  - rheumatoid arthritis: 867 codes (largest)
+  - ankylosing spondylitis: 96 codes
+  - uveitis: 124 codes
+  - ulcerative colitis: 78 codes
+  - juvenile idiopathic arthritis: 57 codes
+  - crohn's disease: 50 codes
+  - psoriatic arthritis: 17 codes
+  - plaque psoriasis: 16 codes
+  - hidradenitis suppurativa: 8 codes
+  - axial spondyloarthritis: 7 codes (smallest)
+- The query uses DISTINCT to avoid duplicate rows
+- Function handles edge cases: empty mappings, Snowflake unavailable
+### Next iteration should:
+- Phase 1 is now complete! Start Phase 2: Pathway Processing Updates
+- Begin with Task 2.1: Update Directorate Assignment Logic
+  - Create `get_directorate_from_diagnosis(upid, drug_name, connector)` function
+  - Logic: Try diagnosis-based first (using get_drug_snomed_codes + patient_has_indication_direct)
+  - Fallback to department_identification() if no match
+  - Return: (directorate, source) where source is "DIAGNOSIS" or "FALLBACK"
+- Key consideration: This will need to integrate with the existing data flow in `fetch_and_transform_data()`
+### Blocked items:
+- None
+
+## Iteration 4 — 2026-02-05
+### Task: 2.1 Update Directorate Assignment Logic
+### Why this task:
+- Phase 1 (Data Infrastructure) is complete — all 3 tasks marked [x]
+- Task 2.1 is the first task in Phase 2 (Pathway Processing Updates)
+- Previous iteration explicitly recommended starting with Task 2.1
+- Tasks 2.2 (schema) and 2.3 (indication processing) logically depend on having the directorate assignment logic
+- Following "data infrastructure first, then pipeline" principle
+### Status: COMPLETE
+### What was done:
+- Added `DirectorateAssignment` dataclass to `data_processing/diagnosis_lookup.py`:
+  - Fields: upid, drug_name, directorate, search_term, source, snomed_code, event_date
+  - source is "DIAGNOSIS" (SNOMED match found) or "FALLBACK" (no match)
+- Added `get_directorate_from_diagnosis(upid, drug_name, connector, db_manager, before_date)` function:
+  - Gets all SNOMED codes for drug from ref_drug_snomed_mapping
+  - Queries patient's GP records (via patient_has_indication_direct)
+  - Returns diagnosis-based directorate and search_term if match found
+  - Returns FALLBACK result if no match (caller handles fallback logic)
+  - Extracts PatientPseudonym from UPID by removing first 3 characters (ProviderCode)
+- Updated `__all__` exports to include new dataclass and function
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/diagnosis_lookup.py` — PASSED
+- Tier 1 (Code): Import check for DirectorateAssignment, get_directorate_from_diagnosis — PASSED
+- Tier 2 (Data): Test with ADALIMUMAB returns 1320 SNOMED mappings across 10 search_terms — PASSED
+- Tier 2 (Data): Test with unknown drug returns FALLBACK source — PASSED
+- Tier 2 (Data): Test without Snowflake returns FALLBACK source correctly — PASSED
+### Files changed:
+- `data_processing/diagnosis_lookup.py` — added DirectorateAssignment dataclass, get_directorate_from_diagnosis function, updated __all__
+- `IMPLEMENTATION_PLAN.md` — marked Task 2.1 complete
+### Committed: 5067694 "feat: add get_directorate_from_diagnosis() function (Task 2.1)"
+### Patterns discovered:
+- UPID format: Provider Code (3 chars) + PersonKey, where PersonKey = PatientPseudonym
+- The function is designed to be called at the DataFrame level during pipeline processing
+- For batch processing, the caller will need to iterate over rows and collect DIAGNOSIS vs FALLBACK statistics
+- The function handles edge cases: no SNOMED mappings, Snowflake unavailable, no GP record match
+### Next iteration should:
+- Start Task 2.2: Add Chart Type Support to Schema
+  - Add `chart_type` column to `pathway_nodes` table (values: "directory", "indication")
+  - Update schema in `data_processing/schema.py`
+  - Consider: may need ALTER TABLE migration for existing data
+  - Alternative: add to pathway_date_filters or create pathway_chart_types reference table
+- Key consideration: The indication chart will group by Search_Term (from SNOMED match) or Directorate (fallback)
+- The chart_type column allows filtering pathway_nodes by chart type when user toggles in UI
 ### Blocked items:
 - None
 
