@@ -1370,93 +1370,85 @@ class AppState(rx.State):
 # Layout Components
 # =============================================================================
 
-def date_range_picker(
-    label: str,
-    enabled: rx.Var[bool],
-    toggle_handler,
-    from_value: rx.Var[str],
-    to_value: rx.Var[str],
-    on_from_change,
-    on_to_change,
-) -> rx.Component:
+def initiated_filter_dropdown() -> rx.Component:
     """
-    Date range picker with enable/disable checkbox.
+    Dropdown for selecting the treatment initiated time period.
 
-    Uses debounced inputs (300ms) to prevent excessive filter updates.
-
-    Args:
-        label: Label for the date range (e.g., "Initiated", "Last Seen")
-        enabled: Whether the filter is active
-        toggle_handler: Event handler to toggle enabled state
-        from_value: Current "from" date value
-        to_value: Current "to" date value
-        on_from_change: Handler for from date change
-        on_to_change: Handler for to date change
+    Options: All years, Last 2 years, Last 1 year
+    Values: "all", "2yr", "1yr"
     """
     return rx.vstack(
-        # Header with checkbox
-        rx.hstack(
-            rx.checkbox(
-                checked=enabled,
-                on_change=toggle_handler,
-                size="2",
-            ),
-            rx.text(
-                label,
-                font_size=Typography.H3_SIZE,
-                font_weight=Typography.H3_WEIGHT,
-                color=Colors.SLATE_900,
-                font_family=Typography.FONT_FAMILY,
-            ),
-            align="center",
-            spacing="2",
+        # Label
+        rx.text(
+            "Treatment Initiated",
+            font_size=Typography.H3_SIZE,
+            font_weight=Typography.H3_WEIGHT,
+            color=Colors.SLATE_900,
+            font_family=Typography.FONT_FAMILY,
         ),
-        # Date inputs (debounced 300ms)
-        rx.hstack(
-            rx.vstack(
-                rx.text(
-                    "From",
-                    **text_caption(),
+        # Dropdown using rx.select with Root > Trigger > Content > Item pattern
+        rx.select.root(
+            rx.select.trigger(placeholder="Select period..."),
+            rx.select.content(
+                rx.select.group(
+                    rx.select.item("All years", value="all"),
+                    rx.select.item("Last 2 years", value="2yr"),
+                    rx.select.item("Last 1 year", value="1yr"),
                 ),
-                rx.debounce_input(
-                    rx.input(
-                        type="date",
-                        value=from_value,
-                        on_change=on_from_change,
-                        disabled=~enabled,
-                        **input_style(),
-                        width="140px",
-                        opacity=rx.cond(enabled, "1", "0.5"),
-                    ),
-                    debounce_timeout=300,
-                ),
-                spacing="1",
-                align="start",
             ),
-            rx.vstack(
-                rx.text(
-                    "To",
-                    **text_caption(),
-                ),
-                rx.debounce_input(
-                    rx.input(
-                        type="date",
-                        value=to_value,
-                        on_change=on_to_change,
-                        disabled=~enabled,
-                        **input_style(),
-                        width="140px",
-                        opacity=rx.cond(enabled, "1", "0.5"),
-                    ),
-                    debounce_timeout=300,
-                ),
-                spacing="1",
-                align="start",
-            ),
-            spacing="3",
-            align="end",
+            value=AppState.selected_initiated,
+            on_change=AppState.set_initiated_filter,
+            size="2",
         ),
-        spacing="2",
+        # Description
+        rx.text(
+            "When patients first received treatment",
+            font_size=Typography.CAPTION_SIZE,
+            color=Colors.SLATE_500,
+            font_family=Typography.FONT_FAMILY,
+        ),
+        spacing="1",
+        align="start",
+    )
+
+
+def last_seen_filter_dropdown() -> rx.Component:
+    """
+    Dropdown for selecting the last seen time period.
+
+    Options: Last 6 months, Last 12 months
+    Values: "6mo", "12mo"
+    """
+    return rx.vstack(
+        # Label
+        rx.text(
+            "Last Seen",
+            font_size=Typography.H3_SIZE,
+            font_weight=Typography.H3_WEIGHT,
+            color=Colors.SLATE_900,
+            font_family=Typography.FONT_FAMILY,
+        ),
+        # Dropdown using rx.select with Root > Trigger > Content > Item pattern
+        rx.select.root(
+            rx.select.trigger(placeholder="Select period..."),
+            rx.select.content(
+                rx.select.group(
+                    rx.select.item("Last 6 months", value="6mo"),
+                    rx.select.item("Last 12 months", value="12mo"),
+                ),
+            ),
+            value=AppState.selected_last_seen,
+            on_change=AppState.set_last_seen_filter,
+            size="2",
+        ),
+        # Description
+        rx.text(
+            "Most recent treatment activity",
+            font_size=Typography.CAPTION_SIZE,
+            color=Colors.SLATE_500,
+            font_family=Typography.FONT_FAMILY,
+        ),
+        spacing="1",
         align="start",
     )
 
@@ -1754,12 +1746,12 @@ def filter_section() -> rx.Component:
     Filter section component.
 
     Contains:
-    - Two date range pickers: Initiated (default OFF), Last Seen (default ON)
+    - Two date filter dropdowns: Treatment Initiated, Last Seen
     - Three searchable multi-select dropdowns: Drugs, Indications, Directorates
 
     Layout: Two rows
-    - Row 1: Date pickers side by side
-    - Row 2: Three dropdowns in a grid
+    - Row 1: Date filter dropdowns side by side
+    - Row 2: Three searchable dropdowns in a grid
     """
     return rx.box(
         rx.vstack(
@@ -1768,27 +1760,11 @@ def filter_section() -> rx.Component:
                 "Filters",
                 **text_h1(),
             ),
-            # Row 1: Date range pickers
+            # Row 1: Date filter dropdowns
             rx.hstack(
-                date_range_picker(
-                    label="Initiated",
-                    enabled=AppState.initiated_filter_enabled,
-                    toggle_handler=AppState.toggle_initiated_filter,
-                    from_value=AppState.initiated_from_date,
-                    to_value=AppState.initiated_to_date,
-                    on_from_change=AppState.set_initiated_from,
-                    on_to_change=AppState.set_initiated_to,
-                ),
+                initiated_filter_dropdown(),
                 rx.divider(orientation="vertical", size="3"),
-                date_range_picker(
-                    label="Last Seen",
-                    enabled=AppState.last_seen_filter_enabled,
-                    toggle_handler=AppState.toggle_last_seen_filter,
-                    from_value=AppState.last_seen_from_date,
-                    to_value=AppState.last_seen_to_date,
-                    on_from_change=AppState.set_last_seen_from,
-                    on_to_change=AppState.set_last_seen_to,
-                ),
+                last_seen_filter_dropdown(),
                 spacing="5",
                 align="start",
                 flex_wrap="wrap",
