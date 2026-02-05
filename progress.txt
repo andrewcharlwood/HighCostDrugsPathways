@@ -798,3 +798,73 @@ All 4 phases (11 tasks) of the Pathway Data Architecture project are complete:
 - Target: filter section height ≤ 60px
 ### Blocked items:
 - None
+
+## Iteration 13 — 2026-02-05
+### Task: 5.2 Compact Filter Section
+### Why this task:
+- Previous iteration (12) completed Task 5.1 (Design Tokens)
+- Task 5.2 is the logical next step in the implementation order
+- The new compact style helpers (filter_strip_style, compact_dropdown_trigger_style, etc.) are now available
+- Filter section is the biggest space consumer (~200px) — compacting it gives the most chart space gain
+### Status: COMPLETE
+### What was done:
+1. **Updated imports** in pathways_app.py:
+   - Added FILTER_STRIP_HEIGHT, filter_strip_style, compact_dropdown_trigger_style
+   - Added searchable_dropdown_panel_style, searchable_dropdown_item_style
+
+2. **Redesigned initiated_filter_dropdown()**:
+   - Removed vstack wrapper and external label
+   - Added compact_dropdown_trigger_style() with 32px height
+   - Moved label inside dropdown panel using rx.select.label()
+   - Changed size from "2" to "1" (smaller)
+
+3. **Redesigned last_seen_filter_dropdown()**:
+   - Same changes as initiated_filter_dropdown()
+   - Compact trigger, label inside panel
+
+4. **Redesigned searchable_dropdown()**:
+   - Removed external vstack and label
+   - Compact trigger with 32px height, ellipsis overflow
+   - Added header label inside dropdown panel
+   - Reduced panel max-height from 200px to 150px
+   - Smaller search input (size="1")
+   - Renamed buttons "Select All" → "All", "Clear" → "None" (more compact)
+   - Smaller checkbox size (size="1")
+   - Tighter spacing throughout
+
+5. **Redesigned filter_section()**:
+   - Removed "Filters" header entirely
+   - Single horizontal row using filter_strip_style() (48px height)
+   - Groups: Date filters | Divider | Multi-select filters | Spacer
+   - All 5 dropdowns in ONE row
+
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed
+- Tier 1 (Code): [PASS] Import check passed
+- Tier 1 (Code): [PASS] reflex compile succeeded (49.4s)
+- Tier 2 (Visual): Pending visual verification with reflex run
+- Tier 3 (Functional): Pending E2E testing
+
+### Files changed:
+- `pathways_app/pathways_app.py` — Redesigned filter components (+210, -257 lines)
+- `IMPLEMENTATION_PLAN.md` — Marked Task 5.2 subtasks complete
+
+### Committed: d2bed71 "feat: compact filter section as single horizontal strip (Task 5.2)"
+
+### Patterns discovered:
+- Can't use **searchable_dropdown_item_style() with rx.cond(background_color) — causes "multiple values" error
+  - Solution: Inline the style props directly instead of spreading a dict
+- rx.select.label() works well for putting labels inside dropdown panels
+- Using rx.spacer() helps push filters to the left in horizontal layout
+- Checkbox size="1" is noticeably smaller and works well for compact lists
+
+### Next iteration should:
+- Run visual verification with `reflex run` to confirm filter section height ≤ 60px
+- Start Task 5.3: Compact KPI Cards (50% reduction)
+  - Reduce padding, font sizes
+  - Consider KPI badge/pill variant for inline display
+  - Target: KPI row height ≤ 48px
+- The compact_kpi_* style helpers are already in styles.py
+
+### Blocked items:
+- None
