@@ -5,114 +5,129 @@ If you discover a new failure pattern during your work, add it to this file.
 
 ---
 
-## Reflex Guardrails
+## Drug-Indication Matching Guardrails
 
-### Use .to() methods for Var operations in rx.foreach
-- **When**: Working with items inside `rx.foreach` render functions
-- **Rule**: Use `item.to(int)` for numeric comparisons, `item.to_string()` for text operations
-- **Why**: Items from rx.foreach are `ObjectItemOperation` Vars, not plain Python values. Using `>=` or f-strings directly causes TypeError.
+### Match drugs to indications, not just patients to indications
+- **When**: Building the indication mapping for pathway charts
+- **Rule**: Each drug must be validated against BOTH the patient's GP diagnoses AND the drug-to-indication mapping from DimSearchTerm.csv. A patient being diagnosed with rheumatoid arthritis does NOT mean all their drugs are for rheumatoid arthritis.
+- **Why**: The previous approach assigned ONE indication per patient (most recent GP dx), ignoring which drugs actually treat which conditions. This produced misleading pathways.
 
-**Bad:**
-```python
-def render_row(item):
-    color = rx.cond(item["value"] >= 50, "green", "red")  # TypeError!
-    return rx.text(f"{item['name']}: {item['value']}")    # Won't interpolate!
-```
+### Use DimSearchTerm.csv for drug-to-Search_Term mapping
+- **When**: Determining which Search_Term a drug belongs to
+- **Rule**: Load `data/DimSearchTerm.csv`. The `CleanedDrugName` column has pipe-separated drug name fragments. Match HCD drug names against these fragments using substring matching (case-insensitive).
+- **Why**: This CSV is the authoritative mapping of which drugs are used for which clinical indications.
 
-**Good:**
-```python
-def render_row(item):
-    color = rx.cond(item["value"].to(int) >= 50, "green", "red")
-    return rx.text(item["name"].to_string() + ": " + item["value"].to_string())
-```
+### Use substring matching for drug fragments
+- **When**: Matching HCD drug names against DimSearchTerm CleanedDrugName fragments
+- **Rule**: Check if any fragment from DimSearchTerm is a SUBSTRING of the HCD drug name (case-insensitive). E.g., "PEGYLATED" should match "PEGYLATED LIPOSOMAL DOXORUBICIN".
+- **Why**: DimSearchTerm contains both full drug names (ADALIMUMAB) and partial fragments (PEGYLATED, INHALED). Exact match would miss the partial ones.
 
-### Use rx.cond for conditional rendering, not Python if
-- **When**: Conditionally showing/hiding components or changing styles based on state
-- **Rule**: Use `rx.cond(condition, true_component, false_component)` — not Python `if`
-- **Why**: Python `if` evaluates at definition time; `rx.cond` evaluates reactively at render time
+### Modified UPID uses pipe delimiter
+- **When**: Creating indication-aware UPIDs
+- **Rule**: Format is `{original_UPID}|{search_term}`. Use pipe `|` as delimiter. Do NOT use ` - ` (hyphen with spaces) as that's used for pathway hierarchy levels in the `ids` column.
+- **Why**: The `ids` column uses " - " to separate hierarchy levels (e.g., "N&WICS - NNUH - rheumatoid arthritis - ADALIMUMAB"). Using the same delimiter in UPIDs would break hierarchy parsing.
 
-### State variables must have default values
-- **When**: Defining state variables in the State class
-- **Rule**: Always provide a default: `my_var: str = ""` not just `my_var: str`
-- **Why**: Reflex requires defaults for state initialization
+### Return ALL GP matches per patient, not just most recent
+- **When**: Querying Snowflake for patient GP diagnoses
+- **Rule**: Remove `QUALIFY ROW_NUMBER() OVER (PARTITION BY ... ORDER BY EventDateTime DESC) = 1`. Return ALL matching Search_Terms per patient with `GROUP BY + COUNT(*)` for code_frequency.
+- **Why**: A patient may have GP diagnoses for both rheumatoid arthritis AND asthma. We need ALL matches to cross-reference with their drugs.
 
-### Computed vars use @rx.var decorator
-- **When**: Creating derived/computed values from state
-- **Rule**: Use `@rx.var` decorator, return a value, and include return type annotation
-- **Why**: Without the decorator, the method won't be reactive
+### Restrict GP code lookup to HCD data window
+- **When**: Building the WHERE clause for the GP record query
+- **Rule**: Add `AND pc."EventDateTime" >= :earliest_hcd_date` where `earliest_hcd_date` is `MIN(Intervention Date)` from the HCD DataFrame. Pass this as a parameter to `get_patient_indication_groups()`.
+- **Why**: Old GP codes from years before treatment started add noise. A diagnosis coded 10 years ago may no longer be relevant. Restricting to the HCD window ensures code_frequency reflects recent clinical activity for the conditions being actively treated.
 
-```python
-@rx.var
-def filtered_count(self) -> int:
-    return len(self.filtered_data)
-```
+### Tiebreaker: highest GP code frequency when a drug matches multiple indications
+- **When**: A single drug maps to multiple Search_Terms AND the patient has GP dx for multiple
+- **Rule**: Use `code_frequency` (COUNT of matching SNOMED codes per Search_Term per patient) from the GP query. The Search_Term with the most matching codes in the patient's GP record wins. If tied, use alphabetical Search_Term for determinism.
+- **Why**: E.g., ADALIMUMAB is listed under rheumatoid arthritis, crohn's disease, psoriatic arthritis, etc. A patient with 47 RA codes and 2 crohn's codes is almost certainly on ADALIMUMAB for RA. Frequency of GP coding is a much stronger signal of clinical intent than recency — a recent one-off asthma check doesn't mean ADALIMUMAB is for asthma.
 
-### Event handlers don't return values to components
-- **When**: Creating methods that handle user interactions
-- **Rule**: Event handlers modify state; they don't return values directly to UI
-- **Why**: Use state variables and computed vars to communicate between handlers and UI
+### Same patient, different indications = separate modified UPIDs
+- **When**: A patient's drugs map to different Search_Terms
+- **Rule**: Create separate modified UPIDs for each indication. E.g., `RMV12345|rheumatoid arthritis` and `RMV12345|asthma`. These are treated as separate "patients" by the pathway analyzer.
+- **Why**: This is the core design — drugs for different indications should create separate treatment pathways, even for the same physical patient.
+
+### Fallback to directory for unmatched drugs
+- **When**: A drug doesn't match any Search_Term OR the patient has no GP dx for any of the drug's Search_Terms
+- **Rule**: Use fallback format: `{UPID}|{Directory} (no GP dx)`. The indication_df maps this to `"{Directory} (no GP dx)"`.
+- **Why**: Maintains consistent behavior with the previous approach for patients/drugs without GP diagnosis matches.
+
+### Merge asthma Search_Terms but keep urticaria separate
+- **When**: Working with asthma-related Search_Terms from CLUSTER_MAPPING_SQL or DimSearchTerm.csv
+- **Rule**: Merge "allergic asthma", "asthma", and "severe persistent allergic asthma" into a single "asthma" Search_Term. Keep "urticaria" as a separate Search_Term — do NOT merge it with asthma.
+- **Why**: These are clinically the same condition at different severity levels. Splitting them fragments the data. Urticaria is a distinct dermatological condition that happens to share OMALIZUMAB.
+
+### Don't modify directory chart processing
+- **When**: Making changes to the indication matching logic
+- **Rule**: Only modify the indication chart path (`elif current_chart_type == "indication":`). Directory charts use unmodified UPIDs and directory-based grouping.
+- **Why**: Directory charts work correctly and should not be affected by indication matching changes.
 
 ---
 
-## Design System Guardrails
+## Snowflake Query Guardrails
 
-### Never hardcode colors
-- **When**: Any styling that involves color
-- **Rule**: Import from `pathways_app.styles` and use `Colors.PRIMARY`, `Colors.SLATE_700`, etc.
-- **Why**: Hardcoded colors break consistency and make theming impossible
+### Use PseudoNHSNoLinked for GP record matching
+- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
+- **Rule**: Use `PseudoNHSNoLinked` column from HCD data, NOT `PersonKey` (LocalPatientID)
+- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records.
 
-### Never hardcode spacing
-- **When**: Any padding, margin, gap values
-- **Rule**: Use `Spacing.SM`, `Spacing.LG`, etc. from the styles module
-- **Why**: Consistent spacing is fundamental to visual cohesion
+### Embed cluster query as CTE in Snowflake
+- **When**: Looking up patient indications during data refresh
+- **Rule**: Use the `CLUSTER_MAPPING_SQL` content as a WITH clause in the patient lookup query
+- **Why**: This ensures we always use the complete cluster mapping and don't need local storage
 
-### Use design system typography
-- **When**: Any text styling
-- **Rule**: Use the typography classes/helpers from styles.py
-- **Why**: Typography hierarchy creates visual structure
+### Quote mixed-case column aliases in Snowflake SQL
+- **When**: Writing SELECT queries that return results to Python code
+- **Rule**: Use `AS "ColumnName"` (quoted) for any column alias you'll access by name in Python
+- **Why**: Snowflake uppercases unquoted identifiers. `SELECT foo AS Search_Term` returns `SEARCH_TERM`, so `row.get('Search_Term')` returns None. Fix: `SELECT foo AS "Search_Term"`
+
+### Build indication_df from all unique UPIDs, not PseudoNHSNoLinked
+- **When**: Creating the indication mapping DataFrame for pathway processing
+- **Rule**: Use `df.drop_duplicates(subset=['UPID'])` not `drop_duplicates(subset=['PseudoNHSNoLinked'])`
+- **Why**: A patient visiting multiple providers has multiple UPIDs. Using unique PseudoNHSNoLinked only maps one UPID per patient, leaving others as NaN.
 
 ---
 
 ## Data Processing Guardrails
 
-### Use existing pathway_analyzer functions
-- **When**: Processing pathway data for the icicle chart
-- **Rule**: Reuse functions from `analysis/pathway_analyzer.py` — don't reinvent
-- **Why**: The existing code handles edge cases (empty groups, statistics calculation, color mapping)
+### Copy DataFrames in functions that modify columns
+- **When**: Writing functions like `prepare_data()` that modify DataFrame columns
+- **Rule**: Always `df = df.copy()` at the start of any function that modifies column values on the input DataFrame
+- **Why**: `prepare_data()` mapped Provider Code → Name in-place. When called multiple times on the same DataFrame, only the first call worked. The fix: `df.copy()` prevents destructive mutation.
 
-### Extract denormalized fields from ids string
-- **When**: Creating denormalized columns (trust_name, directory, drug_sequence)
-- **Rule**: Parse the `ids` column which contains the full hierarchical path
-- **Why**: The ids format is "Trust|Directory|Drug1|Drug2|..." — split on "|" to extract components
+### Include chart_type in UNIQUE constraints for pathway_nodes
+- **When**: Creating or modifying the pathway_nodes table schema
+- **Rule**: The UNIQUE constraint MUST include `chart_type`: `UNIQUE(date_filter_id, chart_type, ids)`
+- **Why**: Without `chart_type`, `INSERT OR REPLACE` silently overwrites directory chart nodes when indication chart nodes are inserted.
 
-### Handle None/NULL values in pathway data
-- **When**: Reading pathway_nodes from SQLite
-- **Rule**: Always use `or ""` / `or 0` / `or "N/A"` when accessing optional columns
-- **Why**: Many columns (costpp, average_spacing, etc.) can be NULL for certain hierarchy levels
+### Handle NaN in Directory when building fallback labels
+- **When**: Creating fallback indication labels for patients without GP diagnosis match
+- **Rule**: Check `pd.notna(directory)` before concatenating to string. Use `"UNKNOWN (no GP dx)"` for NaN cases.
+- **Why**: NaN handling prevents TypeError and ensures meaningful fallback labels.
 
 ### Use parameterized queries for SQLite
 - **When**: Building WHERE clauses with user-selected filters
 - **Rule**: Use `?` placeholders and pass params tuple — never string interpolation
 - **Why**: Prevents SQL injection and handles special characters in drug/directory names
 
+### Use existing pathway_analyzer functions
+- **When**: Processing pathway data for the icicle chart
+- **Rule**: Reuse functions from `analysis/pathway_analyzer.py` — don't reinvent
+- **Why**: The existing code handles edge cases (empty groups, statistics calculation, color mapping)
+
 ---
 
-## Code Quality Guardrails
+## Reflex Guardrails
 
-### Verify compilation before committing
-- **When**: After ANY code changes
-- **Rule**: Run `python -m py_compile <file>` AND `reflex run` (briefly) to check
-- **Why**: Committing broken code wastes the next iteration fixing preventable errors
+### Use .to() methods for Var operations in rx.foreach
+- **When**: Working with items inside `rx.foreach` render functions
+- **Rule**: Use `item.to(int)` for numeric comparisons, `item.to_string()` for text operations
+- **Why**: Items from rx.foreach are Var objects, not plain Python values.
 
-### One component per function
-- **When**: Creating UI components
-- **Rule**: Each logical component should be its own function returning `rx.Component`
-- **Why**: Smaller functions are easier to debug and reuse
-
-### Keep state minimal
-- **When**: Designing state structure
-- **Rule**: Only store what's necessary; derive everything else with computed vars
-- **Why**: Duplicate state leads to sync bugs
+### Use rx.cond for conditional rendering, not Python if
+- **When**: Conditionally showing/hiding components or changing styles based on state
+- **Rule**: Use `rx.cond(condition, true_component, false_component)` — not Python `if`
+- **Why**: Python `if` evaluates at definition time; `rx.cond` evaluates reactively at render time
 
 ---
 
@@ -134,107 +149,19 @@ def filtered_count(self) -> int:
 - **Why**: The next iteration has zero memory. If you don't write it down, it's lost.
 
 ### Check existing code for patterns
-- **When**: Unsure how to implement something in Reflex or pathway processing
-- **Rule**: Look at `pathways_app/pathways_app.py`, `analysis/pathway_analyzer.py`, `visualization/plotly_generator.py`
+- **When**: Unsure how to implement something
+- **Rule**: Look at `pathways_app/pathways_app.py`, `analysis/pathway_analyzer.py`, `cli/refresh_pathways.py`
 - **Why**: The existing codebase has solved many quirks already
 
----
+### Snowflake connection_timeout must be high enough for GP lookup queries
+- **When**: GP record queries against PrimaryCareClinicalCoding time out
+- **Rule**: Ensure `connection_timeout` in config/snowflake.toml is at least 600 (currently set to 600). This controls the Python client's `network_timeout`, which is how long the client waits for ANY Snowflake response. Do NOT lower this value.
+- **Why**: GP lookup queries take ~40s per batch due to CTE compilation overhead. With connection_timeout=30, every batch timed out silently (error 000604/57014).
 
-## UI Redesign Guardrails
-
-### Clear Reflex cache before running
-- **When**: Before running `reflex run` or `reflex compile`, especially after style/layout changes
-- **Rule**: Delete `.states` and `.web` folders first: `Remove-Item -Recurse -Force .states, .web -ErrorAction SilentlyContinue`
-- **Why**: Stale cache causes old styles/components to persist, making it appear changes didn't work
-
-### Test visual changes with reflex run
-- **When**: After any layout or styling changes
-- **Rule**: Run `reflex run` and visually verify in browser. Screenshots are not enough.
-- **Why**: CSS calculations and flex layouts often behave differently than expected
-
-### Don't break existing functionality
-- **When**: Refactoring layout components
-- **Rule**: Ensure all filter handlers, KPI updates, and chart rendering still work after changes
-- **Why**: It's easy to accidentally disconnect event handlers when restructuring components
-
-### Use calc() for responsive heights
-- **When**: Making elements fill remaining viewport space
-- **Rule**: Use `height="calc(100vh - Xpx)"` where X is the sum of fixed-height elements above
-- **Why**: Fixed heights don't adapt to content changes; calc() keeps things responsive
-
-### Test at multiple viewport widths
-- **When**: Making full-width changes
-- **Rule**: Test at 1366px, 1920px, and 2560px widths minimum
-- **Why**: Full-width layouts can break or look sparse at extreme sizes
-
-### Keep filter dropdown z-index high
-- **When**: Restructuring filter section
-- **Rule**: Dropdown panels need `z_index="50"` or higher to appear above chart
-- **Why**: Plotly charts have their own stacking context and can overlap dropdowns
-
----
-
-## Snowflake Query Guardrails
-
-### Use PseudoNHSNoLinked for GP record matching
-- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
-- **Rule**: Use `PseudoNHSNoLinked` column from HCD data, NOT `PersonKey` (LocalPatientID)
-- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records.
-
-### Use Search_Term for grouping, not Indication
-- **When**: Creating indication-based pathway hierarchy
-- **Rule**: Group patients by `Search_Term` from the cluster query
-- **Why**: Search_Term provides meaningful clinical groupings (~148 values)
-
-### Handle unmatched patients in indication chart
-- **When**: Patient has no GP diagnosis matching cluster SNOMED codes
-- **Rule**: Use their assigned directorate (from fallback logic) as the grouping label, not "Unknown"
-- **Why**: User wants mixed labels - Search_Terms for matched patients, directorate names for unmatched
-
-### Use most recent SNOMED code for multiple matches
-- **When**: Patient has GP records matching multiple SNOMED codes
-- **Rule**: Use the match with the most recent `EventDateTime` from PrimaryCareClinicalCoding
-- **Why**: Most recent diagnosis reflects current clinical state
-
-### Embed cluster query as CTE in Snowflake
-- **When**: Looking up patient indications during data refresh
-- **Rule**: Use the `snomed_indication_mapping_query.sql` content as a WITH clause in the patient lookup query
-- **Why**: This ensures we always use the complete cluster mapping and don't need local storage
-
-### Chart type column in pathway_nodes
-- **When**: Inserting pathway records to SQLite
-- **Rule**: Include `chart_type` column with value "directory" or "indication"
-- **Why**: Needed to filter pathways when user toggles chart type in UI
-
-### Quote mixed-case column aliases in Snowflake SQL
-- **When**: Writing SELECT queries that return results to Python code
-- **Rule**: Use `AS "ColumnName"` (quoted) for any column alias you'll access by name in Python
-- **Why**: Snowflake uppercases unquoted identifiers. `SELECT foo AS Search_Term` returns `SEARCH_TERM`, so `row.get('Search_Term')` returns None. Fix: `SELECT foo AS "Search_Term"`
-
-### Build indication_df from all unique UPIDs, not PseudoNHSNoLinked
-- **When**: Creating the indication mapping DataFrame for pathway processing
-- **Rule**: Use `df.drop_duplicates(subset=['UPID'])` not `drop_duplicates(subset=['PseudoNHSNoLinked'])`
-- **Why**: A patient visiting multiple providers has multiple UPIDs (UPID = ProviderCode[:3] + PersonKey). Using unique PseudoNHSNoLinked only maps one UPID per patient, leaving others as NaN and causing TypeError in build_hierarchy.
-
-### Handle NaN in Directory when building fallback labels
-- **When**: Creating fallback indication labels for patients without GP diagnosis match
-- **Rule**: Check `pd.notna(directory)` before concatenating to string. Use `"UNKNOWN (no GP dx)"` for NaN cases.
-- **Why**: `str(nan) + " (no GP dx)"` doesn't cause error, but `nan + " (no GP dx)"` causes TypeError. Always be explicit about NaN handling.
-
-### Copy DataFrames in functions that modify columns
-- **When**: Writing functions like `prepare_data()` that modify DataFrame columns (e.g., mapping Provider Code to trust names)
-- **Rule**: Always `df = df.copy()` at the start of any function that modifies column values on the input DataFrame
-- **Why**: `prepare_data()` mapped Provider Code → Name in-place. When called for directory charts first, then indication charts second, the second call tried to map already-mapped names → NaN, silently dropping all data. The fix: `df = df.copy()` prevents destructive mutation of the caller's DataFrame.
-
-### Include chart_type in UNIQUE constraints for pathway_nodes
-- **When**: Creating or modifying the pathway_nodes table schema
-- **Rule**: The UNIQUE constraint MUST include `chart_type`: `UNIQUE(date_filter_id, chart_type, ids)`
-- **Why**: Without `chart_type`, `INSERT OR REPLACE` silently overwrites directory chart root/trust nodes when indication chart nodes with the same `ids` are inserted. This caused directory charts to lose all level 0 (root) and level 1 (trust) nodes, making KPIs show 0 patients. If the database exists with an old schema, you must DROP and recreate the table.
-
-### Verify database schema matches code after migrations
-- **When**: After running data refresh and seeing unexpected results (e.g., missing nodes, wrong counts)
-- **Rule**: Compare actual table schema (`SELECT sql FROM sqlite_master WHERE name='tablename'`) with the schema defined in `data_processing/schema.py`
-- **Why**: SQLite doesn't alter UNIQUE constraints in place. If the schema was created before a constraint was updated in code, the old constraint persists silently.
+### Use large batch sizes (5000+) for GP record lookups
+- **When**: Calling `get_patient_indication_groups()` with patient batches
+- **Rule**: Use batch_size=5000 or larger. The query time is ~40s regardless of batch size (5 patients ≈ 500 patients ≈ 5000 patients). Smaller batches just multiply the fixed overhead.
+- **Why**: With batch_size=500, 36K patients needed 74 batches × 40s = ~50 min. With batch_size=5000, only 8 batches × 45s = ~6 min. The bottleneck is CTE compilation, not data volume.
 
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.

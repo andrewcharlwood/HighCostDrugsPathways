@@ -407,7 +407,7 @@ def refresh_pathways(
                     gp_matches_df = get_patient_indication_groups(
                         patient_pseudonyms=patient_pseudonyms,
                         connector=connector,
-                        batch_size=500,
+                        batch_size=5000,
                         earliest_hcd_date=earliest_hcd_date_str,
                     )
 

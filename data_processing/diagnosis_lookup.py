@@ -1568,7 +1568,7 @@ AllIndicationCodes AS (
 def get_patient_indication_groups(
     patient_pseudonyms: list[str],
     connector: Optional[SnowflakeConnector] = None,
-    batch_size: int = 500,
+    batch_size: int = 5000,
     earliest_hcd_date: Optional[str] = None,
 ) -> "pd.DataFrame":
     """

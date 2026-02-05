@@ -36,8 +36,9 @@ user = "ANDREW.CHARLWOOD@NHS.NET"
 role = ""
 
 [timeouts]
-# Connection timeout in seconds
-connection_timeout = 30
+# Network timeout in seconds (how long client waits for Snowflake response)
+# Must be high enough for GP record lookups which can take 30-60s per batch
+connection_timeout = 600
 
 # Query execution timeout in seconds (for long-running queries)
 # Set to 0 for no timeout

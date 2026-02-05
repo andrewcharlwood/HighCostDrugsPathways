@@ -153,12 +153,14 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
 - [x] Verify: Pipeline compiles, `python -m py_compile cli/refresh_pathways.py`
 
 ### 3.2 Test with dry run
-- [ ] Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
-- [ ] Verify:
-  - Modified UPIDs appear in pipeline log (e.g., `RMV12345|rheumatoid arthritis`)
-  - Patient counts are reasonable (will be higher than before since same patient can appear under multiple indications)
-  - Drug-indication matching is logged (match rate, fallback rate)
-  - Pathway hierarchy shows drug-specific grouping under correct indications
+- [x] Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
+- [x] Verify:
+  - Modified UPIDs appear in pipeline log (42,072 unique modified UPIDs)
+  - Patient counts are reasonable (42,072 modified UPIDs vs 36,628 original patients)
+  - Drug-indication matching is logged (49.3% match, 50.7% fallback, 15,238 tiebreakers)
+  - Pathway hierarchy shows drug-specific grouping under correct indications (1,846 total nodes)
+- [x] Fixed: network_timeout increased from 30→600 (was killing GP lookup queries)
+- [x] Fixed: batch_size increased from 500→5000 (reduces CTE compilation overhead from 74 to 8 batches)
 
 ---
 

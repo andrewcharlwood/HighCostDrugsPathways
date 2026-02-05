@@ -182,7 +182,7 @@ def load_snowflake_config(config_path: Optional[Path] = None) -> SnowflakeConfig
     # Parse timeout settings
     timeout_data = data.get("timeouts", {})
     timeouts = TimeoutConfig(
-        connection_timeout=timeout_data.get("connection_timeout", 30),
+        connection_timeout=timeout_data.get("connection_timeout", 600),
         query_timeout=timeout_data.get("query_timeout", 300),
         login_timeout=timeout_data.get("login_timeout", 120),
     )
