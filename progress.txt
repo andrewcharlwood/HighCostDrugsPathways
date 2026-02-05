@@ -317,3 +317,68 @@ The `ids` column in ice_df contains hierarchical paths like:
 - Reference `visualization/plotly_generator.py` for the expected customdata format
 ### Blocked items:
 - None
+
+## Iteration 7 — 2026-02-05
+### Task: 3.2 Update Icicle Figure
+### Why this task:
+- Previous iteration explicitly recommended Task 3.2 as the next step
+- Task 3.1 (AppState) complete — the state now has chart_data with all necessary fields
+- Task 3.2 is logically before Task 3.3 — the chart needs to render correctly before UI components can be verified
+- The chart is the core visualization, so getting it right is essential
+### Status: COMPLETE
+### What was done:
+1. **Updated icicle_figure computed property** with full 10-field customdata structure:
+   - [0] value - patient count
+   - [1] colour - proportion of parent
+   - [2] cost - total cost
+   - [3] costpp - cost per patient
+   - [4] first_seen - first intervention date
+   - [5] last_seen - last intervention date
+   - [6] first_seen_parent - earliest date in parent group
+   - [7] last_seen_parent - latest date in parent group
+   - [8] average_spacing - dosing information string
+   - [9] cost_pp_pa - cost per patient per annum
+
+2. **Updated texttemplate** (text shown on chart segments):
+   - Total patients with "including children/further treatments" note
+   - First seen date
+   - Last seen (including further treatments)
+   - Average treatment duration
+   - Total cost
+   - Average cost per patient
+   - Average cost per patient per annum
+
+3. **Updated hovertemplate** (hover popup):
+   - Patient count with percentage of parent level
+   - Full cost breakdown (total, per patient, per patient per annum)
+   - Date range (first seen, last seen with parent scope)
+   - Average treatment duration
+
+4. **Preserved NHS-inspired styling**:
+   - Kept Heritage Blue → Pale Blue colorscale
+   - Kept Inter font family
+   - Kept transparent backgrounds and Slate 300 borders
+### Validation results:
+- Tier 1 (Code): [pass] python -m py_compile passed
+- Tier 1 (Code): [pass] Import check passed — AppState.icicle_figure exists
+- Tier 1 (Code): [pass] All 10 customdata fields verified in source
+- Tier 2 (Visual): Pending — requires running app with data (Task 3.3)
+- Tier 3 (Functional): Structure validated — customdata matches plotly_generator.py format
+### Files changed:
+- `pathways_app/pathways_app.py` — Updated icicle_figure computed property (68 lines added, 20 removed)
+- `IMPLEMENTATION_PLAN.md` — Marked Task 3.2 subtasks complete
+### Committed: ced994f "feat: update icicle_figure with full 10-field customdata (Task 3.2)"
+### Patterns discovered:
+- The chart_data dict structure from load_pathway_data() maps directly to customdata fields
+- Default values (or "N/A") are important for fields that might be None/empty at certain hierarchy levels
+- Kept NHS blue colorscale rather than reverting to Viridis — matches design system better
+### Next iteration should:
+- Start Task 3.3: Update UI Components
+  - Replace date pickers with select dropdowns for Initiated / Last Seen
+  - Add "Data refreshed: X ago" indicator using last_updated from pathway_refresh_log
+  - Update filter section layout to accommodate new dropdowns
+  - Test full app with real data to verify chart renders with treatment statistics
+- Reference DESIGN_SYSTEM.md for dropdown styling
+- The state already has `initiated_options` and `last_seen_options` lists for rendering
+### Blocked items:
+- None
