@@ -1087,6 +1087,107 @@ def batch_lookup_indication_groups(
     return result_df
 
 
+# === Drug-to-indication mapping from DimSearchTerm.csv ===
+
+
+def load_drug_indication_mapping(
+    csv_path: Optional[str] = None,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """
+    Load the drug-to-Search_Term mapping from DimSearchTerm.csv.
+
+    Builds two lookup dicts:
+    - fragment_to_search_terms: drug fragment (UPPERCASE) -> list of Search_Terms containing it
+    - search_term_to_fragments: search_term -> list of drug fragments (UPPERCASE)
+
+    DimSearchTerm.csv has columns: Search_Term, CleanedDrugName, PrimaryDirectorate
+    CleanedDrugName is pipe-separated (e.g., "ADALIMUMAB|GOLIMUMAB|IXEKIZUMAB").
+
+    Note: A Search_Term can appear multiple times with different PrimaryDirectorates
+    (e.g., "diabetes" appears under both DIABETIC MEDICINE and OPHTHALMOLOGY).
+    Drug fragments from all rows for the same Search_Term are combined.
+
+    Args:
+        csv_path: Path to DimSearchTerm.csv. Defaults to data/DimSearchTerm.csv.
+
+    Returns:
+        Tuple of (fragment_to_search_terms, search_term_to_fragments)
+    """
+    if csv_path is None:
+        csv_path = str(Path(__file__).parent.parent / "data" / "DimSearchTerm.csv")
+
+    fragment_to_search_terms: dict[str, list[str]] = {}
+    search_term_to_fragments: dict[str, list[str]] = {}
+
+    try:
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                search_term = row.get("Search_Term", "").strip()
+                drug_names_raw = row.get("CleanedDrugName", "").strip()
+
+                if not search_term or not drug_names_raw:
+                    continue
+
+                fragments = [frag.strip().upper() for frag in drug_names_raw.split("|") if frag.strip()]
+
+                # Build search_term -> fragments (accumulate for duplicate Search_Terms)
+                if search_term not in search_term_to_fragments:
+                    search_term_to_fragments[search_term] = []
+                for frag in fragments:
+                    if frag not in search_term_to_fragments[search_term]:
+                        search_term_to_fragments[search_term].append(frag)
+
+                # Build fragment -> search_terms
+                for frag in fragments:
+                    if frag not in fragment_to_search_terms:
+                        fragment_to_search_terms[frag] = []
+                    if search_term not in fragment_to_search_terms[frag]:
+                        fragment_to_search_terms[frag].append(search_term)
+
+        logger.info(
+            f"Loaded drug-indication mapping: {len(search_term_to_fragments)} Search_Terms, "
+            f"{len(fragment_to_search_terms)} drug fragments"
+        )
+
+    except FileNotFoundError:
+        logger.error(f"DimSearchTerm.csv not found at {csv_path}")
+    except Exception as e:
+        logger.error(f"Error loading DimSearchTerm.csv: {e}")
+
+    return fragment_to_search_terms, search_term_to_fragments
+
+
+def get_search_terms_for_drug(
+    drug_name: str,
+    search_term_to_fragments: dict[str, list[str]],
+) -> list[str]:
+    """
+    Get all Search_Terms that list a given drug using substring matching.
+
+    Checks if any drug fragment from DimSearchTerm is a SUBSTRING of the given
+    drug name (case-insensitive). This handles both exact matches (ADALIMUMAB)
+    and partial fragments (PEGYLATED, INHALED).
+
+    Args:
+        drug_name: HCD drug name (e.g., "ADALIMUMAB 40MG", "PEGYLATED LIPOSOMAL DOXORUBICIN")
+        search_term_to_fragments: Mapping of search_term -> list of drug fragments
+
+    Returns:
+        List of Search_Terms whose drug fragments match the drug name
+    """
+    drug_name_upper = drug_name.upper()
+    matched_terms: list[str] = []
+
+    for search_term, fragments in search_term_to_fragments.items():
+        for frag in fragments:
+            if frag in drug_name_upper:
+                matched_terms.append(search_term)
+                break  # One matching fragment is enough for this Search_Term
+
+    return matched_terms
+
+
 # === NEW APPROACH: Query Snowflake directly using cluster CTE ===
 
 # The cluster query mapping (embedded from snomed_indication_mapping_query.sql)
@@ -1428,6 +1529,9 @@ __all__ = [
     "get_directorate_from_diagnosis",
     # Batch lookup for indication groups
     "batch_lookup_indication_groups",
+    # Drug-indication mapping from DimSearchTerm.csv
+    "load_drug_indication_mapping",
+    "get_search_terms_for_drug",
     # Snowflake-direct indication lookup (new approach)
     "get_patient_indication_groups",
     "CLUSTER_MAPPING_SQL",
