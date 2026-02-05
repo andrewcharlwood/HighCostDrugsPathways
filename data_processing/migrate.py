@@ -34,6 +34,7 @@ from data_processing.schema import (
     drop_all_tables,
     verify_all_tables_exist,
     get_all_table_counts,
+    migrate_pathway_nodes_chart_type,
 )
 from data_processing.reference_data import (
     MigrationResult,
@@ -109,6 +110,20 @@ def initialize_database(
             create_all_tables(conn)
     except Exception as e:
         logger.error(f"Failed to create tables: {e}")
+        return False
+
+    # Run migrations for schema changes
+    try:
+        with db_manager.get_connection() as conn:
+            # Add chart_type column to pathway_nodes if it doesn't exist
+            success, msg = migrate_pathway_nodes_chart_type(conn)
+            if success:
+                logger.info(f"pathway_nodes migration: {msg}")
+            else:
+                logger.error(f"pathway_nodes migration failed: {msg}")
+                return False
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
         return False
 
     # Verify all tables were created

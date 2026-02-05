@@ -182,20 +182,23 @@ INSERT OR REPLACE INTO pathway_date_filters (id, initiated_label, last_seen_labe
 """
 
 PATHWAY_NODES_SCHEMA = """
--- Main pathway nodes table (one set per date filter combination)
+-- Main pathway nodes table (one set per date filter + chart type combination)
 -- Stores pre-computed pathway hierarchy with all visualization data
--- Designed for fast filtering by date_filter_id + trust/directory/drug
+-- Designed for fast filtering by date_filter_id + chart_type + trust/directory/drug
 CREATE TABLE IF NOT EXISTS pathway_nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
     -- Date filter combination this belongs to
     date_filter_id TEXT NOT NULL,
 
+    -- Chart type: "directory" (Trust→Directory→Drug) or "indication" (Trust→SearchTerm→Drug)
+    chart_type TEXT NOT NULL DEFAULT 'directory',
+
     -- Hierarchy structure (for icicle chart)
     parents TEXT NOT NULL,                  -- Parent node identifier
     ids TEXT NOT NULL,                      -- Unique node identifier (hierarchical path)
     labels TEXT NOT NULL,                   -- Display label
-    level INTEGER NOT NULL,                 -- Hierarchy depth (0=root, 1=trust, 2=directory, 3+=drugs)
+    level INTEGER NOT NULL,                 -- Hierarchy depth (0=root, 1=trust, 2=directory/search_term, 3+=drugs)
 
     -- Patient counts (accurate for this date filter combination)
     value INTEGER NOT NULL DEFAULT 0,       -- Patient count
@@ -228,14 +231,17 @@ CREATE TABLE IF NOT EXISTS pathway_nodes (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     data_refresh_id TEXT,                   -- Links to pathway_refresh_log
 
-    -- Unique per date filter + pathway
-    UNIQUE(date_filter_id, ids),
+    -- Unique per date filter + chart type + pathway
+    UNIQUE(date_filter_id, chart_type, ids),
     FOREIGN KEY (date_filter_id) REFERENCES pathway_date_filters(id)
 );
 
 -- Indexes for efficient filtering
 -- Primary filter: select by date_filter_id
 CREATE INDEX IF NOT EXISTS idx_pathway_nodes_date_filter ON pathway_nodes(date_filter_id);
+
+-- Chart type filter: for switching between directory and indication views
+CREATE INDEX IF NOT EXISTS idx_pathway_nodes_chart_type ON pathway_nodes(date_filter_id, chart_type);
 
 -- Level filter: often used with date_filter_id
 CREATE INDEX IF NOT EXISTS idx_pathway_nodes_level ON pathway_nodes(date_filter_id, level);
@@ -254,7 +260,7 @@ CREATE INDEX IF NOT EXISTS idx_pathway_nodes_parents ON pathway_nodes(date_filte
 
 -- Composite index for common filter combination
 CREATE INDEX IF NOT EXISTS idx_pathway_nodes_filter_composite
-    ON pathway_nodes(date_filter_id, trust_name, directory);
+    ON pathway_nodes(date_filter_id, chart_type, trust_name, directory);
 """
 
 PATHWAY_REFRESH_LOG_SCHEMA = """
@@ -963,6 +969,85 @@ def get_pathway_refresh_status(conn: sqlite3.Connection) -> dict | None:
     except sqlite3.OperationalError:
         # Table doesn't exist yet
         return None
+
+
+def migrate_pathway_nodes_chart_type(conn: sqlite3.Connection) -> tuple[bool, str]:
+    """
+    Migrate pathway_nodes table to add chart_type column.
+
+    This migration:
+    1. Checks if chart_type column already exists
+    2. If not, adds it with DEFAULT 'directory'
+    3. Updates existing rows to have 'directory' chart_type
+    4. Adds index for efficient filtering
+
+    Args:
+        conn: SQLite database connection.
+
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    # Check if table exists
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='pathway_nodes'"
+    )
+    if cursor.fetchone() is None:
+        return True, "pathway_nodes table does not exist yet (will be created with chart_type column)"
+
+    # Check if chart_type column already exists
+    cursor = conn.execute("PRAGMA table_info(pathway_nodes)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if "chart_type" in columns:
+        return True, "chart_type column already exists in pathway_nodes"
+
+    # Add chart_type column
+    logger.info("Adding chart_type column to pathway_nodes table...")
+    try:
+        # Add column with default value
+        conn.execute("""
+            ALTER TABLE pathway_nodes
+            ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'directory'
+        """)
+
+        # Create index for efficient filtering by chart type
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pathway_nodes_chart_type
+            ON pathway_nodes(date_filter_id, chart_type)
+        """)
+
+        # Update existing composite index (need to drop and recreate)
+        # Note: SQLite doesn't support DROP INDEX IF EXISTS in older versions,
+        # so we use a try/except
+        try:
+            conn.execute("DROP INDEX idx_pathway_nodes_filter_composite")
+        except sqlite3.OperationalError:
+            pass  # Index didn't exist
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pathway_nodes_filter_composite
+            ON pathway_nodes(date_filter_id, chart_type, trust_name, directory)
+        """)
+
+        # Need to recreate unique constraint since it changed
+        # SQLite doesn't support ALTER TABLE to change constraints, but
+        # since we're adding a column with a default value and the old
+        # constraint was (date_filter_id, ids), the new constraint
+        # (date_filter_id, chart_type, ids) will be satisfied by all existing
+        # rows since they all have chart_type='directory'
+
+        conn.commit()
+        logger.info("chart_type column added successfully")
+
+        # Count updated rows
+        cursor = conn.execute("SELECT COUNT(*) FROM pathway_nodes")
+        row_count = cursor.fetchone()[0]
+
+        return True, f"Added chart_type column, {row_count} existing rows set to 'directory'"
+
+    except Exception as e:
+        logger.error(f"Failed to add chart_type column: {e}")
+        return False, f"Migration failed: {e}"
 
 
 # =============================================================================

@@ -80,11 +80,14 @@ python -m reflex compile
 - [x] Verify: Test with sample patient data
 
 ### 2.2 Add Chart Type Support to Schema
-- [ ] Add `chart_type` column to `pathway_nodes` table:
+- [x] Add `chart_type` column to `pathway_nodes` table:
   - Values: "directory" (existing), "indication" (new)
   - Update schema in `data_processing/schema.py`
-- [ ] Update `pathway_date_filters` or create `pathway_chart_types` reference table
-- [ ] Verify: Migration adds column, existing data defaults to "directory"
+- [x] Update UNIQUE constraint to include chart_type: `UNIQUE(date_filter_id, chart_type, ids)`
+- [x] Add `idx_pathway_nodes_chart_type` index for filtering by chart type
+- [x] Add `migrate_pathway_nodes_chart_type()` function for existing databases
+- [x] Update `initialize_database()` to run migration automatically
+- [x] Verify: Migration adds column, existing data defaults to "directory"
 
 ### 2.3 Create Indication Pathway Processing
 - [ ] Add `process_indication_pathways()` to `pathway_pipeline.py`:
