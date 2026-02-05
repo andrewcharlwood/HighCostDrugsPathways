@@ -58,14 +58,14 @@ python -m reflex compile
 - [x] Verify: Query confirms 163K+ rows, 187 search terms
 
 ### 1.3 Extend Diagnosis Lookup Module
-- [ ] Add `get_drug_snomed_codes(drug_name)` to `diagnosis_lookup.py`:
+- [x] Add `get_drug_snomed_codes(drug_name)` to `diagnosis_lookup.py`:
   - Query `ref_drug_snomed_mapping` for all SNOMED codes for a drug
-  - Return list of (snomed_code, snomed_description, search_term, primary_directorate)
-- [ ] Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)`:
+  - Return list of DrugSnomedMapping(snomed_code, snomed_description, search_term, primary_directorate, indication, ta_id)
+- [x] Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)`:
   - Query `PrimaryCareClinicalCoding` directly for exact SNOMED code matches
   - Return most recent match by EventDateTime
-  - Return: (matched_code, search_term, primary_directorate, event_date) or None
-- [ ] Verify: Unit test with known drug/patient pair
+  - Return: DirectSnomedMatchResult(matched_code, search_term, primary_directorate, event_date) or unmatched
+- [x] Verify: Tested with ADALIMUMAB (1320 mappings, 10 Search_Terms), RANIBIZUMAB (104 mappings), case-insensitivity
 
 ---
 
