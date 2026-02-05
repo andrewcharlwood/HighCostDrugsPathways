@@ -468,3 +468,77 @@ For a patient on drug X:
 ### Blocked items:
 - Task 3.3 verification requires Snowflake connection (NHS SSO)
 
+## Iteration 9 — 2026-02-05
+### Task: 3.3 Test Full Refresh Pipeline
+### Why this task:
+- Previous iteration completed Task 3.2 but noted verification was pending
+- Task 3.3 is the final task in Phase 3 to validate all pipeline work
+- Phase 4 (UI) depends on having working indication chart data
+- Following "validate before moving forward" principle
+### Status: IN PROGRESS
+### What was done:
+1. **First refresh attempt**: Ran `python -m cli.refresh_pathways --chart-type all --verbose`
+   - Directory chart: Processed successfully (293 nodes for all_6mo)
+   - Indication chart: **0% diagnosis matches** - all 37,257 patients fell back to FALLBACK
+   - This resulted in no indication pathway data (charts empty)
+
+2. **Diagnosed root cause #1**: SNOMED codes stored in scientific notation
+   - CSV has codes like "1.0629311000119108e+16" due to pandas/Excel export
+   - The `clean_snomed_code()` function only handled ".0" suffix removal
+   - Codes were stored as "1.06e+16" which never match Snowflake data
+   - **Fix**: Updated `clean_snomed_code()` to convert scientific notation to integers
+   - Reloaded 144,056 SNOMED mappings with properly formatted codes
+
+3. **Diagnosed root cause #2**: Wrong patient identifier used for GP lookup
+   - `batch_lookup_indication_groups()` was using `PersonKey` column
+   - `PersonKey` = `LocalPatientID` (provider-specific like "J188448")
+   - GP records use `PatientPseudonym` which matches `PseudoNHSNoLinked` (SHA-256 hash)
+   - **Fix**: Changed to use `PseudoNHSNoLinked` column for GP record matching
+   - Test showed ~20% match rate for ADALIMUMAB patients with correct identifier
+
+4. **Committed fixes**: `5b1569e` "fix: correct patient identifier for GP diagnosis lookup (Task 3.3)"
+
+5. **Started second refresh**: Running in background (task ID: be9b9e7)
+   - Processing time expected: ~15-20 minutes total
+   - Should now show non-zero GP matches
+
+### Validation results:
+- Tier 1 (Code): Syntax check passed for both modified files
+- Tier 1 (Code): Import check passed
+- Tier 2 (Data): SNOMED codes now properly formatted (0 scientific notation entries)
+- Tier 2 (Data): GP record matching test: 20 matches found in 100 ADALIMUMAB patients
+- Tier 2 (Data): Full refresh still running (started 15:XX) - pending final verification
+### Files changed:
+- `data_processing/load_snomed_mapping.py` — fixed clean_snomed_code() for scientific notation
+- `data_processing/diagnosis_lookup.py` — changed to use PseudoNHSNoLinked for GP lookup
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.3 as in progress
+### Committed: 5b1569e "fix: correct patient identifier for GP diagnosis lookup (Task 3.3)"
+### Patterns discovered:
+- **Critical**: PersonKey ≠ PatientPseudonym. HCD data has two patient identifiers:
+  - `LocalPatientID` (aliased as PersonKey) — provider-specific, NOT in GP records
+  - `PseudoNHSNoLinked` — pseudonymised NHS number, matches `PatientPseudonym` in GP records
+- SNOMED codes can have 15-16 digits, causing float precision issues in pandas/Excel exports
+- Scientific notation must be converted back to integers for string matching
+### Next iteration should:
+1. **Check refresh completion**: Read output from task be9b9e7
+   - Look for "DIAGNOSIS matches: X%" line in batch lookup output
+   - Should now show non-zero percentage (expected 10-30% based on ADALIMUMAB test)
+   - Look for "indication: X nodes total" confirming indication charts generated
+
+2. **If refresh succeeded**: Verify database state
+   - `SELECT chart_type, COUNT(*) FROM pathway_nodes GROUP BY chart_type`
+   - Should show both "directory" (293) and "indication" (expected 300-600) rows
+   - `SELECT DISTINCT directory FROM pathway_nodes WHERE chart_type='indication' LIMIT 20`
+   - Should show Search_Term values like "rheumatoid arthritis", "macular degeneration"
+
+3. **Mark Task 3.3 complete** with validation evidence:
+   - Processing time
+   - Record counts per chart type
+   - Coverage percentage (diagnosis vs fallback)
+
+4. **If refresh still running**: Wait or check `tail -50` of output file
+
+5. **Start Phase 4**: If 3.3 passes, begin Task 4.1 (Add Chart Type State to Reflex)
+### Blocked items:
+- None (Snowflake connection established)
+
