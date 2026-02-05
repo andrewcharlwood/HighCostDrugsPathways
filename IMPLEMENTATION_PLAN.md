@@ -154,8 +154,7 @@ python -m reflex compile
 - [x] Verify KPIs update correctly for both chart types
   - Both show: 11,118 patients, £130.6M total cost for all_6mo
   - KPIs consistent across chart types (same underlying patient data)
-- [ ] Test at multiple viewport sizes (requires live browser — deferred to manual testing)
-  - reflex run crashes on Windows due to Granian/watchfiles FileNotFoundError (environment issue, not code)
+- [B] Test at multiple viewport sizes (BLOCKED: requires live browser — reflex run crashes on Windows due to Granian/watchfiles FileNotFoundError, environment issue not code issue. Deferred to manual testing when environment supports it.)
 
 ### 5.2 Update Documentation
 - [x] Update CLAUDE.md with new architecture
