@@ -143,14 +143,14 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
 ## Phase 3: Pipeline Integration
 
 ### 3.1 Update `refresh_pathways.py` indication processing
-- [ ] In the `elif current_chart_type == "indication":` block:
+- [x] In the `elif current_chart_type == "indication":` block:
   1. Call `get_patient_indication_groups()` as before (but now returns ALL matches)
   2. Load drug mapping: `drug_mapping = load_drug_indication_mapping()`
   3. Call `assign_drug_indications(df, gp_matches_df, drug_mapping)`
   4. Use modified_df (with indication-aware UPIDs) for pathway processing
   5. Use indication_df for the indication mapping
-- [ ] Pass modified_df (not original df) to `process_indication_pathway_for_date_filter()`
-- [ ] Verify: Pipeline compiles, `python -m py_compile cli/refresh_pathways.py`
+- [x] Pass modified_df (not original df) to `process_indication_pathway_for_date_filter()`
+- [x] Verify: Pipeline compiles, `python -m py_compile cli/refresh_pathways.py`
 
 ### 3.2 Test with dry run
 - [ ] Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`

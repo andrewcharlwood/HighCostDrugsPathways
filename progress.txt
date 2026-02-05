@@ -253,3 +253,49 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
   - Can verify with py_compile; full Snowflake test via --dry-run
 ### Blocked items:
 - None
+
+## Iteration 5 — 2026-02-05
+### Task: 3.1 — Update refresh_pathways.py indication processing to use assign_drug_indications()
+### Why this task:
+- All Phase 1 & 2 dependencies complete (query returns all matches, drug mapping loaded, assign_drug_indications() exists)
+- Task 3.1 is the pipeline integration step — wires the new drug-aware matching into the actual refresh pipeline
+- Must be done before Task 3.2 (dry run test) which validates the integrated pipeline
+### Status: COMPLETE
+### What was done:
+- Updated imports at top of `cli/refresh_pathways.py`:
+  - Added `assign_drug_indications` and `load_drug_indication_mapping` from `data_processing.diagnosis_lookup`
+- Replaced the entire indication processing block (old ~90 lines → new ~60 lines):
+  - **Old approach**: `dict(zip(gp_matches_df['PatientPseudonym'], gp_matches_df['Search_Term']))` — only kept LAST match per patient, no drug awareness
+  - **New approach**:
+    1. `load_drug_indication_mapping()` → `search_term_to_fragments`
+    2. Compute `earliest_hcd_date` from `df['Intervention Date'].min()` as ISO string
+    3. `get_patient_indication_groups(earliest_hcd_date=earliest_hcd_date_str)` → all GP matches with code_frequency
+    4. `assign_drug_indications(df, gp_matches_df, search_term_to_fragments)` → `(modified_df, indication_df)`
+    5. Pass `modified_df` (not original `df`) to `process_indication_pathway_for_date_filter()`
+    6. `indication_df` already indexed by modified UPID with 'Directory' column — directly compatible
+- Removed: old `match_lookup`, `upid_lookup`, manual `indication_records` building, `indication_df_for_chart` renaming
+- Kept: Snowflake availability check, PseudoNHSNoLinked column check, error handling, date filter loop
+### Validation results:
+- Tier 1 (Code): py_compile PASSED, individual imports PASSED, full module import PASSED
+- Tier 2 (Data): N/A — requires live Snowflake for dry run test (Task 3.2)
+- Tier 3 (Functional): N/A — no UI changes
+### Files changed:
+- cli/refresh_pathways.py (updated imports, replaced indication processing block)
+- IMPLEMENTATION_PLAN.md (marked 3.1 subtasks [x])
+### Committed: [pending]
+### Patterns discovered:
+- `assign_drug_indications()` returns `indication_df` already indexed by modified UPID with 'Directory' column — no need for intermediate renaming/reindexing steps that the old code required
+- `earliest_hcd_date` must be converted via `pd.Timestamp(...).strftime('%Y-%m-%d')` because `df['Intervention Date'].min()` may return a Timestamp or string depending on data source
+- The old code had a "stats['diagnosis_coverage']" tracking block — this is now handled internally by `assign_drug_indications()` logging. If stats tracking in the return dict is needed later, can add it back.
+### Next iteration should:
+- Work on Task 3.2: Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
+  - This requires a live Snowflake connection
+  - Verify: modified UPIDs appear in logs, match rates logged, pathway nodes generated
+  - If dry run passes, move to Phase 4 (full refresh + validation)
+- Key things to check in dry run output:
+  - "Drug-aware indication matching complete" log message with match/fallback counts
+  - "Modified UPIDs" count should be HIGHER than unique patient count (patients with multiple drugs for different indications)
+  - Pathway node counts for indication charts should be in same ballpark as before (~300 per date filter)
+  - No errors in indication pathway processing
+### Blocked items:
+- None
