@@ -158,10 +158,10 @@ python -m reflex compile
   - reflex run crashes on Windows due to Granian/watchfiles FileNotFoundError (environment issue, not code)
 
 ### 5.2 Update Documentation
-- [ ] Update CLAUDE.md with new architecture
-- [ ] Document new CLI arguments
-- [ ] Document chart_type toggle behavior
-- [ ] Update data flow diagrams
+- [x] Update CLAUDE.md with new architecture
+- [x] Document new CLI arguments
+- [x] Document chart_type toggle behavior
+- [x] Update data flow diagrams
 
 ---
 

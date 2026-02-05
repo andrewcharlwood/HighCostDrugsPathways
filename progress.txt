@@ -416,3 +416,43 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - The app is feature-complete — only documentation and optional visual polish remain
 ### Blocked items:
 - Visual testing at multiple viewport sizes blocked by Granian/watchfiles Windows crash
+
+## Iteration 8 — 2026-02-05
+### Task: 5.2 Update Documentation
+### Why this task:
+- This is the only remaining non-blocked task in the implementation plan
+- Previous iteration explicitly recommended completing Task 5.2 next
+- All code is complete and validated — only documentation remains
+### Status: COMPLETE
+### What was done:
+Updated CLAUDE.md comprehensively to document all indication chart features:
+
+1. **Project Overview** — Added dual chart types as key feature, GP diagnosis matching with ~93% match rate
+2. **CLI Commands** — Documented `--chart-type` argument (all/directory/indication) with timing estimates
+3. **Pathway Data Architecture** — Added chart types table, indication hierarchy, chart_type in node structure, UNIQUE constraint
+4. **Data Processing Module** — Documented `get_patient_indication_groups()`, `CLUSTER_MAPPING_SQL`, indication pipeline functions
+5. **Analysis Module** — Added `generate_icicle_chart_indication()` documentation
+6. **Reflex Application** — Documented chart type state, toggle component, known limitation (directory filter)
+7. **Data Flow Diagram** — Rewrote to show dual chart type processing with GP diagnosis lookup branch
+8. **Database Schema** — Added `chart_type` column, updated UNIQUE constraint, indexes
+9. **Key Patterns** — Added indication lookup workflow, kept legacy validation workflow
+10. **Breaking Changes** — Added chart type toggle section, updated state variables
+11. **Input Data** — Added `PseudoNHSNoLinked` column requirement
+12. **Output** — Updated to describe both chart views
+
+### Validation results:
+- Tier 1 (Code): N/A (documentation only)
+- Tier 2 (Data): N/A
+- Tier 3 (Functional): N/A
+### Files changed:
+- `CLAUDE.md` — comprehensive documentation updates for indication chart features
+- `IMPLEMENTATION_PLAN.md` — marked Task 5.2 items complete
+### Committed: 315065c "docs: update CLAUDE.md with indication chart architecture and CLI docs (Task 5.2)"
+### Patterns discovered:
+- None (documentation task)
+### Next iteration should:
+- All implementation plan tasks are now complete except the deferred viewport testing (blocked by Granian crash)
+- Check if `<promise>COMPLETE</promise>` signal can be issued (all tasks [x] except one deferred sub-item)
+- If the deferred viewport testing sub-item prevents completion, consider whether it should be marked [B] (blocked)
+### Blocked items:
+- Task 5.1 sub-item "Test at multiple viewport sizes" still blocked by Granian/watchfiles Windows crash
