@@ -382,3 +382,61 @@ The `ids` column in ice_df contains hierarchical paths like:
 - The state already has `initiated_options` and `last_seen_options` lists for rendering
 ### Blocked items:
 - None
+
+## Iteration 8 — 2026-02-05
+### Task: 3.3 Update UI Components
+### Why this task:
+- Previous iteration explicitly recommended Task 3.3 as the next step
+- Task 3.1 (AppState) and Task 3.2 (Icicle Figure) are complete — this is the final task in Phase 3
+- The state already has `selected_initiated`, `selected_last_seen`, and their event handlers
+- This task connects the pre-computed pathway data to the user interface
+### Status: COMPLETE
+### What was done:
+1. **Replaced date pickers with select dropdowns**:
+   - Created `initiated_filter_dropdown()` component with options: "All years", "Last 2 years", "Last 1 year"
+   - Created `last_seen_filter_dropdown()` component with options: "Last 6 months", "Last 12 months"
+   - Used `rx.select.root` > `rx.select.trigger` > `rx.select.content` > `rx.select.item` pattern
+   - Removed old `date_range_picker()` function (no longer needed)
+
+2. **Updated filter_section()**:
+   - Replaced `date_range_picker()` calls with new dropdown components
+   - Simplified layout — no more checkboxes to enable/disable date filters
+   - Date filters are now always active (matching pre-computed pathway_date_filters)
+
+3. **Data freshness indicator**:
+   - Already implemented in top_bar() using `last_updated_display` computed property
+   - `load_pathway_data()` queries pathway_refresh_log.completed_at
+   - Displays "Refreshed: 2m ago" / "Refreshed: Yesterday" etc.
+
+4. **Initial attempt with rx.foreach failed**:
+   - First tried using `rx.foreach` inside `rx.select` for dynamic options
+   - Failed with `TypeError: 'Foreach' object is not iterable`
+   - Reflex's `rx.select` doesn't support `rx.foreach` for items
+   - Solution: Use static `rx.select.item()` calls since options are fixed
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed
+- Tier 1 (Code): [PASS] Import check passed
+- Tier 1 (Code): [PASS] python -m reflex compile succeeded (11.095 seconds)
+- Tier 2 (Visual): Pending — requires running app with real data
+- Tier 3 (Functional): Pending — requires E2E testing (Phase 4)
+### Files changed:
+- `pathways_app/pathways_app.py` — Replaced date_range_picker with select dropdowns (+75, -99 lines)
+- `IMPLEMENTATION_PLAN.md` — Marked Task 3.3 subtasks complete
+### Committed: a6f1d8b "feat: replace date pickers with select dropdowns (Task 3.3)"
+### Patterns discovered:
+- `rx.select` doesn't work with `rx.foreach` for dynamic items — use static `rx.select.item()` calls
+- Pattern: `rx.select.root` > `rx.select.trigger` > `rx.select.content` > `rx.select.group` > `rx.select.item`
+- Pre-defined options are fine with static items since they don't change at runtime
+- The state already had `initiated_options` and `last_seen_options` lists, but they weren't needed — simpler to hardcode the options in the component
+### Next iteration should:
+- Start Phase 4: Testing & Validation (Task 4.1 End-to-End Validation)
+- Run the app with `reflex run` and verify:
+  1. Date dropdowns render and respond to changes
+  2. Chart updates when date filters change
+  3. Drug/directory filters work correctly
+  4. KPIs update with filter changes
+  5. Hover tooltips show treatment statistics
+- If Phase 4.1 passes, continue with 4.2 (Performance) and 4.3 (Documentation)
+- **Important**: Need real data in pathway_nodes table — may need to run `python -m cli.refresh_pathways` first
+### Blocked items:
+- None
