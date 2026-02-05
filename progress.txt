@@ -363,3 +363,50 @@ For a patient on drug X:
 ### Blocked items:
 - None
 
+## Iteration 7 — 2026-02-05
+### Task: 3.1 Update Refresh Command for Dual Chart Types
+### Why this task:
+- Phase 2 complete — all data infrastructure and processing functions ready
+- Task 3.1 is first in Phase 3 — CLI command is the entry point for the pipeline
+- Previous iteration recommended starting Task 3.1
+- Processing functions exist but weren't integrated into refresh workflow yet
+### Status: COMPLETE
+### What was done:
+- Modified `cli/refresh_pathways.py`:
+  - Added `--chart-type` argument with choices: "directory", "indication", "all"
+  - Default is "directory" to maintain backward compatibility
+  - Updated `insert_pathway_records` to include `chart_type` column (required for new schema)
+  - Added `chart_type` parameter to `refresh_pathways()` function
+  - Updated Step 2 to loop through chart_types_to_process list
+  - For "directory": uses existing `process_all_date_filters()`
+  - For "indication": placeholder with warning (requires Task 3.2 for GP diagnosis)
+  - Updated logging to show per-chart-type counts
+  - Updated help text with new examples
+- Added imports for new pathway_pipeline functions:
+  - `ChartType`, `DATE_FILTER_CONFIGS`, `process_indication_pathway_for_date_filter`
+  - `extract_indication_fields`, `convert_to_records`
+### Validation results:
+- Tier 1 (Code): `python -m py_compile cli/refresh_pathways.py` — PASSED
+- Tier 1 (Code): Import check for `refresh_pathways`, `main` — PASSED
+- Tier 1 (Code): `python -m cli.refresh_pathways --help` — Shows new argument — PASSED
+- Tier 2 (Data): Not fully testable until Task 3.2 (GP diagnosis integration)
+### Files changed:
+- `cli/refresh_pathways.py` — added chart_type support
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 items complete
+### Committed: 593d14c "feat: add chart_type argument to refresh command (Task 3.1)"
+### Patterns discovered:
+- The `convert_to_records()` function already has `chart_type` parameter with default "directory"
+- Results dictionary now keyed by "date_filter_id:chart_type" (e.g., "all_6mo:directory")
+- Stats now include `chart_type_counts` for summary by chart type
+### Next iteration should:
+- Start Task 3.2: Integrate Diagnosis-Based Directorate in Pipeline
+  - This is the key task that enables indication chart processing
+  - Need to add batch GP diagnosis lookup during `fetch_and_transform_data()`
+  - Create `indication_df` mapping UPID → Indication_Group (Search_Term or fallback)
+  - Call `process_indication_pathway_for_date_filter()` with the indication_df
+  - Key consideration: Batch Snowflake queries for performance (don't query per patient)
+  - Expected: ~35K patients, need to query in batches of ~1000
+  - Coverage logging: "X% diagnosis-matched, Y% fallback"
+### Blocked items:
+- None
+
