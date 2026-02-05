@@ -643,9 +643,47 @@ The `ids` column in ice_df contains hierarchical paths like:
 
 ---
 
-## PROJECT COMPLETION SUMMARY
+## PHASE 5: UI REDESIGN
 
-All 4 phases (11 tasks) are now complete:
+Previous work (Phases 1-4) established the pathway data architecture. Now we focus on the frontend.
+
+### Design Goals
+1. **Modern SaaS aesthetic** - Not an NHS dashboard, more like Stripe/Linear/Vercel
+2. **Chart-centric layout** - The icicle chart is the hero; maximize its space
+3. **Compact controls** - Shrink filters by 50-67%, KPIs by 50%
+4. **Full-width** - Chart should stretch to viewport width
+
+### Key Measurements to Achieve
+| Element | Current | Target | Reduction |
+|---------|---------|--------|-----------|
+| Top bar | 64px | 48px | 25% |
+| Filters | ~200px | ≤60px | 70% |
+| KPIs | ~100px | ≤48px | 52% |
+| Total overhead | ~364px | ~156px | 57% |
+
+### Files to Modify
+- `pathways_app/styles.py` - Design tokens (smaller fonts, tighter spacing)
+- `pathways_app/pathways_app.py` - Layout components (compact filters, full-width chart)
+- `DESIGN_SYSTEM.md` - Already updated with new specs
+
+### Implementation Order
+1. Update styles.py tokens first (foundation)
+2. Compact the filter section (biggest space gain)
+3. Compact or inline KPIs (second biggest gain)
+4. Full-width chart (the payoff)
+5. Top bar refinement (polish)
+
+### Known Patterns from Previous Work
+- `rx.select.root` pattern works for dropdowns (Task 3.3)
+- Chart height is set in `icicle_figure` computed property
+- PAGE_MAX_WIDTH constant controls container width
+- Filter section uses nested vstack/hstack layout
+
+---
+
+## PREVIOUS PROJECT COMPLETION
+
+All 4 phases (11 tasks) of the Pathway Data Architecture project are complete:
 
 **Phase 1: Schema & Data Pipeline Foundation**
 - [x] 1.1 Extend Database Schema
@@ -675,3 +713,88 @@ All 4 phases (11 tasks) are now complete:
 - [x] Treatment duration and dosing information displays in tooltips
 - [x] No console errors during normal operation (compile/import verified)
 - [x] Verified with real patient data from Snowflake
+
+---
+
+## Phase 5 Iteration Log
+
+## Iteration 12 — 2026-02-05
+### Task: 5.1 Update Design System for Modern SaaS
+### Why this task:
+- Foundation task for Phase 5 — all other tasks (filters, KPIs, chart, top bar) depend on having correct design tokens
+- DESIGN_SYSTEM.md already had the new specs defined; styles.py had OLD values that needed updating
+- Logical first step: establish tokens before using them in layout components
+### Status: COMPLETE
+### What was done:
+1. **Updated Typography tokens** (reduced sizes):
+   - DISPLAY_SIZE: 32px → 28px
+   - H1_SIZE: 24px → 18px
+   - H2_SIZE: 20px → 16px
+   - CAPTION_SIZE: 12px → 11px
+   - MONO_WEIGHT: 400 → 500
+
+2. **Updated Spacing tokens** (~25% reduction):
+   - SM: 8px → 6px
+   - MD: 12px → 8px
+   - LG: 16px → 12px
+   - XL: 24px → 16px
+   - XXL: 32px → 24px
+   - XXXL: 48px → 32px
+
+3. **Updated Colors** (modernized):
+   - SLATE_900: #1E293B → #0F172A (slightly darker)
+   - SLATE_100: #F1F5F9 → #F8FAFC (slightly lighter)
+   - SUCCESS: #059669 → #10B981 (modern green)
+   - WARNING: #D97706 → #F59E0B
+   - ERROR: #DC2626 → #EF4444
+   - INFO: #0284C7 → #3B82F6
+
+4. **Updated Shadows** (lighter):
+   - SM: rgba(0,0,0,0.05) → rgba(0,0,0,0.04)
+   - MD: rgba(0,0,0,0.08) → rgba(0,0,0,0.06)
+   - LG: rgba(0,0,0,0.1) → rgba(0,0,0,0.08)
+
+5. **Updated Layout constants**:
+   - TOP_BAR_HEIGHT: 64px → 48px
+   - Added FILTER_STRIP_HEIGHT = 48px
+
+6. **Added new style helpers**:
+   - `compact_kpi_card_style()` - 12px padding, min-width 100px
+   - `compact_kpi_value_style()` - 24px font (was 32px)
+   - `compact_kpi_label_style()` - 11px caption, 4px margin
+   - `kpi_badge_style()` - inline pill variant (zero height impact)
+   - `kpi_badge_value_style()` / `kpi_badge_label_style()`
+   - `filter_strip_style()` - 48px height, flex, 12px gaps
+   - `compact_dropdown_trigger_style()` - 32px height, 8px/12px padding
+   - `searchable_dropdown_panel_style()` - compact panel with z-index
+   - `searchable_dropdown_item_style(selected)` - 6px/8px padding
+   - `chart_container_style()` - full-width, flex-grow, 16px padding
+   - `chart_wrapper_style(overhead_height)` - calc(100vh - X) height
+   - `top_bar_style()` - 48px Heritage Blue container
+   - `top_bar_tab_style(active)` - 28px pills
+   - `logo_style()` - 28px height
+
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed
+- Tier 1 (Code): [PASS] Import check passed — all tokens and helpers verified
+- Tier 1 (Code): [PASS] python -m reflex compile succeeded (45.7s)
+- Tier 2 (Visual): N/A (tokens only, no layout changes yet)
+- Tier 3 (Functional): N/A (tokens only)
+### Files changed:
+- `pathways_app/styles.py` — Complete rewrite with v2.1 tokens (+499, -302 lines)
+- `IMPLEMENTATION_PLAN.md` — Marked Task 5.1 subtasks complete
+### Committed: 0a68c2a "feat: update design tokens for SaaS redesign (Task 5.1)"
+### Patterns discovered:
+- The Transitions class needed a DEFAULT value since many helpers use it
+- Radii.LG changed from 12px to 8px in DESIGN_SYSTEM.md — implemented
+- input_style() reduced height from 40px to 32px to match compact triggers
+- Chart wrapper uses calc(100vh - Xpx) pattern — needs overhead_height parameter
+### Next iteration should:
+- Start Task 5.2: Compact Filter Section
+- The filter_strip_style() and compact_dropdown_trigger_style() helpers are now available
+- Need to refactor filter_section() in pathways_app.py to use single horizontal strip
+- Remove "Filters" header to save vertical space
+- Use the new 32px dropdown triggers instead of current larger ones
+- Target: filter section height ≤ 60px
+### Blocked items:
+- None
