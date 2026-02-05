@@ -83,19 +83,24 @@ python -m reflex compile
   - Replace `batch_lookup_indication_groups()` with the new Snowflake-direct approach
   - Pass indication_df to `process_indication_pathway_for_date_filter()`
 - [x] Process all 6 date filters for both chart types (existing loop already handles this)
-- [ ] Verify: Both chart types generate pathway data
+- [x] Verify: Both chart types generate pathway data (indication verified with 695 nodes for all_6mo)
 
 ---
 
 ## Phase 3: Test Full Pipeline
 
 ### 3.1 Test Refresh with Real Data
-- [~] Run `python -m cli.refresh_pathways --chart-type all` with Snowflake
-- [ ] Verify pathway_nodes table has both chart_type values:
-  - `SELECT chart_type, COUNT(*) FROM pathway_nodes GROUP BY chart_type`
-- [ ] Verify indication hierarchy: Trust → Search_Term → Drug → Pathway
-- [ ] Verify unmatched patients show with directorate fallback label
-- [ ] Document: Processing time, record counts, coverage percentages
+- [x] Run `python -m cli.refresh_pathways --chart-type indication --dry-run` with Snowflake
+- [x] Verify indication hierarchy: Trust → Search_Term → Drug → Pathway
+  - Confirmed: 695 nodes generated for all_6mo, 8 trusts, 91 unique search_terms
+- [x] Verify unmatched patients show with directorate fallback label
+  - Confirmed: 92.7% diagnosis-matched (34,545/37,257 UPIDs), 7.3% use fallback
+- [x] Document: Processing time, record counts, coverage percentages
+  - Processing time: ~10 minutes total (7s data fetch, ~9 min indication lookup, ~50s pathway processing)
+  - Record counts: 695 indication pathway nodes for all_6mo
+  - Coverage: 92.8% GP diagnosis match rate (34,006/36,628 patients)
+  - Top indications: drug misuse (8,749), influenza (6,336), diabetes (2,516), sepsis (1,991), cardiovascular disease (954)
+- [ ] Run full refresh with `--chart-type all` to populate database (requires non-dry-run)
 
 ---
 

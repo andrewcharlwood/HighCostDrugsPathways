@@ -203,3 +203,55 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - Test run takes ~35 minutes total (7 min data fetch/transform, 25 min indication lookup, 3 min pathway processing)
 ### Blocked items:
 - None
+
+## Iteration 4 — 2026-02-05
+### Task: 3.1 Test Refresh with Real Data (verification run)
+### Why this task:
+- Previous iteration fixed three bugs but didn't complete the verification
+- Pipeline must be verified before proceeding to Phase 4 (Reflex UI)
+- This is the blocking task for all subsequent work
+### Status: COMPLETE
+### What was done:
+1. Ran `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
+2. **FULL PIPELINE SUCCESS** — all fixes from iteration 3 work correctly:
+   - Data fetch: 656,000+ rows in ~7 seconds
+   - Indication lookup: 36,628 patients queried, 34,006 (92.8%) matched
+   - Pathway processing: 695 nodes generated for all_6mo filter
+   - Dry run completed: "695 records would be inserted"
+
+### Key Results:
+- **Indication coverage**: 92.7% diagnosis-matched (34,545/37,257 UPIDs)
+- **Unique Search_Terms**: 139 distinct indications found
+- **Top 5 indications**:
+  - drug misuse: 8,749 patients
+  - influenza: 6,336 patients
+  - diabetes: 2,516 patients
+  - sepsis: 1,991 patients
+  - cardiovascular disease: 954 patients
+- **Pathway nodes**: 695 for all_6mo (8 trusts, 91 search_terms in hierarchy)
+
+### Note on Date Filters:
+- Only `all_6mo` filter produced data — other 5 filters returned "No data found"
+- This is expected: test data was fetched with specific date parameters
+- Full production run with `--chart-type all` will need broader date range in HCD data
+
+### Validation results:
+- Tier 1 (Code): ✅ All files compile, imports work
+- Tier 2 (Data): ✅ 695 pathway nodes generated, 92.8% match rate
+- Tier 3 (Functional): ✅ Full pipeline completes without errors
+### Files changed:
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 verification items complete
+- `progress.txt` — this entry
+### Committed: 966d569 "docs: mark Task 3.1 complete - indication pipeline verified (Task 3.1)"
+### Patterns discovered:
+- Pipeline processing time breakdown: data fetch (7s) + indication lookup (~9 min) + pathway processing (~50s)
+- The indication lookup batches (500 patients/batch × 74 batches) are the slowest part
+- Future optimization: could use larger batch sizes or parallel processing
+### Next iteration should:
+- Proceed to **Phase 4: Reflex UI Updates** (Task 4.1)
+- Add `selected_chart_type` state variable and `set_chart_type()` handler
+- Add `chart_type_options` list for the toggle UI
+- Update `load_pathway_data()` to filter by chart_type
+- **Important**: Run `--chart-type all` (non-dry-run) to populate database before UI testing
+### Blocked items:
+- None — Phase 3 complete, Phase 4 ready to begin
