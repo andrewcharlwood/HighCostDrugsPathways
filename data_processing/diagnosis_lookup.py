@@ -1090,6 +1090,15 @@ def batch_lookup_indication_groups(
 # === Drug-to-indication mapping from DimSearchTerm.csv ===
 
 
+# Merge related Search_Terms into canonical names.
+# Asthma variants are clinically the same condition at different severity levels.
+# Urticaria is a separate condition — do NOT merge with asthma.
+SEARCH_TERM_MERGE_MAP: dict[str, str] = {
+    "allergic asthma": "asthma",
+    "severe persistent allergic asthma": "asthma",
+}
+
+
 def load_drug_indication_mapping(
     csv_path: Optional[str] = None,
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
@@ -1106,6 +1115,10 @@ def load_drug_indication_mapping(
     Note: A Search_Term can appear multiple times with different PrimaryDirectorates
     (e.g., "diabetes" appears under both DIABETIC MEDICINE and OPHTHALMOLOGY).
     Drug fragments from all rows for the same Search_Term are combined.
+
+    Asthma-related Search_Terms ("allergic asthma", "severe persistent allergic asthma")
+    are merged into "asthma" to match the CLUSTER_MAPPING_SQL normalization.
+    "urticaria" stays separate.
 
     Args:
         csv_path: Path to DimSearchTerm.csv. Defaults to data/DimSearchTerm.csv.
@@ -1125,6 +1138,9 @@ def load_drug_indication_mapping(
             for row in reader:
                 search_term = row.get("Search_Term", "").strip()
                 drug_names_raw = row.get("CleanedDrugName", "").strip()
+
+                # Normalize asthma variants to canonical "asthma"
+                search_term = SEARCH_TERM_MERGE_MAP.get(search_term, search_term)
 
                 if not search_term or not drug_names_raw:
                     continue
@@ -1198,7 +1214,7 @@ WITH SearchTermClusters AS (
         ('acute lymphoblastic leukaemia', 'HAEMCANMORPH_COD'),
         ('acute myeloid leukaemia', 'C19HAEMCAN_COD'),
         ('acute promyelocytic leukaemia', 'HAEMCANMORPH_COD'),
-        ('allergic asthma', 'AST_COD'),
+        ('asthma', 'AST_COD'),
         ('allergic rhinitis', 'MILDINTAST_COD'),
         ('alzheimer''s disease', 'DEMALZ_COD'),
         ('amyloidosis', 'AMYLOID_COD'),
@@ -1313,7 +1329,7 @@ WITH SearchTermClusters AS (
         ('schizophrenia', 'MH_COD'),
         ('seizures', 'LSZFREQ_COD'),
         ('sepsis', 'C19ACTIVITY_COD'),
-        ('severe persistent allergic asthma', 'SEVAST_COD'),
+        ('asthma', 'SEVAST_COD'),
         ('sickle cell disease', 'SICKLE_COD'),
         ('sleep apnoea', 'CUST_ICB_NON_SEVERE_LDA'),
         ('smoking cessation', 'SMOKINGINT_COD'),
@@ -1530,6 +1546,7 @@ __all__ = [
     # Batch lookup for indication groups
     "batch_lookup_indication_groups",
     # Drug-indication mapping from DimSearchTerm.csv
+    "SEARCH_TERM_MERGE_MAP",
     "load_drug_indication_mapping",
     "get_search_terms_for_drug",
     # Snowflake-direct indication lookup (new approach)

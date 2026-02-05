@@ -78,7 +78,20 @@ Only assign a drug to an indication if BOTH conditions are met. If a patient's d
 - [ ] Update return type: DataFrame now has multiple rows per patient (PatientPseudonym, Search_Term, code_frequency)
 - [ ] Verify: Query returns more rows than before (patients with multiple matching diagnoses)
 
-### 1.2 Build drug-to-Search_Term lookup from DimSearchTerm.csv
+### 1.2 Merge related asthma Search_Terms in CLUSTER_MAPPING_SQL
+- [x] In `CLUSTER_MAPPING_SQL` (diagnosis_lookup.py), merge these 3 Search_Terms into one `"asthma"` entry:
+  - `allergic asthma` (Cluster: OMALIZUMAB only)
+  - `asthma` (Cluster: BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, OMALIZUMAB, RESLIZUMAB)
+  - `severe persistent allergic asthma` (Cluster: OMALIZUMAB only)
+- [x] Map all 3 Cluster_IDs to `Search_Term = 'asthma'` in the CTE VALUES
+- [x] `urticaria` (OMALIZUMAB, DERMATOLOGY) stays SEPARATE — do NOT merge with asthma
+- [x] Also update `load_drug_indication_mapping()` to apply the same merge when loading DimSearchTerm.csv:
+  - Combine drug lists from all 3 entries under a single `"asthma"` key
+  - Deduplicate drug fragments (OMALIZUMAB appears in all 3)
+- [x] Verify: GP code lookup returns `"asthma"` (not `"allergic asthma"` or `"severe persistent allergic asthma"`)
+- [x] Verify: Drug mapping for `"asthma"` includes full combined drug list: BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, OMALIZUMAB, RESLIZUMAB
+
+### 1.3 Build drug-to-Search_Term lookup from DimSearchTerm.csv
 - [x] Add function `load_drug_indication_mapping()` to `diagnosis_lookup.py`:
   - Loads `data/DimSearchTerm.csv`
   - Builds dict: `drug_fragment (uppercase) → list[Search_Term]`

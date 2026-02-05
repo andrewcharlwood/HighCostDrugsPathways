@@ -61,7 +61,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 ## Iteration Log
 
 ## Iteration 1 — 2026-02-05
-### Task: 1.2 — Build drug-to-Search_Term lookup from DimSearchTerm.csv
+### Task: 1.3 — Build drug-to-Search_Term lookup from DimSearchTerm.csv
 ### Why this task:
 - First iteration, chose Phase 1 foundations. Task 1.2 (CSV loading) is self-contained and testable locally without Snowflake.
 - Task 1.1 (Snowflake query update) can't be verified without a live connection — better to do 1.2 first.
@@ -85,16 +85,67 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 ### Files changed:
 - data_processing/diagnosis_lookup.py (added load_drug_indication_mapping, get_search_terms_for_drug)
 - IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
-### Committed: 0779df7 "feat: add drug-to-indication mapping from DimSearchTerm.csv (Task 1.2)"
+### Committed: 0779df7 "feat: add drug-to-indication mapping from DimSearchTerm.csv (Task 1.3)"
 ### Patterns discovered:
 - DimSearchTerm.csv has 164 unique Search_Terms (not 165 as noted) because diabetes appears twice with different directorates but same Search_Term
 - Some drug fragments are very generic: INHALED, CONTINUOUS, ORAL, STANDARD-DOSE, INTRAVENOUS, PEGYLATED, ROUTINE, INDUCTION — these will match broadly but are constrained by the GP diagnosis requirement in Phase 2
 - Function signatures for Phase 2: `get_search_terms_for_drug(drug_name, search_term_to_fragments)` returns list[str] — use this to get candidate indications per drug
 ### Next iteration should:
-- Work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
+- Work on Task 1.2: Merge asthma Search_Terms in CLUSTER_MAPPING_SQL and load_drug_indication_mapping()
+  - Merge "allergic asthma", "asthma", "severe persistent allergic asthma" → "asthma"
+  - Keep "urticaria" separate
+  - This is self-contained and testable locally
+- OR work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
   - The current query at line ~1352 of diagnosis_lookup.py uses `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1` — this must be replaced with GROUP BY + COUNT(*)
   - Add `earliest_hcd_date` parameter to restrict GP codes to HCD data window
   - Return columns: PatientPseudonym, Search_Term, code_frequency (not EventDateTime)
-- OR if Snowflake isn't available to test, skip to Task 2.1 (assign_drug_indications function) which can be built and tested with mock data
+- OR if Snowflake isn't available to test 1.1, skip to Task 2.1 (assign_drug_indications function) which can be built and tested with mock data
+### Blocked items:
+- None
+
+## Iteration 2 — 2026-02-05
+### Task: 1.2 — Merge related asthma Search_Terms in CLUSTER_MAPPING_SQL
+### Why this task:
+- Previous iteration recommended this as the next task (self-contained, testable locally)
+- Both CLUSTER_MAPPING_SQL and load_drug_indication_mapping() need consistent Search_Term names
+- Must be done before Task 1.1 (Snowflake query) to ensure GP lookups return "asthma" not "allergic asthma"
+### Status: COMPLETE
+### What was done:
+- Updated CLUSTER_MAPPING_SQL: changed 'allergic asthma' → 'asthma' (AST_COD) and 'severe persistent allergic asthma' → 'asthma' (SEVAST_COD)
+  - Now 3 rows for 'asthma': AST_COD, eFI2_Asthma, SEVAST_COD
+  - urticaria (XSAL_COD) stays separate
+- Added SEARCH_TERM_MERGE_MAP constant: {"allergic asthma": "asthma", "severe persistent allergic asthma": "asthma"}
+- Updated load_drug_indication_mapping() to apply SEARCH_TERM_MERGE_MAP when loading CSV
+  - Normalizes Search_Term before accumulating fragments
+  - Drug fragments from all 3 original rows combined under "asthma" key
+- Exported SEARCH_TERM_MERGE_MAP in __all__
+### Validation results:
+- Tier 1 (Code): py_compile passed, import check passed
+- Tier 2 (Data):
+  - "asthma" fragments: OMALIZUMAB, BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, RESLIZUMAB (complete combined list)
+  - "allergic asthma" no longer exists as separate key
+  - "severe persistent allergic asthma" no longer exists as separate key
+  - "urticaria" → ['OMALIZUMAB'] — correctly separate
+  - OMALIZUMAB maps to: ['asthma', 'urticaria'] — correct
+  - Total Search_Terms: 162 (was 164, 3 asthma entries → 1)
+  - Total fragments: 346 (unchanged)
+- Tier 3 (Functional): N/A (no UI changes)
+### Files changed:
+- data_processing/diagnosis_lookup.py (CLUSTER_MAPPING_SQL, SEARCH_TERM_MERGE_MAP, load_drug_indication_mapping)
+- IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
+### Committed: [pending]
+### Patterns discovered:
+- SEARCH_TERM_MERGE_MAP is reusable: any future module that receives Search_Terms from Snowflake can apply the same normalization
+- The merge approach (normalize at load time) is cleaner than post-hoc deduplication
+### Next iteration should:
+- Work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
+  - The current query at ~line 1467 uses `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1`
+  - Replace with GROUP BY + COUNT(*) for code_frequency
+  - Add `earliest_hcd_date` parameter to restrict GP codes to HCD data window
+  - Return columns: PatientPseudonym, Search_Term, code_frequency
+  - Empty DataFrame columns should match new return type
+  - This requires Snowflake connectivity to fully test, but code changes can be verified with py_compile and import checks
+- OR work on Task 2.1: Create assign_drug_indications() — can be built and tested with mock data
+  - This is independent of Task 1.1 if you mock the gp_matches_df input
 ### Blocked items:
 - None
