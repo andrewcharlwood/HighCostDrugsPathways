@@ -244,3 +244,56 @@ For a patient on drug X:
 ### Blocked items:
 - None
 
+## Iteration 5 — 2026-02-05
+### Task: 2.2 Add Chart Type Support to Schema
+### Why this task:
+- Task 2.1 (directorate assignment logic) is complete
+- Task 2.2 is the next task in Phase 2 — schema changes before pipeline changes
+- Task 2.3 (Indication Pathway Processing) requires the chart_type column to store indication pathways
+- Following "data infrastructure first" principle — schema changes before pipeline logic
+### Status: COMPLETE
+### What was done:
+- Modified `PATHWAY_NODES_SCHEMA` in `data_processing/schema.py`:
+  - Added `chart_type TEXT NOT NULL DEFAULT 'directory'` column
+  - Updated UNIQUE constraint from `(date_filter_id, ids)` to `(date_filter_id, chart_type, ids)`
+  - Added `idx_pathway_nodes_chart_type` index on `(date_filter_id, chart_type)`
+  - Updated `idx_pathway_nodes_filter_composite` index to include `chart_type`
+- Added `migrate_pathway_nodes_chart_type(conn)` function:
+  - Checks if chart_type column exists (idempotent)
+  - Adds column with ALTER TABLE if missing
+  - Creates/updates indexes
+  - Returns (success: bool, message: str)
+- Updated `data_processing/migrate.py`:
+  - Added import for `migrate_pathway_nodes_chart_type`
+  - Called migration in `initialize_database()` after creating tables
+- Ran migration on existing database: 293 rows updated with chart_type='directory'
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/schema.py` — PASSED
+- Tier 1 (Code): `python -m py_compile data_processing/migrate.py` — PASSED
+- Tier 1 (Code): Import check for migrate_pathway_nodes_chart_type — PASSED
+- Tier 2 (Data): Migration ran successfully on existing database — PASSED
+- Tier 2 (Data): All 293 existing rows have chart_type='directory' — PASSED
+- Tier 2 (Data): Both indexes created (idx_pathway_nodes_chart_type, idx_pathway_nodes_filter_composite) — PASSED
+- Tier 2 (Data): Database status check shows all tables intact — PASSED
+### Files changed:
+- `data_processing/schema.py` — added chart_type column, updated UNIQUE constraint, added indexes, added migration function
+- `data_processing/migrate.py` — import and call migration function
+- `IMPLEMENTATION_PLAN.md` — marked Task 2.2 complete with full checklist
+### Committed: 19607d7 "feat: add chart_type column to pathway_nodes schema (Task 2.2)"
+### Patterns discovered:
+- SQLite ALTER TABLE ADD COLUMN works with DEFAULT values — existing rows get the default
+- SQLite doesn't allow modifying UNIQUE constraints after table creation, but since all existing rows have the same chart_type value, the new constraint is satisfied
+- Migration function is idempotent — safe to run multiple times
+- Composite indexes including chart_type allow efficient filtering by (date_filter_id, chart_type)
+### Next iteration should:
+- Start Task 2.3: Create Indication Pathway Processing
+  - Add `process_indication_pathways()` to `pathway_pipeline.py`
+  - Group by: Trust → Search_Term → Drug → Pathway
+  - For unmatched patients: use directorate name as Search_Term fallback
+  - Add `extract_indication_fields()` for denormalized columns
+- Key consideration: Need to modify `generate_icicle_chart()` or create parallel function for indication hierarchy
+- The indication chart uses Search_Term (from SNOMED match) or Directorate (from fallback) as the level-2 grouping
+- Output structure should match directory chart but with different grouping labels
+### Blocked items:
+- None
+
