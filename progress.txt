@@ -133,7 +133,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 ### Files changed:
 - data_processing/diagnosis_lookup.py (CLUSTER_MAPPING_SQL, SEARCH_TERM_MERGE_MAP, load_drug_indication_mapping)
 - IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
-### Committed: [pending]
+### Committed: b0a8a9d "feat: merge asthma Search_Term variants in CLUSTER_MAPPING_SQL and drug mapping (Task 1.2)"
 ### Patterns discovered:
 - SEARCH_TERM_MERGE_MAP is reusable: any future module that receives Search_Terms from Snowflake can apply the same normalization
 - The merge approach (normalize at load time) is cleaner than post-hoc deduplication
