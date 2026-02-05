@@ -107,3 +107,44 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - The key integration point: extract unique PseudoNHSNoLinked values from HCD data, call this function, map results back to UPID for indication_df
 ### Blocked items:
 - None
+
+## Iteration 2 — 2026-02-05
+### Task: 1.2 Update Data Pipeline to Include Indications & 2.3 Update Refresh Command
+### Why this task:
+- Task 1.1 verification would naturally happen when running the full pipeline with real data
+- Task 1.2 is the logical next step - integrates the new function into the CLI
+- Task 2.3 overlaps with 1.2 - both involve updating refresh_pathways.py to use the new approach
+- Combined these tasks since they're tightly coupled
+### Status: COMPLETE
+### What was done:
+- Modified `cli/refresh_pathways.py` to use `get_patient_indication_groups()` instead of `batch_lookup_indication_groups()`
+- Updated import statement to use the new function
+- Replaced the indication chart processing section (lines 361-441) with new logic:
+  1. Extracts unique PseudoNHSNoLinked values from df
+  2. Calls `get_patient_indication_groups()` with patient list
+  3. Builds indication_df mapping UPID → Indication_Group:
+     - For matched patients: Search_Term (from GP record)
+     - For unmatched patients: Directory + " (no GP dx)"
+  4. Logs coverage statistics and top indications
+  5. Passes indication_df to existing `process_indication_pathway_for_date_filter()`
+### Validation results:
+- Tier 1 (Code): ✅ `python -m py_compile cli/refresh_pathways.py` passed
+- Tier 1 (Import): ✅ `from cli.refresh_pathways import refresh_pathways` works
+- Tier 1 (Import): ✅ `from data_processing.diagnosis_lookup import get_patient_indication_groups` works
+- Tier 2 (Data): Pending - needs live Snowflake test with `--chart-type indication`
+- Tier 3 (Functional): Pending - needs full pipeline test
+### Files changed:
+- `cli/refresh_pathways.py` — replaced batch_lookup_indication_groups with get_patient_indication_groups integration
+- `IMPLEMENTATION_PLAN.md` — marked Task 1.2 and 2.3 subtasks complete
+### Committed: ad10b37 "feat: integrate Snowflake-direct indication lookup into CLI refresh (Task 1.2, 2.3)"
+### Patterns discovered:
+- The indication processing follows the same flow as before, just with different data source
+- patient_lookup DataFrame helps map PseudoNHSNoLinked → UPID for the final indication_df
+- match_lookup dict (PatientPseudonym → Search_Term) makes joining simple
+### Next iteration should:
+- Run a live test with `python -m cli.refresh_pathways --chart-type indication --dry-run` to verify the full pipeline
+- This will test Task 1.1 verification (function returns expected Search_Terms) and Task 3.1 (full pipeline test)
+- Alternatively, proceed to Phase 4 (Reflex UI) if confident
+- Key verification points: coverage statistics logged, indication_df structure correct
+### Blocked items:
+- None
