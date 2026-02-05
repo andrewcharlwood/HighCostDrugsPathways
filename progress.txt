@@ -343,7 +343,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 - data_processing/diagnosis_lookup.py (batch_size default 500 → 5000)
 - cli/refresh_pathways.py (batch_size 500 → 5000)
 - IMPLEMENTATION_PLAN.md (marked 3.2 subtasks [x])
-### Committed: [pending]
+### Committed: c6e426e "fix: increase network timeout and batch size for GP lookup queries (Task 3.2)"
 ### Patterns discovered:
 - Snowflake Python connector `network_timeout` (set via connection_timeout in config) controls client-side wait time for ALL query responses, not just connection establishment. Must be high enough for slow queries.
 - PrimaryCareClinicalCoding query performance is dominated by CTE compilation (~40s fixed cost), not by patient count. Larger batches (5000 vs 500) are dramatically more efficient.
