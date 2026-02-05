@@ -108,13 +108,13 @@ python -m reflex compile
 ## Phase 3: CLI & Data Refresh Updates
 
 ### 3.1 Update Refresh Command for Dual Chart Types
-- [ ] Modify `cli/refresh_pathways.py`:
+- [x] Modify `cli/refresh_pathways.py`:
   - Process both "directory" and "indication" chart types
   - For each of 6 date filters: generate 2 chart datasets
   - Total: 12 pathway datasets (6 dates × 2 chart types)
-- [ ] Add `--chart-type` argument: "all" (default), "directory", "indication"
-- [ ] Update progress logging to show both chart types
-- [ ] Verify: Dry run shows both chart types being processed
+- [x] Add `--chart-type` argument: "all" (default), "directory", "indication"
+- [x] Update progress logging to show both chart types
+- [ ] Verify: Dry run shows both chart types being processed (requires Task 3.2 for full indication support)
 
 ### 3.2 Integrate Diagnosis-Based Directorate in Pipeline
 - [ ] Update `fetch_and_transform_data()` to include diagnosis lookup:
