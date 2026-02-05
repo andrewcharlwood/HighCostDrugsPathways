@@ -90,7 +90,7 @@ python -m reflex compile
 ## Phase 3: Test Full Pipeline
 
 ### 3.1 Test Refresh with Real Data
-- [ ] Run `python -m cli.refresh_pathways --chart-type all` with Snowflake
+- [~] Run `python -m cli.refresh_pathways --chart-type all` with Snowflake
 - [ ] Verify pathway_nodes table has both chart_type values:
   - `SELECT chart_type, COUNT(*) FROM pathway_nodes GROUP BY chart_type`
 - [ ] Verify indication hierarchy: Trust → Search_Term → Drug → Pathway

@@ -1348,12 +1348,13 @@ def get_patient_indication_groups(
 
         # Build the full query with cluster CTE
         # This finds the most recent matching diagnosis for each patient
+        # Note: Column names must be aliased to ensure consistent casing in results
         query = f"""
 {CLUSTER_MAPPING_SQL}
 SELECT
-    pc."PatientPseudonym",
-    aic.Search_Term,
-    pc."EventDateTime"
+    pc."PatientPseudonym" AS "PatientPseudonym",
+    aic.Search_Term AS "Search_Term",
+    pc."EventDateTime" AS "EventDateTime"
 FROM DATA_HUB.PHM."PrimaryCareClinicalCoding" pc
 INNER JOIN AllIndicationCodes aic
     ON pc."SNOMEDCode" = aic.SNOMEDCode
