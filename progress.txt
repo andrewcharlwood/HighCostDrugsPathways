@@ -176,7 +176,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 ### Files changed:
 - data_processing/diagnosis_lookup.py (modified get_patient_indication_groups function)
 - IMPLEMENTATION_PLAN.md (marked 1.1 subtasks [x])
-### Committed: [pending]
+### Committed: c93417f "feat: return ALL GP matches with code_frequency in get_patient_indication_groups (Task 1.1)"
 ### Patterns discovered:
 - The `earliest_hcd_date` parameter is passed as a string in ISO format (YYYY-MM-DD) via Snowflake %s placeholder — Snowflake handles string-to-timestamp comparison implicitly
 - The GROUP BY approach naturally deduplicates SNOMED codes within the same Search_Term — a patient with the same SNOMED code recorded 5 times gets code_frequency=5 (reflecting clinical activity intensity)
