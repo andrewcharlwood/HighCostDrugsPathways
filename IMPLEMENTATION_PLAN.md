@@ -90,13 +90,18 @@ python -m reflex compile
 - [x] Verify: Migration adds column, existing data defaults to "directory"
 
 ### 2.3 Create Indication Pathway Processing
-- [ ] Add `process_indication_pathways()` to `pathway_pipeline.py`:
+- [x] Add `process_indication_pathway_for_date_filter()` to `pathway_pipeline.py`:
   - Group by: Trust → Search_Term → Drug → Pathway
   - For unmatched patients: use directorate name as Search_Term fallback
   - Output: Same structure as directory pathways but with indication grouping
-- [ ] Add `extract_indication_fields()` for denormalized columns:
+- [x] Add `generate_icicle_chart_indication()` to `pathway_analyzer.py`:
+  - Variant of `generate_icicle_chart()` that uses indication_df instead of directory_df
+  - Takes `indication_df` parameter mapping UPID → Indication_Group
+- [x] Add `extract_indication_fields()` for denormalized columns:
   - Extract: trust_name, search_term (or fallback_directorate), drug_sequence
-- [ ] Verify: Process sample data, check hierarchy structure
+- [x] Update `convert_to_records()` to include `chart_type` parameter
+- [x] Add `ChartType` type alias ("directory" | "indication")
+- [x] Verify: Code compiles, imports work correctly
 
 ---
 

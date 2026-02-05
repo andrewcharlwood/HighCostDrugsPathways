@@ -749,3 +749,191 @@ def generate_icicle_chart(
     ice_df = prepare_chart_data(ice_df, minimum_num_patients)
 
     return ice_df, final_title
+
+
+def generate_icicle_chart_indication(
+    df: pd.DataFrame,
+    indication_df: pd.DataFrame,
+    start_date: str,
+    end_date: str,
+    last_seen_date: str,
+    trust_filter: list[str],
+    drug_filter: list[str],
+    directory_filter: list[str],
+    minimum_num_patients: int,
+    title: str = "",
+    paths: Optional[PathConfig] = None,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Generate icicle chart data with indication-based grouping.
+
+    This is a variant of generate_icicle_chart() that groups by Search_Term
+    (from GP diagnosis match) instead of Directory. For patients without
+    a GP diagnosis match, the fallback directorate is used with a "(no GP dx)"
+    suffix to distinguish them.
+
+    Hierarchy: Trust → Indication_Group → Drug → Pathway
+
+    Args:
+        df: DataFrame with processed patient intervention data
+        indication_df: DataFrame mapping UPID → Indication_Group
+                      Must have 'UPID' as index and 'Indication_Group' column
+                      Values are either Search_Term or "Directory (no GP dx)"
+        start_date: Start date for patient initiation filter
+        end_date: End date for patient initiation filter
+        last_seen_date: Filter for patients last seen after this date
+        trust_filter: List of trust names to include
+        drug_filter: List of drug names to include
+        directory_filter: List of directories to include
+        minimum_num_patients: Minimum number of patients to include a pathway
+        title: Chart title (auto-generated if empty)
+        paths: PathConfig for file paths (uses default if None)
+
+    Returns:
+        Tuple of (ice_df for chart, final_title) or (None, "") if no data
+    """
+    if paths is None:
+        paths = default_paths
+
+    # Prepare data - use standard prepare_data function
+    result = prepare_data(df, trust_filter, drug_filter, directory_filter, paths)
+    if result[0] is None:
+        return None, ""
+    filtered_df, org_codes, directory_df = result
+
+    # For indication charts, we replace directory_df with indication_df
+    # First, ensure indication_df has the correct format (UPID as index)
+    if indication_df is not None and not indication_df.empty:
+        if 'UPID' in indication_df.columns:
+            indication_df = indication_df.set_index('UPID')
+        # Rename column for compatibility with build_hierarchy()
+        if 'Indication_Group' in indication_df.columns:
+            indication_df = indication_df.rename(columns={'Indication_Group': 'Directory'})
+        elif 'indication_group' in indication_df.columns:
+            indication_df = indication_df.rename(columns={'indication_group': 'Directory'})
+    else:
+        # Fall back to directory if no indication data provided
+        logger.warning("No indication data provided, falling back to directory grouping")
+        indication_df = directory_df
+
+    cost_df = filtered_df[["UPID", "Price Actual"]]
+    total_costs = pd.DataFrame(cost_df.groupby("UPID").sum())
+    total_costs.rename(columns={"Price Actual": "Total cost"}, inplace=True)
+
+    result = calculate_statistics(filtered_df, start_date, end_date, last_seen_date, title)
+    if result[0] is None:
+        return None, ""
+    patient_info, date_df, final_title = result
+
+    df_drug_freq = (
+        filtered_df.groupby("UPID")
+        .agg({"Drug Name": lambda x: list(x)})
+        .reset_index()
+        .set_index("UPID")
+    )
+    df_drug_cost = (
+        filtered_df.groupby("UPID")
+        .agg({"Price Actual": lambda x: list(x)})
+        .reset_index()
+        .set_index("UPID")
+    )
+    df_drug_freq["Price Actual"] = df_drug_freq.index.map(df_drug_cost["Price Actual"])
+    df_drug_freq["Drug Name"] = df_drug_freq["Drug Name"].apply(_count_list_values)
+    df_drug_freq["Drug cost total"] = df_drug_freq.apply(lambda x: _sum_list_values(x), axis=1)
+
+    df1_unique = _drop_duplicate_treatments(filtered_df, True)
+    df_drugs = (
+        df1_unique.groupby("UPID")
+        .agg({"Drug Name": lambda x: list(x)})
+        .reset_index()
+        .set_index("UPID")
+    )
+    df_dates = (
+        df1_unique.groupby("UPID")
+        .agg({"Intervention Date": lambda x: list(x)})
+        .reset_index()
+        .set_index("UPID")
+    )
+
+    df_dates_unwrapped = pd.DataFrame(
+        df_dates["Intervention Date"].values.tolist(), index=df_dates.index
+    ).add_prefix("date_")
+    df_drugs_unwrapped = pd.DataFrame(
+        df_drugs["Drug Name"].values.tolist(), index=df_drugs.index
+    ).add_prefix("drug_")
+
+    start_dates = (
+        filtered_df[["UPIDTreatment", "Intervention Date"]]
+        .sort_values(by=["Intervention Date"], ascending=True)
+        .drop_duplicates(subset="UPIDTreatment")
+        .set_index("UPIDTreatment")
+    )
+    end_dates = (
+        filtered_df[["UPIDTreatment", "Intervention Date"]]
+        .sort_values(by=["Intervention Date"], ascending=False)
+        .drop_duplicates(subset="UPIDTreatment")
+        .set_index("UPIDTreatment")
+    )
+
+    df_drugs_unwrapped["start_dates"] = df_drugs_unwrapped.apply(
+        lambda x: _start_date_drug(start_dates, x), axis=1
+    )
+    df_start_dates_unwrapped = pd.DataFrame(
+        df_drugs_unwrapped["start_dates"].values.tolist(), index=df_drugs_unwrapped.index
+    ).add_prefix("start_date_")
+    df_drugs_unwrapped.drop(["start_dates"], inplace=True, axis=1)
+
+    df_drugs_unwrapped["end_dates"] = df_drugs_unwrapped.apply(
+        lambda x: _start_date_drug(end_dates, x), axis=1
+    )
+    df_end_dates_unwrapped_2 = pd.DataFrame(
+        df_drugs_unwrapped["end_dates"].values.tolist(), index=df_drugs_unwrapped.index
+    ).add_prefix("end_date_")
+    df_drugs_unwrapped.drop(["end_dates"], inplace=True, axis=1)
+
+    df_drugs_unwrapped = pd.merge(
+        df_drugs_unwrapped, df_start_dates_unwrapped, left_index=True, right_index=True
+    )
+    df_drugs_unwrapped = pd.merge(
+        df_drugs_unwrapped, df_end_dates_unwrapped_2, left_index=True, right_index=True
+    )
+
+    df_freq_for_merge = pd.DataFrame(
+        df_drug_freq["Drug Name"].values.tolist(), index=df_drugs_unwrapped.index
+    ).add_prefix("freq_")
+    df_drugs_unwrapped = pd.merge(
+        df_drugs_unwrapped, df_freq_for_merge, left_index=True, right_index=True
+    )
+    df_drugs_unwrapped["frequency"] = df_drugs_unwrapped.apply(
+        lambda x: _drug_frequency_average(x), axis=1
+    )
+
+    df_spacing_unwrapped = pd.DataFrame(
+        df_drugs_unwrapped["frequency"].values.tolist(), index=df_drugs_unwrapped.index
+    ).add_prefix("spacing_")
+    df_drugs_unwrapped = pd.merge(
+        df_drugs_unwrapped, df_spacing_unwrapped, left_index=True, right_index=True
+    )
+
+    df_cost_unwrapped = pd.DataFrame(
+        df_drug_freq["Drug cost total"].values.tolist(), index=df_drugs_unwrapped.index
+    ).add_prefix("total_cost_drug_")
+    df_drugs_unwrapped = pd.merge(
+        df_drugs_unwrapped, df_cost_unwrapped, left_index=True, right_index=True
+    )
+    df_drugs_unwrapped.drop(["frequency"], inplace=True, axis=1)
+
+    # Build hierarchy with indication_df instead of directory_df
+    ice_df = build_hierarchy(
+        patient_info,
+        date_df,
+        filtered_df,
+        org_codes,
+        indication_df,  # Use indication mapping instead of directory
+        total_costs,
+        df_drugs_unwrapped,
+    )
+
+    ice_df = prepare_chart_data(ice_df, minimum_num_patients)
+
+    return ice_df, final_title
