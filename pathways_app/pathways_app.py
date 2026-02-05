@@ -1220,11 +1220,21 @@ class AppState(rx.State):
         Generate Plotly icicle chart from chart_data.
 
         This computed property creates a go.Figure with the hierarchical icicle chart
-        using data from prepare_chart_data(). The chart displays patient pathways:
-        Root → Trust → Directory → Drug
+        using data from load_pathway_data(). The chart displays patient pathways:
+        Root → Trust → Directory → Drug → Pathway
 
-        Colors use a custom NHS-inspired blue gradient colorscale.
-        Hover displays patient count, cost, and percentage of parent.
+        Uses the full 10-field customdata structure matching the original
+        visualization/plotly_generator.py:
+        [0] value - patient count
+        [1] colour - proportion of parent
+        [2] cost - total cost
+        [3] costpp - cost per patient
+        [4] first_seen - first intervention date
+        [5] last_seen - last intervention date
+        [6] first_seen_parent - earliest date in parent group
+        [7] last_seen_parent - latest date in parent group
+        [8] average_spacing - dosing information string
+        [9] cost_pp_pa - cost per patient per annum
 
         Returns:
             Plotly Figure object ready for rx.plotly() component
@@ -1238,8 +1248,31 @@ class AppState(rx.State):
         ids = [d.get("ids", "") for d in self.chart_data]
         labels = [d.get("labels", "") for d in self.chart_data]
         values = [d.get("value", 0) for d in self.chart_data]
-        costs = [d.get("cost", 0.0) for d in self.chart_data]
         colours = [d.get("colour", 0.0) for d in self.chart_data]
+
+        # Extract full 10-field customdata
+        costs = [d.get("cost", 0.0) for d in self.chart_data]
+        costpp = [d.get("costpp", 0.0) for d in self.chart_data]
+        first_seen = [d.get("first_seen", "N/A") or "N/A" for d in self.chart_data]
+        last_seen = [d.get("last_seen", "N/A") or "N/A" for d in self.chart_data]
+        first_seen_parent = [d.get("first_seen_parent", "N/A") or "N/A" for d in self.chart_data]
+        last_seen_parent = [d.get("last_seen_parent", "N/A") or "N/A" for d in self.chart_data]
+        average_spacing = [d.get("average_spacing", "") or "" for d in self.chart_data]
+        cost_pp_pa = [d.get("cost_pp_pa", 0.0) or 0.0 for d in self.chart_data]
+
+        # Build customdata as list of tuples (10 fields)
+        customdata = list(zip(
+            values,              # [0]
+            colours,             # [1]
+            costs,               # [2]
+            costpp,              # [3]
+            first_seen,          # [4]
+            last_seen,           # [5]
+            first_seen_parent,   # [6]
+            last_seen_parent,    # [7]
+            average_spacing,     # [8]
+            cost_pp_pa,          # [9]
+        ))
 
         # NHS-inspired blue gradient colorscale (from design system)
         # Heritage Blue → Primary Blue → Vibrant Blue → Sky Blue → Pale Blue
@@ -1251,7 +1284,7 @@ class AppState(rx.State):
             [1.0, "#E3F2FD"],   # Pale Blue
         ]
 
-        # Create the icicle chart
+        # Create the icicle chart with full customdata structure
         fig = go.Figure(
             go.Icicle(
                 labels=labels,
@@ -1265,15 +1298,29 @@ class AppState(rx.State):
                     line=dict(width=1, color="#FFFFFF"),
                 ),
                 maxdepth=3,
-                # Custom data for hover template
-                customdata=list(zip(values, colours, costs)),
-                # Text shown on chart segments
-                texttemplate="<b>%{label}</b><br>%{value:,} patients",
-                # Hover text with full details
+                customdata=customdata,
+                # Text shown on chart segments - includes treatment statistics
+                texttemplate=(
+                    "<b>%{label}</b> "
+                    "<br><b>Total patients:</b> %{customdata[0]} (including children/further treatments)"
+                    "<br><b>First seen:</b> %{customdata[4]}"
+                    "<br><b>Last seen (including further treatments):</b> %{customdata[7]}"
+                    "<br><b>Average treatment duration:</b> %{customdata[8]}"
+                    "<br><b>Total cost:</b> £%{customdata[2]:.3~s}"
+                    "<br><b>Average cost per patient:</b> £%{customdata[3]:.3~s}"
+                    "<br><b>Average cost per patient per annum:</b> £%{customdata[9]:.3~s}"
+                ),
+                # Hover text with full details matching original chart
                 hovertemplate=(
-                    "<b>%{label}</b><br>"
-                    "Patients: %{customdata[0]:,} (%{customdata[1]:.1%} of parent)<br>"
-                    "Total Cost: £%{customdata[2]:,.0f}"
+                    "<b>%{label}</b>"
+                    "<br><b>Total patients:</b> %{customdata[0]} - %{customdata[1]:.3p} of patients in level"
+                    "<br><b>Total cost:</b> £%{customdata[2]:.3~s}"
+                    "<br><b>Average cost per patient:</b> £%{customdata[3]:.3~s}"
+                    "<br><b>Average cost per patient per annum:</b> £%{customdata[9]:.3~s}"
+                    "<br><b>First seen:</b> %{customdata[4]}"
+                    "<br><b>Last seen (including further treatments):</b> %{customdata[7]}"
+                    "<br><b>Average treatment duration:</b>"
+                    "%{customdata[8]}"
                     "<extra></extra>"
                 ),
                 textfont=dict(
@@ -1301,7 +1348,7 @@ class AppState(rx.State):
                 bordercolor="#CBD5E1",  # Slate 300
                 font=dict(
                     family="Inter, system-ui, sans-serif",
-                    size=13,
+                    size=14,
                     color="#1E293B",  # Slate 900
                 ),
             ),
