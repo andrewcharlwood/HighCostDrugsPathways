@@ -8,9 +8,10 @@ NHS High-Cost Drug Patient Pathway Analysis Tool - a web-based application that 
 
 **Key Features:**
 - Multi-source data loading: CSV/Parquet files, SQLite database, Snowflake data warehouse
+- **Pre-computed pathway architecture**: Treatment pathways pre-processed and stored in SQLite for instant filtering
 - GP diagnosis integration for indication validation via SNOMED clusters
 - Interactive browser-based UI using Reflex framework
-- Real-time analysis with progress feedback
+- 6 pre-defined date filter combinations with sub-50ms response times
 
 ## Running the Application
 
@@ -20,11 +21,40 @@ pip install -r requirements.txt
 # OR with uv
 uv sync
 
+# Initialize/migrate the database (creates pathway tables)
+python -m data_processing.migrate
+
+# Refresh pathway data from Snowflake (requires SSO auth)
+python -m cli.refresh_pathways
+
 # Run the Reflex web application
 reflex run
 ```
 
 The application requires Python 3.10+ and runs on http://localhost:3000 by default.
+
+### CLI Commands
+
+**Refresh Pathway Data:**
+```bash
+# Full refresh with default filters (all trusts, default drugs)
+python -m cli.refresh_pathways
+
+# Dry run (test without database changes)
+python -m cli.refresh_pathways --dry-run -v
+
+# Custom minimum patient threshold
+python -m cli.refresh_pathways --minimum-patients 10
+
+# Help
+python -m cli.refresh_pathways --help
+```
+
+The refresh command:
+1. Fetches activity data from Snowflake (656K+ records, ~7 seconds)
+2. Applies UPID, drug name, and directory transformations (~6 minutes)
+3. Processes 6 date filter combinations (all_6mo, all_12mo, 1yr_6mo, etc.)
+4. Inserts pathway nodes to SQLite for fast Reflex filtering
 
 ## Architecture
 
@@ -37,9 +67,14 @@ The application requires Python 3.10+ and runs on http://localhost:3000 by defau
 │   ├── models.py           # AnalysisFilters dataclass
 │   └── logging_config.py   # Structured logging setup
 │
+├── cli/                     # Command-line interface tools
+│   ├── __init__.py
+│   └── refresh_pathways.py # CLI to refresh pre-computed pathway data
+│
 ├── data_processing/         # Data layer
 │   ├── database.py         # SQLite connection management
-│   ├── schema.py           # Database schema definitions
+│   ├── schema.py           # Database schema (including pathway tables)
+│   ├── pathway_pipeline.py # Pathway processing pipeline (Snowflake → SQLite)
 │   ├── loader.py           # DataLoader abstraction (CSV/SQLite)
 │   ├── patient_data.py     # Patient data migration and loading
 │   ├── reference_data.py   # Reference data migration
@@ -67,7 +102,7 @@ The application requires Python 3.10+ and runs on http://localhost:3000 by defau
 │   └── snowflake.toml      # Snowflake connection settings
 │
 ├── data/                    # Reference data and database
-│   ├── pathways.db         # SQLite database
+│   ├── pathways.db         # SQLite database (includes pathway_nodes)
 │   └── *.csv               # Reference data files
 │
 └── tests/                   # Test suite
@@ -75,17 +110,66 @@ The application requires Python 3.10+ and runs on http://localhost:3000 by defau
     └── test_*.py           # Test modules
 ```
 
+### Pathway Data Architecture
+
+The application uses a pre-computed pathway architecture for performance:
+
+**Architecture:** `Snowflake → Pathway Processing → SQLite (pre-computed) → Reflex (filter & view)`
+
+**Key Benefits:**
+- **Performance**: Pathway calculation done once during data refresh, not on every filter change
+- **Simplicity**: Reflex filters pre-computed data with simple SQL WHERE clauses
+- **Full Pathways**: Sequential treatment pathways (drug_0 → drug_1 → drug_2...) with statistics
+
+**Date Filter Combinations:**
+| ID | Initiated | Last Seen | Default |
+|----|-----------|-----------|---------|
+| `all_6mo` | All years | Last 6 months | Yes |
+| `all_12mo` | All years | Last 12 months | No |
+| `1yr_6mo` | Last 1 year | Last 6 months | No |
+| `1yr_12mo` | Last 1 year | Last 12 months | No |
+| `2yr_6mo` | Last 2 years | Last 6 months | No |
+| `2yr_12mo` | Last 2 years | Last 12 months | No |
+
+**Pathway Node Structure:**
+Each node in `pathway_nodes` contains:
+- Hierarchy: `parents`, `ids`, `labels`, `level` (0=Root, 1=Trust, 2=Directory, 3=Drug, 4+=Pathway)
+- Counts: `value` (patient count)
+- Costs: `cost`, `costpp`, `cost_pp_pa` (per patient per annum)
+- Dates: `first_seen`, `last_seen`, `first_seen_parent`, `last_seen_parent`
+- Statistics: `average_spacing`, `average_administered`, `avg_days`
+- Denormalized: `trust_name`, `directory`, `drug_sequence` (for efficient filtering)
+
 ### Core Module (`core/`)
 
 - **PathConfig** - Dataclass encapsulating all file paths, with `validate()` method
 - **AnalysisFilters** - Dataclass for filter state (dates, drugs, trusts, directories)
 - **logging_config** - Structured logging with file and console output
 
+### CLI Module (`cli/`)
+
+- **refresh_pathways.py** - Command-line tool to refresh pre-computed pathway data:
+  - `refresh_pathways()` - Main function orchestrating the full pipeline
+  - `insert_pathway_records()` - SQLite insertion with parameterized queries
+  - `log_refresh_start/complete/failed()` - Refresh tracking in `pathway_refresh_log`
+  - `get_default_filters()` - Load trusts/drugs/directories from CSV files
+
 ### Data Processing Module (`data_processing/`)
 
 **Database Management:**
 - `DatabaseManager` - SQLite connection pooling and transaction management
 - Tables: `ref_drug_names`, `ref_organizations`, `ref_directories`, `ref_drug_directory_map`, `ref_drug_indication_clusters`, `fact_interventions`, `mv_patient_treatment_summary`, `processed_files`
+- **Pathway Tables**: `pathway_date_filters`, `pathway_nodes`, `pathway_refresh_log`
+
+**Pathway Pipeline (`pathway_pipeline.py`):**
+- `DateFilterConfig` - Dataclass for date filter configuration
+- `DATE_FILTER_CONFIGS` - All 6 pre-defined date combinations
+- `compute_date_ranges(config, max_date)` - Computes actual ISO dates from config
+- `fetch_and_transform_data()` - Snowflake fetch + UPID/drug/directory transformations
+- `process_pathway_for_date_filter()` - Processes single date filter using `generate_icicle_chart()`
+- `extract_denormalized_fields()` - Parses `ids` column to extract trust, directory, drug_sequence
+- `convert_to_records()` - Converts ice_df to list of dicts for SQLite insertion
+- `process_all_date_filters()` - Convenience function to process all 6 filters
 
 **Data Loaders:**
 - `FileDataLoader` - Loads from CSV/Parquet files
@@ -139,6 +223,65 @@ Still used during transition:
 - **tools/dashboard_gui.py** - Original analysis engine (being replaced by `analysis/` module)
 
 ### Data Flow
+
+**Pre-Computed Pathway Architecture (Current):**
+
+```
+[CLI: python -m cli.refresh_pathways]
+
+    Snowflake Data Warehouse
+           │
+           ▼ (fetch_and_transform_data)
+    ┌──────────────────────────────────────────┐
+    │ Data Transformations (tools/data.py)     │
+    │   → patient_id() creates UPID            │
+    │   → drug_names() standardizes names      │
+    │   → department_identification() → Dir    │
+    └──────────────────────────────────────────┘
+           │
+           ▼ (process_all_date_filters)
+    ┌──────────────────────────────────────────┐
+    │ Pathway Pipeline (pathway_pipeline.py)   │
+    │   → For each of 6 date filter combos:    │
+    │     → generate_icicle_chart()            │
+    │     → extract_denormalized_fields()      │
+    │     → convert_to_records()               │
+    └──────────────────────────────────────────┘
+           │
+           ▼ (insert_pathway_records)
+    ┌──────────────────────────────────────────┐
+    │ SQLite: pathway_nodes table              │
+    │   → 293 nodes for all_6mo filter         │
+    │   → Indexed for fast filtering           │
+    └──────────────────────────────────────────┘
+
+
+[Reflex App: reflex run]
+
+    ┌──────────────────────────────────────────┐
+    │ AppState.load_pathway_data()             │
+    │   → Query pathway_nodes WHERE date_filter│
+    │   → Apply drug/directory filters         │
+    │   → recalculate_parent_totals()          │
+    └──────────────────────────────────────────┘
+           │
+           ▼
+    ┌──────────────────────────────────────────┐
+    │ AppState.icicle_figure                   │
+    │   → Plotly icicle chart                  │
+    │   → 10-field customdata structure        │
+    │   → Full hover/text templates            │
+    └──────────────────────────────────────────┘
+           │
+           ▼
+    ┌──────────────────────────────────────────┐
+    │ Reflex UI (rx.plotly component)          │
+    │   → <50ms filter response time           │
+    │   → Treatment statistics in tooltips     │
+    └──────────────────────────────────────────┘
+```
+
+**Legacy Data Flow (Original):**
 
 ```
 Data Sources:
@@ -226,6 +369,21 @@ The `department_identification()` function has 5 levels of fallback:
 ### File Tracking
 - `processed_files` - Hash-based tracking for incremental loading
 
+### Pathway Tables (New)
+- `pathway_date_filters` - 6 pre-defined date filter combinations
+  - Columns: `id`, `initiated`, `last_seen`, `is_default`, `description`
+  - Auto-populated via migration
+- `pathway_nodes` - Pre-computed pathway hierarchy nodes
+  - Hierarchy: `parents`, `ids`, `labels`, `level`
+  - Metrics: `value`, `cost`, `costpp`, `cost_pp_pa`, `colour`
+  - Dates: `first_seen`, `last_seen`, `first_seen_parent`, `last_seen_parent`
+  - Statistics: `average_spacing`, `average_administered`, `avg_days`
+  - Denormalized: `trust_name`, `directory`, `drug_sequence`
+  - Foreign key: `date_filter_id` → `pathway_date_filters.id`
+  - Indexed for: date_filter_id, trust_name, directory, level
+- `pathway_refresh_log` - Tracks data refresh status
+  - Columns: `refresh_id`, `started_at`, `completed_at`, `status`, `records_processed`, `error_message`
+
 ## Input Data Requirements
 
 The input data (CSV/Parquet) must contain columns including:
@@ -279,6 +437,34 @@ authenticator = "externalbrowser"  # Required for NHS SSO
 
 Logs are written to `logs/` directory with structured format.
 Configure via `core/logging_config.py`.
+
+## Breaking Changes from Original App
+
+The pre-computed pathway architecture introduces these changes:
+
+### Date Filters
+- **Old**: Date pickers for arbitrary `start_date` and `end_date`
+- **New**: Two dropdowns:
+  - "Treatment Initiated": All years, Last 2 years, Last 1 year
+  - "Last Seen": Last 6 months, Last 12 months
+- **Reason**: Pre-computed pathways require fixed date combinations for performance
+
+### Data Refresh
+- **Old**: Real-time pathway calculation on each filter change
+- **New**: Pre-computed pathways stored in SQLite, refreshed via CLI command
+- **Impact**: Data is as fresh as the last `python -m cli.refresh_pathways` run
+- **Benefit**: Sub-50ms filter response time vs multi-minute calculations
+
+### State Variables
+- **Removed**: `start_date`, `end_date`, `set_start_date()`, `set_end_date()`
+- **Added**: `selected_initiated`, `selected_last_seen`, `date_filter_id`
+- **Added**: `load_pathway_data()` - queries pre-computed `pathway_nodes`
+- **Added**: `recalculate_parent_totals()` - adjusts hierarchy after filtering
+
+### Icicle Chart
+- **Enhanced**: Now includes full 10-field customdata structure
+- **Added**: Treatment statistics (average_spacing, cost_pp_pa) in hover tooltips
+- **Added**: First/last seen dates for drug nodes
 
 ## Development
 
