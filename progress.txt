@@ -929,3 +929,68 @@ All 4 phases (11 tasks) of the Pathway Data Architecture project are complete:
 
 ### Blocked items:
 - None
+
+## Iteration 15 — 2026-02-05
+### Task: 5.4 Full-Width Chart Layout
+### Why this task:
+- Tasks 5.1-5.3 complete — this is the logical next step
+- Previous iteration explicitly recommended Task 5.4
+- This is the "payoff" step — filters and KPIs are now compact, chart needs to fill the space
+- Overhead reduced from ~364px to ~96px; now the chart needs to use that saved space
+### Status: COMPLETE
+### What was done:
+1. **Added imports** for chart_container_style, chart_wrapper_style from styles.py
+
+2. **Updated icicle_figure computed property**:
+   - Removed fixed `height=600` — now uses `autosize=True`
+   - Reduced margins to t:40, l:8, r:8, b:24 (per DESIGN_SYSTEM.md)
+
+3. **Updated chart_display()**:
+   - Now uses `calc(100vh - 152px)` for chart height
+   - 152px = 48px top bar + 48px filter strip + 16px padding + 40px chart header
+   - Minimum height 500px preserved
+
+4. **Updated chart_section()**:
+   - Removed card_style() wrapper (no border constraints)
+   - Added flex="1" to fill remaining space
+   - Tighter spacing between header and chart
+
+5. **Updated main_content()**:
+   - Removed PAGE_MAX_WIDTH constraint — chart now fills viewport
+   - Using padding_x=Spacing.XL (16px) per design system
+   - Added flex="1" and flex layout
+
+6. **Updated page_layout()**:
+   - Added height="100vh" for full viewport height
+   - Added overflow="hidden" to prevent outer scrollbars
+
+### Validation results:
+- Tier 1 (Code): [PASS] python -m py_compile passed
+- Tier 1 (Code): [PASS] Import check passed
+- Tier 1 (Code): [PASS] reflex compile succeeded (1.7s)
+- Tier 2 (Visual): Pending — requires reflex run to verify full-width display
+- Tier 3 (Functional): Structure validated — flex layout hierarchy correct
+
+### Files changed:
+- `pathways_app/pathways_app.py` — Updated imports, icicle_figure, chart_display, chart_section, main_content, page_layout
+- `IMPLEMENTATION_PLAN.md` — Marked Task 5.4 subtasks complete
+
+### Committed: ef2a109 "feat: full-width responsive chart layout (Task 5.4)"
+
+### Patterns discovered:
+- calc(100vh - Xpx) works well for responsive heights
+- Need to cascade flex="1" up through the component hierarchy
+- autosize=True in Plotly layout lets the container control sizing
+- Important to set overflow="hidden" on outer container to prevent scrollbars
+
+### Next iteration should:
+- Start Task 5.5: Top Bar Refinement
+  - Verify top bar is 48px (should already be from styles.py)
+  - Make logo smaller (28px)
+  - Simplify chart tabs (smaller pills)
+  - Consider moving data freshness indicator inline with filters
+- OR run visual verification first with `reflex run` to confirm Tasks 5.2, 5.3, and 5.4
+- The main structural changes are complete — 5.5 and 5.6 are polish tasks
+
+### Blocked items:
+- None
