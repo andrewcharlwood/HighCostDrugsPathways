@@ -41,6 +41,9 @@ from pathways_app.styles import (
     kpi_badge_style,
     kpi_badge_value_style,
     kpi_badge_label_style,
+    # v2.1 chart styles (full-width layout)
+    chart_container_style,
+    chart_wrapper_style,
 )
 
 
@@ -1341,6 +1344,8 @@ class AppState(rx.State):
         )
 
         # Configure layout
+        # v2.1: Remove fixed height for responsive sizing
+        # Margins reduced per DESIGN_SYSTEM.md (t:40, l:8, r:8, b:24)
         fig.update_layout(
             title=dict(
                 text=f"Patient Pathways — {self.chart_title}",
@@ -1352,7 +1357,7 @@ class AppState(rx.State):
                 x=0.5,
                 xanchor="center",
             ),
-            margin=dict(t=60, l=10, r=10, b=30),
+            margin=dict(t=40, l=8, r=8, b=24),  # Reduced margins
             hoverlabel=dict(
                 bgcolor="#FFFFFF",
                 bordercolor="#CBD5E1",  # Slate 300
@@ -1364,8 +1369,8 @@ class AppState(rx.State):
             ),
             paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
             plot_bgcolor="rgba(0,0,0,0)",
-            # Responsive sizing - height set but width auto
-            height=600,
+            # v2.1: Responsive sizing - no fixed height, container controls size
+            autosize=True,
             # Enable interactivity
             clickmode="event+select",
         )
@@ -2193,15 +2198,23 @@ def chart_display() -> rx.Component:
     chart_data changes (which happens when filters change).
 
     Uses rx.plotly() to render the Plotly figure object.
+
+    v2.1: Full-height responsive layout using calc(100vh - overhead).
+    Overhead = top bar (48px) + filter strip (48px) + padding (16px) + chart header (~40px) = 152px
     """
+    # Calculate available height: viewport minus fixed elements
+    # 48px top bar + 48px filter strip + 16px padding + 40px chart header
+    chart_height = "calc(100vh - 152px)"
+
     return rx.box(
         rx.plotly(
             data=AppState.icicle_figure,
             width="100%",
-            height="600px",
+            height=chart_height,
         ),
         width="100%",
-        min_height="600px",
+        min_height="500px",
+        height=chart_height,
     )
 
 
@@ -2218,10 +2231,12 @@ def chart_section() -> rx.Component:
     - Ready: Shows interactive Plotly icicle chart
 
     The chart updates reactively when filters change via the icicle_figure computed property.
+
+    v2.1: Full-width chart layout with minimal chrome. No card styling - chart fills space.
     """
     return rx.box(
         rx.vstack(
-            # Header row with title and chart type info
+            # Header row with title and chart type info (minimal height)
             rx.hstack(
                 rx.text(
                     "Patient Pathway Visualization",
@@ -2234,7 +2249,7 @@ def chart_section() -> rx.Component:
                         color=Colors.SLATE_500,
                     ),
                     rx.text(
-                        "Hierarchical view: Trust → Directorate → Drug → Patient Pathway",
+                        "Trust → Directorate → Drug → Patient Pathway",
                         font_size=Typography.CAPTION_SIZE,
                         font_weight=Typography.CAPTION_WEIGHT,
                         color=Colors.SLATE_500,
@@ -2246,7 +2261,6 @@ def chart_section() -> rx.Component:
                 justify="between",
                 align="center",
                 width="100%",
-                flex_wrap="wrap",
             ),
             # Chart container with state-based rendering
             rx.cond(
@@ -2268,12 +2282,18 @@ def chart_section() -> rx.Component:
                     ),
                 ),
             ),
-            spacing="4",
+            spacing="2",  # Tighter spacing between header and chart
             width="100%",
             align="start",
+            flex="1",  # Fill available space
         ),
-        **card_style(),
+        # v2.1: Minimal styling - no card border, just subtle background
+        background_color=Colors.WHITE,
+        border_radius=Radii.MD,
         width="100%",
+        flex="1",  # Grow to fill remaining space
+        display="flex",
+        flex_direction="column",
     )
 
 
@@ -2283,22 +2303,28 @@ def main_content() -> rx.Component:
 
     Layout (v2.1): Filter Section (with KPI badges) → Chart Section
     KPIs are now inline badges in the filter strip (zero extra height).
-    Max width constrained to PAGE_MAX_WIDTH, centered.
+
+    v2.1: Full-width layout - no max-width constraint for chart.
+    Uses 16px horizontal padding per DESIGN_SYSTEM.md.
     """
     return rx.box(
         rx.vstack(
             filter_section(),
             # KPIs now integrated into filter_section as badges
             chart_section(),
-            spacing="4",  # Tighter spacing
+            spacing="2",  # Minimal spacing between filter strip and chart
             width="100%",
             align="stretch",
+            flex="1",  # Fill remaining height
         ),
         width="100%",
-        max_width=PAGE_MAX_WIDTH,
-        margin_x="auto",
-        padding=PAGE_PADDING,
+        # v2.1: No max-width constraint - chart fills viewport
+        padding_x=Spacing.XL,  # 16px horizontal padding
         padding_top=Spacing.MD,  # Tighter top padding
+        padding_bottom=Spacing.MD,
+        flex="1",  # Fill remaining height
+        display="flex",
+        flex_direction="column",
     )
 
 
@@ -2307,9 +2333,11 @@ def page_layout() -> rx.Component:
     Full page layout combining top bar and main content.
 
     Structure:
-    - Sticky top bar (64px)
-    - Scrollable main content area
+    - Sticky top bar (48px)
+    - Full-height main content area
     - White background
+
+    v2.1: Uses flexbox to fill viewport height with chart.
     """
     return rx.box(
         rx.vstack(
@@ -2317,11 +2345,14 @@ def page_layout() -> rx.Component:
             main_content(),
             spacing="0",
             width="100%",
-            min_height="100vh",
+            height="100vh",  # Full viewport height
+            flex="1",
         ),
         background_color=Colors.WHITE,
         font_family=Typography.FONT_FAMILY,
         width="100%",
+        height="100vh",  # Full viewport height
+        overflow="hidden",  # Prevent scrollbars on outer container
     )
 
 

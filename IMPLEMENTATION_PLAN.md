@@ -91,16 +91,18 @@ python -m reflex compile
   - reflex compile succeeds in 15s
 
 ### 5.4 Full-Width Chart Layout
-- [ ] Remove PAGE_MAX_WIDTH constraint for chart container
-- [ ] Chart should stretch to viewport width (with small padding: 16px each side)
-- [ ] Update chart height calculation:
-  - Use CSS calc() or flex-grow to fill remaining viewport height
-  - Minimum height: 500px
-  - Target: viewport height minus (top bar + filters + KPIs + padding)
-- [ ] Update Plotly layout:
-  - Remove fixed height=600, use responsive sizing
-  - Reduce margins further for maximum chart area
-- [ ] Verify: Chart fills available space on 1920x1080 display
+- [x] Remove PAGE_MAX_WIDTH constraint for chart container
+  - Removed from main_content() - now uses 100% width with 16px padding
+- [x] Chart should stretch to viewport width (with small padding: 16px each side)
+  - Using padding_x=Spacing.XL (16px) in main_content()
+- [x] Update chart height calculation:
+  - Using calc(100vh - 152px) for chart height
+  - 152px = 48px top bar + 48px filter strip + 16px padding + 40px chart header
+  - Minimum height: 500px preserved
+- [x] Update Plotly layout:
+  - Removed fixed height=600, using autosize=True
+  - Reduced margins to t:40, l:8, r:8, b:24 per DESIGN_SYSTEM.md
+- [ ] Verify: Chart fills available space on 1920x1080 display (requires visual check)
 
 ### 5.5 Top Bar Refinement
 - [ ] Reduce top bar height to 48px (was 64px)
