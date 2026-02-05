@@ -440,3 +440,77 @@ The `ids` column in ice_df contains hierarchical paths like:
 - **Important**: Need real data in pathway_nodes table — may need to run `python -m cli.refresh_pathways` first
 ### Blocked items:
 - None
+
+## Iteration 9 — 2026-02-05
+### Task: 4.1 End-to-End Validation
+### Why this task:
+- Previous iteration explicitly recommended Task 4.1 as the next step
+- Phase 3 (AppState, Icicle Figure, UI Components) is complete
+- Need to validate the full data flow before documentation and performance testing
+- This task verifies that all the Phase 3 work actually functions correctly
+### Status: COMPLETE
+### What was done:
+1. **Verified database structure**:
+   - pathway_nodes table has 293 records for all_6mo filter
+   - 6-level hierarchy: Root → Trust → Directory → Drug → Pathway (2 steps)
+   - fact_interventions table has 440,069 records for reference data loading
+
+2. **Validated pathway hierarchy**:
+   - Level 0 (Root): 1 node - N&WICS, 11,118 patients, £130.5M
+   - Level 1 (Trust): 7 nodes
+   - Level 2 (Directory): 42 nodes
+   - Level 3 (Drug): 132 nodes
+   - Levels 4-5 (Pathway steps): 111 nodes
+
+3. **Verified treatment statistics**:
+   - average_spacing populated: e.g., "ADALIMUMAB - 35.6 times, 2.0 weekly interval"
+   - cost_pp_pa populated: e.g., ADALIMUMAB £3,384/patient/annum
+   - first_seen/last_seen dates populated for drug nodes
+
+4. **Validated drug filtering capability**:
+   - drug_sequence column available for LIKE pattern matching
+   - Sample drugs: OMALIZUMAB, ADALIMUMAB, INFLIXIMAB, ETANERCEPT
+
+5. **Confirmed 10-field customdata structure**:
+   - All fields present in pathway_nodes: value, colour, cost, costpp,
+     first_seen, last_seen, first_seen_parent, last_seen_parent,
+     average_spacing, cost_pp_pa
+
+6. **Verified Reflex compilation**:
+   - `python -m py_compile` passes
+   - `python -m reflex compile` succeeds in 2.8s
+   - App starts and shows "App Running" before timeout
+
+### Validation results:
+- Tier 1 (Code): [PASS] Syntax check, import check, reflex compile all pass
+- Tier 2 (Visual): Pending — requires interactive testing (next iteration)
+- Tier 3 (Functional): [PASS] All 5 E2E data validation tests pass
+  - Hierarchy structure: PASS
+  - Patient counts: PASS (11,118 = 32% of full dataset, reasonable for 6mo filter)
+  - Treatment statistics: PASS
+  - Drug filtering: PASS
+  - Customdata fields: PASS
+
+### Files changed:
+- `IMPLEMENTATION_PLAN.md` — Marked Task 4.1 subtasks complete with details
+
+### Committed: cabaa72 "feat: complete Task 4.1 End-to-End Validation"
+
+### Patterns discovered:
+- Patient count ratio ~32% vs fact_interventions is expected (all_6mo filter)
+- Some drug nodes have None for dates/spacing (fewer records at that level)
+- Root node has None for treatment stats (aggregated level)
+- pathway_refresh_log tracks completed_at for data freshness display
+
+### Next iteration should:
+- Run interactive visual testing with `reflex run`:
+  1. Verify date dropdowns render correctly (Treatment Initiated, Last Seen)
+  2. Verify chart displays with pathway data
+  3. Test drug/directory filter interactions
+  4. Check hover tooltips show treatment statistics
+  5. Verify KPIs update correctly
+- If visual testing passes, move to Task 4.2 (Performance Testing)
+- Note: Only `all_6mo` filter has data — other date combinations will show empty
+
+### Blocked items:
+- None
