@@ -256,3 +256,64 @@ The `ids` column in ice_df contains hierarchical paths like:
 - Reference `pathways_app/app_v2.py` for existing state structure
 ### Blocked items:
 - None
+
+## Iteration 6 — 2026-02-05
+### Task: 3.1 Update AppState
+### Why this task:
+- Phase 1 and 2 (Schema, Pipeline, CLI, Testing) are all complete
+- Previous iteration explicitly recommended starting Phase 3: Reflex Integration
+- Task 3.1 is the foundation for Phase 3 — Tasks 3.2 and 3.3 depend on the state structure defined here
+- This is the first step in connecting the pre-computed pathway_nodes data to the Reflex UI
+### Status: COMPLETE
+### What was done:
+1. **Replaced date picker state with dropdown state**:
+   - Added `selected_initiated: str = "all"` (options: "all", "1yr", "2yr")
+   - Added `selected_last_seen: str = "6mo"` (options: "6mo", "12mo")
+   - Added `initiated_options` and `last_seen_options` lists for dropdown rendering
+   - Added `set_initiated_filter()` and `set_last_seen_filter()` event handlers
+
+2. **Added `date_filter_id` computed property**:
+   - Returns `f"{selected_initiated}_{selected_last_seen}"`
+   - Maps to pathway_date_filters table IDs: all_6mo, all_12mo, 1yr_6mo, etc.
+
+3. **Created `load_pathway_data()` method**:
+   - Queries pathway_nodes table with `WHERE date_filter_id = ?`
+   - Applies directory filter using denormalized `directory` column
+   - Applies drug filter using `drug_sequence LIKE ?` patterns
+   - Extracts KPIs from root node (level 0)
+   - Gets data freshness from pathway_refresh_log
+
+4. **Added `recalculate_parent_totals()` method**:
+   - Walks up the hierarchy recalculating values after filtering
+   - Recomputes colour (proportion of parent) values
+   - Updates KPIs from recalculated root node
+
+5. **Updated all filter handlers**:
+   - Changed `toggle_drug()`, `toggle_directorate()` to call `load_pathway_data()`
+   - Changed `select_all_*()`, `clear_all_*()` to call `load_pathway_data()`
+   - Changed `load_data()` to call `load_pathway_data()` instead of `apply_filters()`
+
+### Validation results:
+- Tier 1 (Code): [pass] python -m py_compile passed
+- Tier 1 (Code): [pass] Import check passed — all new methods present
+- Tier 1 (Code): [pass] AppState structure verified — date_filter_id computed property works
+- Tier 2 (Visual): N/A (state changes only, UI updates in Task 3.3)
+- Tier 3 (Functional): Not yet tested with real data (requires UI completion)
+### Files changed:
+- `pathways_app/pathways_app.py` — Major refactoring of state and data loading
+- `IMPLEMENTATION_PLAN.md` — Marked Task 3.1 subtasks complete
+### Committed: 7948ca7 "feat: update AppState to query pre-computed pathway_nodes (Task 3.1)"
+### Patterns discovered:
+- The pathway_nodes table uses denormalized columns (trust_name, directory, drug_sequence) for efficient filtering
+- Drug filtering uses LIKE patterns on drug_sequence since it's pipe-separated
+- KPIs are extracted from the root node (level 0) which contains aggregated totals
+- Legacy date picker state kept for backwards compatibility but will be removed in Task 3.3
+### Next iteration should:
+- Start Task 3.2: Update Icicle Figure
+  - Update `icicle_figure` computed property to use all pathway_nodes columns
+  - Match original 10-field customdata structure from visualization/plotly_generator.py
+  - Restore full hover/text templates with treatment statistics
+- The chart_data structure now includes first_seen, last_seen, average_spacing, cost_pp_pa fields
+- Reference `visualization/plotly_generator.py` for the expected customdata format
+### Blocked items:
+- None
