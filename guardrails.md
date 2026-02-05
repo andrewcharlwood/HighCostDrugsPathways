@@ -135,10 +135,8 @@ def filtered_count(self) -> int:
 
 ### Check existing code for patterns
 - **When**: Unsure how to implement something in Reflex or pathway processing
-- **Rule**: Look at `pathways_app/app_v2.py`, `analysis/pathway_analyzer.py`, `visualization/plotly_generator.py`
+- **Rule**: Look at `pathways_app/pathways_app.py`, `analysis/pathway_analyzer.py`, `visualization/plotly_generator.py`
 - **Why**: The existing codebase has solved many quirks already
-
----
 
 ---
 
@@ -176,47 +174,52 @@ def filtered_count(self) -> int:
 
 ---
 
-## SNOMED Mapping Guardrails
+## Snowflake Query Guardrails
+
+### Use PseudoNHSNoLinked for GP record matching
+- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
+- **Rule**: Use `PseudoNHSNoLinked` column from HCD data, NOT `PersonKey` (LocalPatientID)
+- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records.
 
 ### Use Search_Term for grouping, not Indication
 - **When**: Creating indication-based pathway hierarchy
-- **Rule**: Group patients by `Search_Term` column, NOT `Indication` column
-- **Why**: Indication has 603 granular values; Search_Term has 187 broader categories suitable for chart grouping
+- **Rule**: Group patients by `Search_Term` from the cluster query
+- **Why**: Search_Term provides meaningful clinical groupings (~148 values)
 
 ### Handle unmatched patients in indication chart
-- **When**: Patient has no GP diagnosis matching their drug's SNOMED codes
+- **When**: Patient has no GP diagnosis matching cluster SNOMED codes
 - **Rule**: Use their assigned directorate (from fallback logic) as the grouping label, not "Unknown"
-- **Why**: User wants mixed labels - indication Search_Terms for matched patients, directorate names for unmatched
+- **Why**: User wants mixed labels - Search_Terms for matched patients, directorate names for unmatched
 
 ### Use most recent SNOMED code for multiple matches
-- **When**: Patient has GP records matching multiple SNOMED codes for their drug
+- **When**: Patient has GP records matching multiple SNOMED codes
 - **Rule**: Use the match with the most recent `EventDateTime` from PrimaryCareClinicalCoding
 - **Why**: Most recent diagnosis reflects current clinical state
 
-### Batch Snowflake queries for performance
-- **When**: Looking up GP records for many patients
-- **Rule**: Batch SNOMED lookups (e.g., 1000 patients at a time) rather than one query per patient
-- **Why**: Individual queries for 35K+ patients would be extremely slow
-
-### Track diagnosis match source
-- **When**: Assigning directorate to a patient
-- **Rule**: Track whether assignment came from "DIAGNOSIS" (SNOMED match) or "FALLBACK" (department_identification)
-- **Why**: Needed for coverage metrics and debugging
+### Embed cluster query as CTE in Snowflake
+- **When**: Looking up patient indications during data refresh
+- **Rule**: Use the `snomed_indication_mapping_query.sql` content as a WITH clause in the patient lookup query
+- **Why**: This ensures we always use the complete cluster mapping and don't need local storage
 
 ### Chart type column in pathway_nodes
 - **When**: Inserting pathway records to SQLite
 - **Rule**: Include `chart_type` column with value "directory" or "indication"
 - **Why**: Needed to filter pathways when user toggles chart type in UI
 
-### Use PseudoNHSNoLinked for GP record matching
-- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
-- **Rule**: Use `PseudoNHSNoLinked` column, NOT `PersonKey` (LocalPatientID)
-- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records. Using PersonKey caused 0% GP match rate.
+### Quote mixed-case column aliases in Snowflake SQL
+- **When**: Writing SELECT queries that return results to Python code
+- **Rule**: Use `AS "ColumnName"` (quoted) for any column alias you'll access by name in Python
+- **Why**: Snowflake uppercases unquoted identifiers. `SELECT foo AS Search_Term` returns `SEARCH_TERM`, so `row.get('Search_Term')` returns None. Fix: `SELECT foo AS "Search_Term"`
 
-### Handle scientific notation in SNOMED codes
-- **When**: Loading SNOMED codes from CSV files
-- **Rule**: Convert scientific notation (e.g., "1.06e+16") back to full integers before storing
-- **Why**: Large SNOMED codes (15-16 digits) exceed float precision. Pandas/Excel exports them as scientific notation. String matching will fail unless converted.
+### Build indication_df from all unique UPIDs, not PseudoNHSNoLinked
+- **When**: Creating the indication mapping DataFrame for pathway processing
+- **Rule**: Use `df.drop_duplicates(subset=['UPID'])` not `drop_duplicates(subset=['PseudoNHSNoLinked'])`
+- **Why**: A patient visiting multiple providers has multiple UPIDs (UPID = ProviderCode[:3] + PersonKey). Using unique PseudoNHSNoLinked only maps one UPID per patient, leaving others as NaN and causing TypeError in build_hierarchy.
+
+### Handle NaN in Directory when building fallback labels
+- **When**: Creating fallback indication labels for patients without GP diagnosis match
+- **Rule**: Check `pd.notna(directory)` before concatenating to string. Use `"UNKNOWN (no GP dx)"` for NaN cases.
+- **Why**: `str(nan) + " (no GP dx)"` doesn't cause error, but `nan + " (no GP dx)"` causes TypeError. Always be explicit about NaN handling.
 
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.

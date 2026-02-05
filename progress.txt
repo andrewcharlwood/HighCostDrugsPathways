@@ -148,3 +148,58 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - Key verification points: coverage statistics logged, indication_df structure correct
 ### Blocked items:
 - None
+
+## Iteration 3 — 2026-02-05
+### Task: 3.1 Test Refresh with Real Data
+### Why this task:
+- Previous iteration recommended testing the full pipeline with Snowflake
+- Task 3.1 validates Tasks 1.1, 1.2, 2.1-2.3 in one comprehensive test
+- Must verify data layer works before building UI (Phase 4)
+### Status: IN PROGRESS (bugs identified and fixed, need another test run)
+### What was done:
+1. Ran `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
+2. Identified and fixed THREE bugs:
+
+**Bug 1: Snowflake column name casing**
+- Issue: `Search_Term` returned as `SEARCH_TERM` (uppercase) from Snowflake
+- Symptom: "Unique Search_Terms found: 0" despite 34,006 patient matches
+- Root cause: Unquoted column aliases in SQL are uppercased by Snowflake
+- Fix: Added quoted aliases: `aic.Search_Term AS "Search_Term"`
+
+**Bug 2: Duplicate UPID index in indication_df**
+- Issue: `indication_df_for_chart.set_index('UPID')` failed with non-unique index
+- Symptom: `InvalidIndexError: Reindexing only valid with uniquely valued Index objects`
+- Root cause: Same patient could appear multiple times if data had edge cases
+- Fix: Added `drop_duplicates(subset=['UPID'], keep='first')` before set_index()
+
+**Bug 3: Missing UPIDs in indication mapping**
+- Issue: Old code built indication_df from unique PseudoNHSNoLinked, not unique UPIDs
+- Symptom: `TypeError: can only concatenate str (not "float") to str` in build_hierarchy
+- Root cause: Patients with multiple UPIDs (from different providers) had some UPIDs unmapped
+- Fix: Changed to build indication_df from ALL unique UPIDs, with NaN handling
+
+### Validation results:
+- Tier 1 (Code): ✅ Both files compile, imports work
+- Tier 2 (Data):
+  - ✅ 36,628 patients queried
+  - ✅ 34,006 (92.8%) matched GP diagnoses
+  - ✅ 139 unique Search_Terms found (was 0 before fix)
+  - ✅ Top 5 indications: drug misuse (8602), influenza (6239), diabetes (2476), sepsis (1980), cardiovascular disease (940)
+- Tier 3 (Functional): ❌ Pipeline still fails after indication lookup — need another test run
+### Files changed:
+- `data_processing/diagnosis_lookup.py` — fixed column aliasing in SQL query
+- `cli/refresh_pathways.py` — fixed UPID mapping logic, added deduplication, NaN handling
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 as in progress
+### Committed: 22222fe "fix: resolve Snowflake column casing and UPID mapping issues (Task 3.1)"
+### Patterns discovered:
+- Snowflake ALWAYS uppercases unquoted identifiers — must use AS "column" for mixed case
+- Patients can have multiple UPIDs if they visited different providers (UPID = ProviderCode[:3] + PersonKey)
+- Must handle NaN values in Directory column or get TypeError in string concatenation
+- ~92.8% of patients have matching GP diagnoses — this is excellent coverage!
+### Next iteration should:
+- Run another `python -m cli.refresh_pathways --chart-type indication --dry-run -v` to verify fixes work end-to-end
+- The indication lookup now works (139 Search_Terms found) — need to confirm pathway processing also works
+- If successful, mark Task 3.1 complete and proceed to Phase 4 (Reflex UI)
+- Test run takes ~35 minutes total (7 min data fetch/transform, 25 min indication lookup, 3 min pathway processing)
+### Blocked items:
+- None
