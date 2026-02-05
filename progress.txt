@@ -297,3 +297,69 @@ For a patient on drug X:
 ### Blocked items:
 - None
 
+## Iteration 6 — 2026-02-05
+### Task: 2.3 Create Indication Pathway Processing
+### Why this task:
+- Tasks 2.1 and 2.2 are complete — directorate assignment logic and schema are in place
+- Task 2.3 is the next logical step in Phase 2 — processing logic before Phase 3 (CLI updates)
+- Previous iteration explicitly recommended starting Task 2.3
+- Phase 3 depends on having the indication pathway processing functions
+- Following "pipeline before UI" principle
+### Status: COMPLETE
+### What was done:
+- Added `generate_icicle_chart_indication()` to `analysis/pathway_analyzer.py`:
+  - Variant of generate_icicle_chart() that uses indication_df instead of directory_df
+  - Takes `indication_df` parameter mapping UPID → Indication_Group
+  - The indication_df must have 'Directory' column (renamed from Indication_Group for compatibility)
+  - Hierarchy: Trust → Indication_Group → Drug → Pathway
+
+- Added `process_indication_pathway_for_date_filter()` to `data_processing/pathway_pipeline.py`:
+  - Wrapper function that calls generate_icicle_chart_indication()
+  - Takes indication_df parameter (UPID → Indication_Group mapping)
+  - Computes date ranges and passes to the chart generator
+
+- Added `extract_indication_fields()` to `data_processing/pathway_pipeline.py`:
+  - Similar to extract_denormalized_fields() but for indication charts
+  - Extracts: trust_name, directory (stores search_term), drug_sequence
+  - Uses 'directory' column for schema compatibility
+
+- Updated `convert_to_records()` with `chart_type` parameter:
+  - Added chart_type to the record dictionary
+  - Supports "directory" and "indication" values
+  - Logs chart_type in output message
+
+- Added `ChartType` type alias: `Literal["directory", "indication"]`
+
+- Updated `__all__` exports to include new functions and type
+
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/pathway_pipeline.py` — PASSED
+- Tier 1 (Code): `python -m py_compile analysis/pathway_analyzer.py` — PASSED
+- Tier 1 (Code): Import check for all new functions — PASSED
+  - ChartType, process_indication_pathway_for_date_filter, extract_indication_fields all exported
+  - generate_icicle_chart_indication importable from pathway_analyzer
+### Files changed:
+- `analysis/pathway_analyzer.py` — added generate_icicle_chart_indication() function
+- `data_processing/pathway_pipeline.py` — added ChartType, process_indication_pathway_for_date_filter(), extract_indication_fields(), updated convert_to_records()
+- `IMPLEMENTATION_PLAN.md` — marked Task 2.3 complete with full checklist
+### Committed: 7cbc648 "feat: add indication pathway processing functions (Task 2.3)"
+### Patterns discovered:
+- The build_hierarchy() function uses directory_df to map UPID → Directory for level-2 grouping
+- For indication charts, we pass indication_df with 'Directory' column (renamed from Indication_Group) to build_hierarchy()
+- The indication_df must be indexed by UPID (same as directory_df)
+- Schema compatibility is maintained by storing search_term in the 'directory' column
+- The chart_type column allows filtering pathway_nodes by chart type in Reflex UI
+### Next iteration should:
+- Phase 2 is now complete! Start Phase 3: CLI & Data Refresh Updates
+- Begin with Task 3.1: Update Refresh Command for Dual Chart Types
+  - Modify `cli/refresh_pathways.py` to process both "directory" and "indication" chart types
+  - Add `--chart-type` argument: "all" (default), "directory", "indication"
+  - For each of 6 date filters: generate 2 chart datasets
+  - Total: 12 pathway datasets (6 dates × 2 chart types)
+- Key consideration: Need to create indication_df by looking up GP diagnoses for all patients
+  - This involves batching Snowflake queries for performance
+  - Use get_directorate_from_diagnosis() function from diagnosis_lookup.py
+  - For unmatched patients: indication_group = "Directory (no GP dx)"
+### Blocked items:
+- None
+
