@@ -410,3 +410,61 @@ For a patient on drug X:
 ### Blocked items:
 - None
 
+## Iteration 8 — 2026-02-05
+### Task: 3.2 Integrate Diagnosis-Based Directorate in Pipeline
+### Why this task:
+- Task 3.1 complete — CLI argument added but indication processing was placeholder
+- Task 3.2 is the key task that enables actual indication chart processing
+- Previous iteration explicitly recommended starting Task 3.2
+- Task 3.3 (full pipeline test) and Phase 4 (UI) depend on this being complete
+- Following "pipeline before UI" principle
+### Status: COMPLETE
+### What was done:
+- Added `batch_lookup_indication_groups()` to `data_processing/diagnosis_lookup.py`:
+  - Efficient batch function to look up GP diagnoses for all patients
+  - Queries Snowflake in batches of 500 patients (configurable batch_size)
+  - Gets all SNOMED codes for drugs from local SQLite (fast)
+  - Builds single query per batch checking all patient-SNOMED combinations
+  - Returns DataFrame with: UPID, Indication_Group, Source
+  - Indication_Group is Search_Term (if matched) or "Directory (no GP dx)" (if fallback)
+  - Source is "DIAGNOSIS" or "FALLBACK"
+  - Logs coverage statistics: X% diagnosis-matched, Y% fallback
+- Updated `cli/refresh_pathways.py` indication chart processing:
+  - Import batch_lookup_indication_groups
+  - When processing indication chart type:
+    1. Call batch_lookup_indication_groups(df) to create indication_df
+    2. Log coverage statistics to stats dict
+    3. Rename Indication_Group → Directory for compatibility with generate_icicle_chart_indication
+    4. Set index to UPID for lookup during chart generation
+    5. Process all 6 date filters with process_indication_pathway_for_date_filter()
+    6. Extract indication fields and convert to records with chart_type="indication"
+  - Added error handling with fallback to empty results if GP lookup fails
+- Added TYPE_CHECKING import for pandas type hints
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/diagnosis_lookup.py` — PASSED
+- Tier 1 (Code): `python -m py_compile cli/refresh_pathways.py` — PASSED
+- Tier 1 (Code): Import check for batch_lookup_indication_groups — PASSED
+- Tier 1 (Code): `python -m cli.refresh_pathways --help` — Shows all arguments — PASSED
+- Tier 2 (Data): Not fully testable without Snowflake connection (requires --dry-run with SSO)
+### Files changed:
+- `data_processing/diagnosis_lookup.py` — added batch_lookup_indication_groups(), TYPE_CHECKING import
+- `cli/refresh_pathways.py` — integrated batch lookup, added full indication processing flow
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.2 items complete
+### Committed: 8952156 "feat: integrate batch GP diagnosis lookup for indication charts (Task 3.2)"
+### Patterns discovered:
+- Batch Snowflake queries: Build one query with IN clauses for both patients AND SNOMED codes
+- ORDER BY EventDateTime DESC in query lets us pick first result = most recent in Python
+- PersonKey column = PatientPseudonym (used directly for Snowflake lookup)
+- indication_df must be indexed by UPID and have 'Directory' column (renamed from Indication_Group)
+- Fallback label format: "Directory (no GP dx)" distinguishes matched vs unmatched in chart
+### Next iteration should:
+- Start Task 3.3: Test Full Refresh Pipeline
+  - Run `python -m cli.refresh_pathways --chart-type all` with real data (requires Snowflake SSO)
+  - Verify pathway_nodes table has both chart_type="directory" and chart_type="indication"
+  - Verify indication chart hierarchy: Trust → Search_Term → Drug → Pathway
+  - Verify unmatched patients show with "Directory (no GP dx)" labels
+  - Document: Processing time, record counts, coverage percentages
+  - If no Snowflake access, skip to Phase 4 (UI) and note as blocked
+### Blocked items:
+- Task 3.3 verification requires Snowflake connection (NHS SSO)
+
