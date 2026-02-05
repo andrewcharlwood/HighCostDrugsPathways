@@ -53,6 +53,10 @@ def prepare_data(
     if paths is None:
         paths = default_paths
 
+    # Work on a copy to avoid mutating the caller's DataFrame
+    # (Provider Code mapping is destructive — second call would map names to NaN)
+    df = df.copy()
+
     df["UPIDTreatment"] = df["UPID"] + df["Drug Name"]
 
     org_codes = pd.read_csv(paths.org_codes_csv, index_col=1)

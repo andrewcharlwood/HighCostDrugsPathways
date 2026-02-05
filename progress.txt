@@ -308,3 +308,54 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - After verification, proceed to Phase 5 (end-to-end validation and documentation)
 ### Blocked items:
 - **UI testing blocked by data**: Need to run `--chart-type all` to populate indication data in SQLite before the toggle can show indication pathways
+
+## Iteration 6 — 2026-02-05
+### Task: 3.1 Run full refresh with --chart-type all + Fix DataFrame mutation bug
+### Why this task:
+- Previous iteration identified that UI testing is blocked until indication data is in the database
+- This is the last sub-item of Task 3.1 and gates all of Phase 5 validation
+- Must be done before any end-to-end UI testing can proceed
+### Status: COMPLETE
+### What was done:
+1. **First refresh attempt** — Ran `python -m cli.refresh_pathways --chart-type all -v`
+   - Directory charts: 293 nodes for all_6mo, all other 5 date filters returned "No data found"
+   - Indication charts: ALL 6 date filters returned "No data found" (0 nodes total)
+   - Root cause identified: DataFrame mutation bug in `prepare_data()`
+
+2. **Bug identified and fixed** — DataFrame mutation in `prepare_data()` (analysis/pathway_analyzer.py)
+   - `prepare_data()` modifies `df["Provider Code"]` via `.map()` in-place (line 60)
+   - First call (directory chart) correctly maps "RGT" → "Norfolk and Norwich University..."
+   - Subsequent calls try to re-map already-mapped values → NaN → all rows filtered out
+   - **Fix**: Added `df = df.copy()` at start of `prepare_data()` to prevent destructive mutation
+   - This also fixed the directory chart issue (only 1 of 6 date filters worked before)
+
+3. **Second refresh attempt** — Successful! All 12 datasets generated:
+   - Directory: all_6mo(293), all_12mo(329), 1yr_6mo(93), 1yr_12mo(105), 2yr_6mo(134), 2yr_12mo(147) = 1,101 total
+   - Indication: all_6mo(695), all_12mo(785), 1yr_6mo(167), 1yr_12mo(198), 2yr_6mo(315), 2yr_12mo(372) = 2,532 total
+   - Grand total: 3,633 nodes processed, 3,589 in database (minor dedup)
+   - Processing time: 916.5 seconds (~15 min)
+
+4. **Added guardrail** — "Copy DataFrames in functions that modify columns"
+
+### Validation results:
+- Tier 1 (Code): ✅ All files compile, imports work
+- Tier 2 (Data): ✅ 3,589 nodes in database across 12 datasets (6 dates × 2 chart types)
+- Tier 3 (Functional): Pending — need `reflex run` to verify UI toggle works with real data
+### Files changed:
+- `analysis/pathway_analyzer.py` — added `df = df.copy()` in `prepare_data()` to fix mutation bug
+- `guardrails.md` — added "Copy DataFrames in functions that modify columns" guardrail
+- `IMPLEMENTATION_PLAN.md` — marked Task 3.1 fully complete, updated completion criteria
+### Committed: pending
+### Patterns discovered:
+- `prepare_data()` is called 12+ times on the same DataFrame during `--chart-type all` processing
+- The `.map()` operation is destructive — it replaces values, so second mapping produces NaN
+- This bug was hidden when running `--chart-type indication` alone (only 6 calls, no prior directory processing)
+- The bug also explains why only all_6mo worked for directory — it was the first call in the loop
+### Next iteration should:
+- Run `reflex run` and verify the chart toggle works end-to-end with real data
+- Verify filter interactions (drugs, directorates) work for both chart types
+- Verify KPIs update correctly when switching chart types
+- Complete Phase 5.1 (end-to-end validation) and 5.2 (documentation)
+- The database is now fully populated — UI testing should be unblocked
+### Blocked items:
+- None — all data is in the database, ready for UI validation

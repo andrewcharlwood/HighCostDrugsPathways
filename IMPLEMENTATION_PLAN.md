@@ -49,7 +49,7 @@ python -m reflex compile
   - Returns: DataFrame with PatientPseudonym, Search_Term, EventDateTime
   - Uses most recent match per patient (ORDER BY EventDateTime DESC)
 - [x] Handle edge cases: Snowflake unavailable, empty patient list
-- [ ] Verify: Function returns expected Search_Terms for test patients
+- [x] Verify: Function returns expected Search_Terms for test patients (92.8% match rate, 139 unique Search_Terms)
 
 ### 1.2 Update Data Pipeline to Include Indications
 - [x] Modify `cli/refresh_pathways.py` to call indication lookup during refresh:
@@ -58,7 +58,7 @@ python -m reflex compile
   - Create `indication_df` mapping UPID → Indication_Group
   - For patients with no GP match: Indication_Group = fallback directorate
 - [x] Log coverage: X% diagnosis-matched, Y% fallback
-- [ ] Verify: indication_df has correct structure for pathway processing
+- [x] Verify: indication_df has correct structure for pathway processing (verified via full pipeline run)
 
 ---
 
@@ -68,14 +68,14 @@ python -m reflex compile
 - [x] Add `chart_type` column to `pathway_nodes` table (ALREADY DONE)
 - [x] Update UNIQUE constraint to include chart_type (ALREADY DONE)
 - [x] Add indexes for chart_type filtering (ALREADY DONE)
-- [ ] Verify: Existing migration works correctly
+- [x] Verify: Existing migration works correctly (tables created, 3,589 nodes inserted)
 
 ### 2.2 Create Indication Pathway Processing
 - [x] Add `generate_icicle_chart_indication()` to `pathway_analyzer.py` (ALREADY DONE)
 - [x] Add `process_indication_pathway_for_date_filter()` to `pathway_pipeline.py` (ALREADY DONE)
 - [x] Add `extract_indication_fields()` for denormalized columns (ALREADY DONE)
 - [x] Update `convert_to_records()` with `chart_type` parameter (ALREADY DONE)
-- [ ] Verify: Code compiles, imports work correctly
+- [x] Verify: Code compiles, imports work correctly
 
 ### 2.3 Update Refresh Command for Dual Charts
 - [x] Add `--chart-type` argument: "all", "directory", "indication" (ALREADY DONE)
@@ -100,7 +100,10 @@ python -m reflex compile
   - Record counts: 695 indication pathway nodes for all_6mo
   - Coverage: 92.8% GP diagnosis match rate (34,006/36,628 patients)
   - Top indications: drug misuse (8,749), influenza (6,336), diabetes (2,516), sepsis (1,991), cardiovascular disease (954)
-- [ ] Run full refresh with `--chart-type all` to populate database (requires non-dry-run)
+- [x] Run full refresh with `--chart-type all` to populate database (requires non-dry-run)
+  - Fixed DataFrame mutation bug in prepare_data() (df.copy() added)
+  - Results: 3,633 total nodes (1,101 directory + 2,532 indication) across all 12 datasets
+  - Database populated: 3,589 nodes in pathway_nodes table
 
 ---
 
@@ -152,12 +155,15 @@ python -m reflex compile
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [ ] App compiles without errors (`reflex compile` succeeds)
-- [ ] Both chart types generate pathway data (12 total: 6 dates × 2 types)
+- [x] App compiles without errors (`reflex compile` succeeds)
+- [x] Both chart types generate pathway data (12 total: 6 dates × 2 types)
+  - Directory: 1,101 nodes (293+329+93+105+134+147)
+  - Indication: 2,532 nodes (695+785+167+198+315+372)
 - [ ] Chart type toggle switches between Directory and Indication views
-- [ ] GP diagnosis matching works via Snowflake cluster query
-- [ ] Unmatched patients show in indication chart with directorate fallback label
-- [ ] Coverage metrics logged (% diagnosis-matched vs fallback)
+- [x] GP diagnosis matching works via Snowflake cluster query
+- [x] Unmatched patients show in indication chart with directorate fallback label
+- [x] Coverage metrics logged (% diagnosis-matched vs fallback)
+  - 92.7% diagnosis-matched (34,545/37,257 UPIDs)
 - [ ] All filters work correctly for both chart types
 - [ ] Performance acceptable (< 10 min full refresh, < 500ms filter change)
 

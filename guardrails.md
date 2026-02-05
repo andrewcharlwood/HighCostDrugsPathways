@@ -221,6 +221,11 @@ def filtered_count(self) -> int:
 - **Rule**: Check `pd.notna(directory)` before concatenating to string. Use `"UNKNOWN (no GP dx)"` for NaN cases.
 - **Why**: `str(nan) + " (no GP dx)"` doesn't cause error, but `nan + " (no GP dx)"` causes TypeError. Always be explicit about NaN handling.
 
+### Copy DataFrames in functions that modify columns
+- **When**: Writing functions like `prepare_data()` that modify DataFrame columns (e.g., mapping Provider Code to trust names)
+- **Rule**: Always `df = df.copy()` at the start of any function that modifies column values on the input DataFrame
+- **Why**: `prepare_data()` mapped Provider Code → Name in-place. When called for directory charts first, then indication charts second, the second call tried to map already-mapped names → NaN, silently dropping all data. The fix: `df = df.copy()` prevents destructive mutation of the caller's DataFrame.
+
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.
 
