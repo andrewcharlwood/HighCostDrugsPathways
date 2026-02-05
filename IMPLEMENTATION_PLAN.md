@@ -103,15 +103,20 @@ cd pathways_app && timeout 60 python -m reflex run 2>&1 | head -30
 ## Phase 3: Reflex Integration
 
 ### 3.1 Update AppState
-- [ ] Replace date picker state with dropdown state:
+- [x] Replace date picker state with dropdown state:
   - `selected_initiated: str = "all"` ("all", "1yr", "2yr")
   - `selected_last_seen: str = "6mo"` ("6mo", "12mo")
-- [ ] Add `date_filter_id` computed property: `f"{selected_initiated}_{selected_last_seen}"`
-- [ ] Rewrite `load_pathway_data()` to query `pathway_nodes` table:
+  - Added `initiated_options` and `last_seen_options` for dropdown rendering
+  - Added `set_initiated_filter()` and `set_last_seen_filter()` event handlers
+- [x] Add `date_filter_id` computed property: `f"{selected_initiated}_{selected_last_seen}"`
+- [x] Rewrite `load_pathway_data()` to query `pathway_nodes` table:
   - Base filter: `WHERE date_filter_id = ?`
   - Trust/directory/drug filters on denormalized columns
-- [ ] Add `recalculate_parent_totals()` for filtered hierarchies
-- [ ] Update KPI calculations from root node data
+  - Updated all filter handlers to call `load_pathway_data()` instead of `apply_filters()`
+- [x] Add `recalculate_parent_totals()` for filtered hierarchies
+- [x] Update KPI calculations from root node data
+  - KPIs now extracted from root node (level 0) in pathway_nodes
+  - `unique_patients`, `total_cost`, `total_drugs` updated from query results
 
 ### 3.2 Update Icicle Figure
 - [ ] Update `icicle_figure` computed property to use all pathway_nodes columns
