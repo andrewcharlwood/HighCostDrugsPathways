@@ -44,6 +44,10 @@ from pathways_app.styles import (
     # v2.1 chart styles (full-width layout)
     chart_container_style,
     chart_wrapper_style,
+    # v2.1 top bar styles
+    top_bar_style,
+    top_bar_tab_style,
+    logo_style,
 )
 
 
@@ -1600,25 +1604,19 @@ def chart_tab(label: str, chart_type: str, is_active: bool = False) -> rx.Compon
     Individual chart type tab/pill for top bar navigation.
 
     Active state: White background with Heritage Blue text
-    Inactive state: Transparent with white text, hover shows Vibrant Blue background
+    Inactive state: Transparent with white text, hover shows subtle highlight
+    Uses top_bar_tab_style() for consistent 28px height pills.
     """
+    style = top_bar_tab_style(active=is_active)
     return rx.box(
         rx.text(
             label,
-            font_size=Typography.BODY_SMALL_SIZE,
-            font_weight="500",
-            color=Colors.HERITAGE_BLUE if is_active else Colors.WHITE,
+            font_size=style.get("font_size", Typography.BODY_SMALL_SIZE),
+            font_weight=style.get("font_weight", "500"),
+            color=style.get("color", Colors.WHITE),
             font_family=Typography.FONT_FAMILY,
         ),
-        background_color=Colors.WHITE if is_active else "transparent",
-        padding_x=Spacing.LG,
-        padding_y=Spacing.SM,
-        border_radius=Radii.FULL,
-        cursor="pointer",
-        transition=f"background-color {Transitions.COLOR}",
-        _hover={
-            "background_color": Colors.WHITE if is_active else "rgba(255,255,255,0.15)",
-        },
+        **style,
         # Future: on_click handler to switch chart type
     )
 
@@ -1628,8 +1626,9 @@ def top_bar() -> rx.Component:
     Top navigation bar component.
 
     Contains: Logo + App Name | Chart Type Tabs | Data Freshness Indicator
-    Fixed height: 64px (from design system)
+    Fixed height: 48px (reduced from 64px for v2.1)
     Heritage Blue background with white text.
+    Uses style helpers from styles.py for consistency.
     """
     return rx.box(
         rx.hstack(
@@ -1637,63 +1636,49 @@ def top_bar() -> rx.Component:
             rx.hstack(
                 rx.image(
                     src="/logo.png",
-                    height="36px",
                     alt="NHS Logo",
+                    **logo_style(),  # 28px height
                 ),
                 rx.text(
                     "HCD Analysis",
-                    font_size=Typography.H2_SIZE,
+                    font_size=Typography.H2_SIZE,  # 16px
                     font_weight=Typography.H2_WEIGHT,
                     color=Colors.WHITE,
                     font_family=Typography.FONT_FAMILY,
                     letter_spacing="-0.01em",
                 ),
                 align="center",
-                spacing="3",
+                spacing="2",
             ),
-            # Center: Chart Type Tabs
+            # Center: Chart Type Tabs (smaller pills)
             rx.hstack(
                 chart_tab("Icicle", "icicle", is_active=True),
                 chart_tab("Sankey", "sankey", is_active=False),
                 chart_tab("Timeline", "timeline", is_active=False),
-                spacing="2",
+                spacing="1",
                 align="center",
-                background_color="rgba(255,255,255,0.1)",
+                background_color="rgba(255,255,255,0.08)",
                 padding=Spacing.XS,
-                border_radius=Radii.FULL,
+                border_radius=Radii.MD,
             ),
-            # Right: Data Freshness Indicator
+            # Right: Compact Data Freshness (single line)
             rx.hstack(
                 rx.icon(
                     "database",
-                    size=16,
+                    size=14,
                     color=Colors.SKY,
                 ),
-                rx.vstack(
-                    rx.text(
-                        rx.cond(
-                            AppState.data_loaded,
-                            AppState.total_records.to_string() + " records",
-                            "Loading data...",
-                        ),
-                        font_size=Typography.CAPTION_SIZE,
-                        font_weight="500",
-                        color=Colors.WHITE,
-                        font_family=Typography.FONT_FAMILY,
+                rx.text(
+                    rx.cond(
+                        AppState.data_loaded,
+                        AppState.total_records.to_string() + " records · " + AppState.last_updated_display,
+                        "Loading...",
                     ),
-                    rx.text(
-                        rx.cond(
-                            AppState.data_loaded,
-                            "Refreshed: " + AppState.last_updated_display,
-                            "Connecting...",
-                        ),
-                        font_size="11px",
-                        color=Colors.WHITE,
-                        opacity="0.7",
-                        font_family=Typography.FONT_FAMILY,
-                    ),
-                    spacing="0",
-                    align="end",
+                    font_size=Typography.CAPTION_SIZE,
+                    font_weight="500",
+                    color=Colors.WHITE,
+                    opacity="0.85",
+                    font_family=Typography.FONT_FAMILY,
                 ),
                 spacing="2",
                 align="center",
@@ -1701,19 +1686,13 @@ def top_bar() -> rx.Component:
             justify="between",
             align="center",
             width="100%",
-            max_width=PAGE_MAX_WIDTH,
-            margin_x="auto",
             padding_x=Spacing.XL,
         ),
-        background_color=Colors.HERITAGE_BLUE,
-        height=TOP_BAR_HEIGHT,
-        width="100%",
-        display="flex",
-        align_items="center",
+        **top_bar_style(),  # 48px height, Heritage Blue
         position="sticky",
         top="0",
         z_index="100",
-        box_shadow=Shadows.MD,
+        box_shadow=Shadows.SM,  # Lighter shadow
     )
 
 

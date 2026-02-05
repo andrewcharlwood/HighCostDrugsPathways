@@ -105,11 +105,19 @@ python -m reflex compile
 - [ ] Verify: Chart fills available space on 1920x1080 display (requires visual check)
 
 ### 5.5 Top Bar Refinement
-- [ ] Reduce top bar height to 48px (was 64px)
-- [ ] Simplify chart tabs - smaller pills or just text links
-- [ ] Consider moving data freshness indicator inline with filters
-- [ ] Make logo smaller (28px instead of 36px)
-- [ ] Verify: Top bar is minimal but functional
+- [x] Reduce top bar height to 48px (was 64px)
+  - Using `top_bar_style()` which sets `height: TOP_BAR_HEIGHT` (48px)
+- [x] Simplify chart tabs - smaller pills or just text links
+  - Using `top_bar_tab_style()` for 28px height pills with tighter spacing
+- [x] Consider moving data freshness indicator inline with filters
+  - Simplified to single line: "X records · Refreshed: 2m ago"
+  - Removed max_width constraint for full-width bar
+- [x] Make logo smaller (28px instead of 36px)
+  - Using `logo_style()` for 28px height
+- [x] Verify: Top bar is minimal but functional
+  - Syntax check: PASS
+  - Import check: PASS
+  - Reflex compile: PASS (1.7s)
 
 ### 5.6 Visual Polish
 - [ ] Add subtle hover states to interactive elements
