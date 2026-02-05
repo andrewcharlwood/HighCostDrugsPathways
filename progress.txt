@@ -282,7 +282,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 ### Files changed:
 - cli/refresh_pathways.py (updated imports, replaced indication processing block)
 - IMPLEMENTATION_PLAN.md (marked 3.1 subtasks [x])
-### Committed: [pending]
+### Committed: 920570b "feat: integrate drug-aware indication matching into refresh pipeline (Task 3.1)"
 ### Patterns discovered:
 - `assign_drug_indications()` returns `indication_df` already indexed by modified UPID with 'Directory' column — no need for intermediate renaming/reindexing steps that the old code required
 - `earliest_hcd_date` must be converted via `pd.Timestamp(...).strftime('%Y-%m-%d')` because `df['Intervention Date'].min()` may return a Timestamp or string depending on data source
