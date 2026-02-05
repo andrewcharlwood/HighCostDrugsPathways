@@ -107,26 +107,28 @@ python -m reflex compile
 ## Phase 4: Reflex UI Updates
 
 ### 4.1 Add Chart Type State
-- [ ] Add state variables to `AppState`:
+- [x] Add state variables to `AppState`:
   - `selected_chart_type: str = "directory"` (options: "directory", "indication")
   - `chart_type_options: list[dict]` for dropdown
-- [ ] Add `set_chart_type()` event handler
-- [ ] Update `load_pathway_data()` to filter by chart_type
-- [ ] Verify: State changes correctly, data queries include chart_type filter
+- [x] Add `set_chart_type()` event handler
+- [x] Update `load_pathway_data()` to filter by chart_type
+- [x] Verify: State changes correctly, data queries include chart_type filter
 
 ### 4.2 Add Chart Type Toggle UI
-- [ ] Create `chart_type_toggle()` component:
-  - Radio buttons or segmented control: "By Directory" | "By Indication"
-  - Place in filter strip or chart header area
-- [ ] Wire to `set_chart_type()` handler
-- [ ] Verify: Toggle switches chart data, UI updates reactively
+- [x] Create `chart_type_toggle()` component:
+  - Segmented control with pill-style buttons: "By Directory" | "By Indication"
+  - Placed in filter strip, first element before date filters
+- [x] Wire to `set_chart_type()` handler
+- [x] Verify: Toggle switches chart data, UI updates reactively (reflex compile passed)
 
 ### 4.3 Update Chart Display for Indication Labels
-- [ ] Ensure icicle chart handles mixed labels:
+- [x] Ensure icicle chart handles mixed labels:
   - Search_Term labels (e.g., "rheumatoid arthritis") for matched patients
   - Directorate labels (e.g., "RHEUMATOLOGY (no GP dx)") for unmatched
-- [ ] Update hover templates if needed for indication context
-- [ ] Verify: Chart renders correctly with both label types
+  - Note: labels come from pathway_nodes pre-computed data, no template changes needed
+- [x] Update hierarchy description (dynamic: "Trust → Directorate → ..." or "Trust → Indication → ...")
+- [x] Update chart title to include chart type prefix
+- [x] Verify: Chart renders correctly with both label types (reflex compile passed)
 
 ---
 

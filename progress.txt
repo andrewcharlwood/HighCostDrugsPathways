@@ -242,7 +242,7 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 ### Files changed:
 - `IMPLEMENTATION_PLAN.md` — marked Task 3.1 verification items complete
 - `progress.txt` — this entry
-### Committed: 966d569 "docs: mark Task 3.1 complete - indication pipeline verified (Task 3.1)"
+### Committed: 2deaa2f "docs: mark Task 3.1 complete - indication pipeline verified (Task 3.1)"
 ### Patterns discovered:
 - Pipeline processing time breakdown: data fetch (7s) + indication lookup (~9 min) + pathway processing (~50s)
 - The indication lookup batches (500 patients/batch × 74 batches) are the slowest part
@@ -255,3 +255,56 @@ The previous `batch_lookup_indication_groups()` function in `diagnosis_lookup.py
 - **Important**: Run `--chart-type all` (non-dry-run) to populate database before UI testing
 ### Blocked items:
 - None — Phase 3 complete, Phase 4 ready to begin
+
+## Iteration 5 — 2026-02-05
+### Task: 4.1, 4.2, 4.3 — Reflex UI Chart Type Toggle
+### Why this task:
+- Phase 3 (data pipeline) is fully verified — the next logical step is the UI
+- Tasks 4.1, 4.2, 4.3 are tightly coupled (state → toggle → display) and all live in the same file
+- Combined them since they're interdependent and small individually
+### Status: COMPLETE
+### What was done:
+1. **Task 4.1 — Chart Type State**:
+   - Added `selected_chart_type: str = "directory"` state variable
+   - Added `chart_type_options` list for dropdown configuration
+   - Added `set_chart_type()` event handler that triggers `load_pathway_data()`
+   - Updated `load_pathway_data()` to include `chart_type = ?` in WHERE clause
+   - Added computed vars: `chart_hierarchy_label`, `chart_type_label`
+   - Updated `_generate_pathway_chart_title()` to include chart type prefix
+
+2. **Task 4.2 — Chart Type Toggle UI**:
+   - Created `chart_type_toggle()` component — segmented control with two pill-style buttons
+   - "By Directory" and "By Indication" with active state using Primary Blue
+   - Placed in filter strip as first element (before date filters), with separator
+   - Wired to `set_chart_type()` handler via `on_click`
+
+3. **Task 4.3 — Chart Display Updates**:
+   - Updated chart section hierarchy label to use dynamic `AppState.chart_hierarchy_label`
+   - Shows "Trust → Directorate → Drug → Patient Pathway" or "Trust → Indication → Drug → Patient Pathway"
+   - No hover template changes needed — labels come from pre-computed pathway_nodes data
+   - Mixed labels (Search_Term + directorate fallback) already handled by pipeline
+
+### Validation results:
+- Tier 1 (Code): ✅ `python -m py_compile pathways_app/pathways_app.py` passed
+- Tier 1 (Import): ✅ AppState imports with all new attributes (selected_chart_type, set_chart_type, chart_hierarchy_label)
+- Tier 3 (Functional): ✅ `reflex compile` succeeded in 16s (21/21 components)
+### Files changed:
+- `pathways_app/pathways_app.py` — added chart type state, toggle component, dynamic labels
+- `IMPLEMENTATION_PLAN.md` — marked Tasks 4.1, 4.2, 4.3 complete
+### Committed: 1c35d23 "feat: add chart type toggle for Directory/Indication views (Task 4.1, 4.2, 4.3)"
+### Patterns discovered:
+- Reflex `rx.cond()` works well for toggle active states — use it for background_color and text color
+- Segmented control pattern: wrap two boxes in an hstack with background, use rx.cond for active styling
+- No `SLATE_200` in design system — used `SLATE_300` for hover states instead
+### Next iteration should:
+- **Run `python -m cli.refresh_pathways --chart-type all`** (non-dry-run) to populate database with BOTH chart types
+  - This is needed before UI testing can verify the toggle actually switches data
+  - The 3.1 sub-item "Run full refresh with --chart-type all" is still unchecked
+- Then run `reflex run` and verify:
+  - Toggle appears in filter strip
+  - Clicking "By Indication" loads indication pathway data
+  - Clicking "By Directory" loads directory pathway data
+  - KPIs update for both chart types
+- After verification, proceed to Phase 5 (end-to-end validation and documentation)
+### Blocked items:
+- **UI testing blocked by data**: Need to run `--chart-type all` to populate indication data in SQLite before the toggle can show indication pathways

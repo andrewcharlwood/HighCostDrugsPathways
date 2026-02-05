@@ -81,8 +81,15 @@ class AppState(rx.State):
     # UI State Variables
     # =========================================================================
 
-    # Placeholder for current chart type (for top bar tabs)
+    # Chart visualization type (top bar tabs - future: icicle, sankey, timeline)
     current_chart: str = "icicle"
+
+    # Chart data type: "directory" (by directorate) or "indication" (by GP diagnosis)
+    selected_chart_type: str = "directory"
+    chart_type_options: list[dict[str, str]] = [
+        {"value": "directory", "label": "By Directory"},
+        {"value": "indication", "label": "By Indication"},
+    ]
 
     # =========================================================================
     # Filter State Variables
@@ -187,6 +194,12 @@ class AppState(rx.State):
     def set_last_seen_filter(self, value: str):
         """Set last seen filter dropdown value."""
         self.selected_last_seen = value
+        if self.data_loaded:
+            self.load_pathway_data()
+
+    def set_chart_type(self, value: str):
+        """Set chart data type (directory or indication) and reload pathway data."""
+        self.selected_chart_type = value
         if self.data_loaded:
             self.load_pathway_data()
 
@@ -402,6 +415,20 @@ class AppState(rx.State):
         if self.indication_match_rate == 0.0:
             return "—"
         return f"{self.indication_match_rate:.0f}%"
+
+    @rx.var
+    def chart_hierarchy_label(self) -> str:
+        """Display the hierarchy path based on selected chart type."""
+        if self.selected_chart_type == "indication":
+            return "Trust → Indication → Drug → Patient Pathway"
+        return "Trust → Directorate → Drug → Patient Pathway"
+
+    @rx.var
+    def chart_type_label(self) -> str:
+        """Display label for current chart type."""
+        if self.selected_chart_type == "indication":
+            return "By Indication"
+        return "By Directory"
 
     @rx.var
     def last_updated_display(self) -> str:
@@ -717,12 +744,8 @@ class AppState(rx.State):
             filter_id = f"{self.selected_initiated}_{self.selected_last_seen}"
 
             # Build WHERE clause for filters
-            where_clauses = ["date_filter_id = ?"]
-            params = [filter_id]
-
-            # Trust filter (if any directorates selected, they map to trust_name)
-            # Note: In the schema, trust_name is extracted from the hierarchy
-            # For now, we filter at the directory level since that's what users select
+            where_clauses = ["date_filter_id = ?", "chart_type = ?"]
+            params = [filter_id, self.selected_chart_type]
 
             # Directory filter (if any directorates selected)
             if self.selected_directorates:
@@ -845,6 +868,12 @@ class AppState(rx.State):
     def _generate_pathway_chart_title(self) -> str:
         """Generate chart title based on current pathway filter state."""
         parts = []
+
+        # Chart type prefix
+        if self.selected_chart_type == "indication":
+            parts.append("By Indication")
+        else:
+            parts.append("By Directory")
 
         # Date filter info
         initiated_label = "All years"
@@ -1592,6 +1621,84 @@ def searchable_dropdown(
     )
 
 
+def chart_type_toggle() -> rx.Component:
+    """
+    Segmented control for switching between Directory and Indication chart types.
+
+    Uses two pill-style buttons side by side. Active state uses primary blue.
+    Placed in the filter strip alongside date and multi-select filters.
+    """
+    return rx.hstack(
+        rx.box(
+            rx.text(
+                "By Directory",
+                font_size=Typography.BODY_SMALL_SIZE,
+                font_weight="600",
+                color=rx.cond(
+                    AppState.selected_chart_type == "directory",
+                    Colors.WHITE,
+                    Colors.SLATE_700,
+                ),
+                font_family=Typography.FONT_FAMILY,
+            ),
+            padding_x=Spacing.MD,
+            padding_y=Spacing.XS,
+            border_radius=Radii.FULL,
+            background_color=rx.cond(
+                AppState.selected_chart_type == "directory",
+                Colors.PRIMARY,
+                Colors.SLATE_100,
+            ),
+            cursor="pointer",
+            on_click=AppState.set_chart_type("directory"),
+            transition=f"background-color {Transitions.COLOR}",
+            _hover={
+                "background_color": rx.cond(
+                    AppState.selected_chart_type == "directory",
+                    Colors.PRIMARY,
+                    Colors.SLATE_300,
+                ),
+            },
+        ),
+        rx.box(
+            rx.text(
+                "By Indication",
+                font_size=Typography.BODY_SMALL_SIZE,
+                font_weight="600",
+                color=rx.cond(
+                    AppState.selected_chart_type == "indication",
+                    Colors.WHITE,
+                    Colors.SLATE_700,
+                ),
+                font_family=Typography.FONT_FAMILY,
+            ),
+            padding_x=Spacing.MD,
+            padding_y=Spacing.XS,
+            border_radius=Radii.FULL,
+            background_color=rx.cond(
+                AppState.selected_chart_type == "indication",
+                Colors.PRIMARY,
+                Colors.SLATE_100,
+            ),
+            cursor="pointer",
+            on_click=AppState.set_chart_type("indication"),
+            transition=f"background-color {Transitions.COLOR}",
+            _hover={
+                "background_color": rx.cond(
+                    AppState.selected_chart_type == "indication",
+                    Colors.PRIMARY,
+                    Colors.SLATE_300,
+                ),
+            },
+        ),
+        spacing="1",
+        align="center",
+        background_color=Colors.SLATE_100,
+        padding=Spacing.XS,
+        border_radius=Radii.FULL,
+    )
+
+
 def chart_tab(label: str, chart_type: str, is_active: bool = False) -> rx.Component:
     """
     Individual chart type tab/pill for top bar navigation.
@@ -1702,6 +1809,14 @@ def filter_section() -> rx.Component:
     """
     return rx.box(
         rx.hstack(
+            # Chart type toggle (By Directory / By Indication)
+            chart_type_toggle(),
+            # Separator
+            rx.divider(
+                orientation="vertical",
+                size="2",
+                color_scheme="gray",
+            ),
             # Date filters group
             rx.hstack(
                 initiated_filter_dropdown(),
@@ -2221,7 +2336,7 @@ def chart_section() -> rx.Component:
                         color=Colors.SLATE_500,
                     ),
                     rx.text(
-                        "Trust → Directorate → Drug → Patient Pathway",
+                        AppState.chart_hierarchy_label,
                         font_size=Typography.CAPTION_SIZE,
                         font_weight=Typography.CAPTION_WEIGHT,
                         color=Colors.SLATE_500,
