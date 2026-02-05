@@ -52,12 +52,12 @@ python -m reflex compile
 - [ ] Verify: Function returns expected Search_Terms for test patients
 
 ### 1.2 Update Data Pipeline to Include Indications
-- [ ] Modify `cli/refresh_pathways.py` to call indication lookup during refresh:
+- [x] Modify `cli/refresh_pathways.py` to call indication lookup during refresh:
   - After fetching HCD data, extract unique PseudoNHSNoLinked values
   - Call `get_patient_indication_groups()` with patient list
   - Create `indication_df` mapping UPID → Indication_Group
   - For patients with no GP match: Indication_Group = fallback directorate
-- [ ] Log coverage: X% diagnosis-matched, Y% fallback
+- [x] Log coverage: X% diagnosis-matched, Y% fallback
 - [ ] Verify: indication_df has correct structure for pathway processing
 
 ---
@@ -79,10 +79,10 @@ python -m reflex compile
 
 ### 2.3 Update Refresh Command for Dual Charts
 - [x] Add `--chart-type` argument: "all", "directory", "indication" (ALREADY DONE)
-- [ ] Update indication processing to use new `get_patient_indication_groups()`:
+- [x] Update indication processing to use new `get_patient_indication_groups()`:
   - Replace `batch_lookup_indication_groups()` with the new Snowflake-direct approach
   - Pass indication_df to `process_indication_pathway_for_date_filter()`
-- [ ] Process all 6 date filters for both chart types
+- [x] Process all 6 date filters for both chart types (existing loop already handles this)
 - [ ] Verify: Both chart types generate pathway data
 
 ---
