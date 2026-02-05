@@ -50,12 +50,12 @@ python -m reflex compile
 - [x] Verify: `python -m data_processing.migrate` creates table
 
 ### 1.2 Load Enriched Mapping Data
-- [ ] Create `data_processing/load_snomed_mapping.py` script:
+- [x] Create `data_processing/load_snomed_mapping.py` script:
   - Read `data/drug_snomed_mapping_enriched.csv`
   - Insert into `ref_drug_snomed_mapping` table
   - Log: row count, unique drugs, unique search terms
-- [ ] Add CLI entry point: `python -m data_processing.load_snomed_mapping`
-- [ ] Verify: Query confirms 163K+ rows, 187 search terms
+- [x] Add CLI entry point: `python -m data_processing.load_snomed_mapping`
+- [x] Verify: Query confirms 163K+ rows, 187 search terms
 
 ### 1.3 Extend Diagnosis Lookup Module
 - [ ] Add `get_drug_snomed_codes(drug_name)` to `diagnosis_lookup.py`:

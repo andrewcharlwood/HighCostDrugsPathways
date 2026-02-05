@@ -103,3 +103,41 @@ For a patient on drug X:
 ### Blocked items:
 - None
 
+## Iteration 2 — 2026-02-05
+### Task: 1.2 Load Enriched Mapping Data
+### Why this task:
+- Task 1.1 (schema creation) is complete — table `ref_drug_snomed_mapping` exists
+- Task 1.2 is the next logical step in Phase 1 (Data Infrastructure)
+- Task 1.3 (Extend Diagnosis Lookup) depends on having data in the table to query
+- Following the "data infrastructure first" principle
+### Status: COMPLETE
+### What was done:
+- Created `data_processing/load_snomed_mapping.py` with:
+  - `migrate_drug_snomed_mapping()` - reads CSV, cleans SNOMED codes, inserts to SQLite
+  - `get_drug_snomed_mapping_counts()` - statistics function
+  - `verify_drug_snomed_mapping_migration()` - validation function
+  - `clean_snomed_code()` - removes trailing .0 from SNOMED codes (e.g., "156370009.0" → "156370009")
+  - CLI interface with `--verify-only` and `-v` options
+- Added CLI entry point: `python -m data_processing.load_snomed_mapping`
+- Fixed Unicode encoding issue on Windows console (emojis → ASCII text)
+### Validation results:
+- Tier 1 (Code): `python -m py_compile data_processing/load_snomed_mapping.py` — PASSED
+- Tier 1 (Code): Import check — PASSED
+- Tier 2 (Data): Migration loaded 144,056 rows from 163,937 CSV rows (19,881 duplicates skipped)
+- Tier 2 (Data): Verified: 707 unique drugs, 187 unique search terms, 21,265 SNOMED codes
+- Tier 2 (Data): SNOMED codes cleaned — 0 rows with .0 suffix remaining
+### Files changed:
+- `data_processing/load_snomed_mapping.py` — new file
+### Committed: 6ce45b5 "feat: add SNOMED mapping loader script (Task 1.2)"
+### Patterns discovered:
+- CSV has 163,937 rows but only 144,056 unique (drug_name, indication, snomed_code) combinations
+- SNOMED codes in CSV have `.0` suffix from float formatting — need `clean_snomed_code()` function
+- Windows console can't print Unicode emojis — use ASCII text like `[OK]` instead of ✅
+### Next iteration should:
+- Start Task 1.3: Extend Diagnosis Lookup Module
+- Add `get_drug_snomed_codes(drug_name)` to `data_processing/diagnosis_lookup.py`
+- Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)` function
+- Look at existing `diagnosis_lookup.py` for patterns to follow
+### Blocked items:
+- None
+
