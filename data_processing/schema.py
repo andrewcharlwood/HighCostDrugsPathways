@@ -115,6 +115,43 @@ CREATE INDEX IF NOT EXISTS idx_ref_drug_indication_clusters_cluster ON ref_drug_
 CREATE INDEX IF NOT EXISTS idx_ref_drug_indication_clusters_indication ON ref_drug_indication_clusters(indication);
 """
 
+REF_DRUG_SNOMED_MAPPING_SCHEMA = """
+-- Direct SNOMED code mapping from drug to indication to GP diagnosis codes
+-- Source: data/drug_snomed_mapping_enriched.csv (163K rows)
+-- Used for direct GP record matching to assign diagnosis-based directorates
+-- and to support indication-based pathway hierarchy (Trust → Search_Term → Drug → Pathway)
+CREATE TABLE IF NOT EXISTS ref_drug_snomed_mapping (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    drug_name TEXT NOT NULL,                -- Original drug name from mapping
+    indication TEXT NOT NULL,               -- Specific indication (603 unique values)
+    ta_id TEXT,                             -- NICE TA reference (e.g., TA568)
+    search_term TEXT NOT NULL,              -- Simplified grouping (187 unique values)
+    snomed_code TEXT NOT NULL,              -- SNOMED CT code for GP record matching
+    snomed_description TEXT,                -- SNOMED code description
+    cleaned_drug_name TEXT NOT NULL,        -- Standardized drug name for matching
+    primary_directorate TEXT,               -- Primary directorate for this indication
+    all_directorates TEXT,                  -- Pipe-separated list of valid directorates
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(drug_name, indication, snomed_code)
+);
+
+-- Index for looking up SNOMED codes by drug name (most common access pattern)
+CREATE INDEX IF NOT EXISTS idx_ref_drug_snomed_mapping_drug ON ref_drug_snomed_mapping(drug_name);
+
+-- Index for looking up by cleaned drug name (standardized matching)
+CREATE INDEX IF NOT EXISTS idx_ref_drug_snomed_mapping_cleaned ON ref_drug_snomed_mapping(cleaned_drug_name);
+
+-- Index for looking up by SNOMED code (reverse lookup from GP record)
+CREATE INDEX IF NOT EXISTS idx_ref_drug_snomed_mapping_snomed ON ref_drug_snomed_mapping(snomed_code);
+
+-- Index for grouping by search_term (indication-based hierarchy)
+CREATE INDEX IF NOT EXISTS idx_ref_drug_snomed_mapping_search_term ON ref_drug_snomed_mapping(search_term);
+
+-- Composite index for drug + snomed code (common lookup pattern)
+CREATE INDEX IF NOT EXISTS idx_ref_drug_snomed_mapping_drug_snomed
+    ON ref_drug_snomed_mapping(cleaned_drug_name, snomed_code);
+"""
+
 
 # =============================================================================
 # Pathway Data Architecture Schemas
@@ -477,6 +514,8 @@ REFERENCE_TABLES_SCHEMA = f"""
 {REF_DRUG_DIRECTORY_MAP_SCHEMA}
 
 {REF_DRUG_INDICATION_CLUSTERS_SCHEMA}
+
+{REF_DRUG_SNOMED_MAPPING_SCHEMA}
 """
 
 FACT_TABLES_SCHEMA = f"""
@@ -535,8 +574,24 @@ def drop_reference_tables(conn: sqlite3.Connection) -> None:
         DROP TABLE IF EXISTS ref_directories;
         DROP TABLE IF EXISTS ref_drug_directory_map;
         DROP TABLE IF EXISTS ref_drug_indication_clusters;
+        DROP TABLE IF EXISTS ref_drug_snomed_mapping;
     """)
     logger.info("Reference tables dropped")
+
+
+def create_drug_snomed_mapping_table(conn: sqlite3.Connection) -> None:
+    """
+    Create the ref_drug_snomed_mapping table for direct SNOMED code mapping.
+
+    This table stores mappings from drugs to SNOMED codes for GP record matching,
+    enabling diagnosis-based directorate assignment and indication-based pathways.
+
+    Args:
+        conn: SQLite database connection.
+    """
+    logger.info("Creating ref_drug_snomed_mapping table...")
+    conn.executescript(REF_DRUG_SNOMED_MAPPING_SCHEMA)
+    logger.info("ref_drug_snomed_mapping table created successfully")
 
 
 def get_reference_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
@@ -549,13 +604,23 @@ def get_reference_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
     Returns:
         Dictionary mapping table name to row count.
     """
-    tables = ["ref_drug_names", "ref_organizations", "ref_directories", "ref_drug_directory_map", "ref_drug_indication_clusters"]
+    tables = [
+        "ref_drug_names",
+        "ref_organizations",
+        "ref_directories",
+        "ref_drug_directory_map",
+        "ref_drug_indication_clusters",
+        "ref_drug_snomed_mapping",
+    ]
     counts = {}
 
     for table in tables:
-        cursor = conn.execute(f"SELECT COUNT(*) FROM {table}")
-        result = cursor.fetchone()
-        counts[table] = result[0] if result else 0
+        try:
+            cursor = conn.execute(f"SELECT COUNT(*) FROM {table}")
+            result = cursor.fetchone()
+            counts[table] = result[0] if result else 0
+        except sqlite3.OperationalError:
+            counts[table] = 0
 
     return counts
 
@@ -570,7 +635,14 @@ def verify_reference_tables_exist(conn: sqlite3.Connection) -> list[str]:
     Returns:
         List of missing table names. Empty list means all tables exist.
     """
-    required_tables = ["ref_drug_names", "ref_organizations", "ref_directories", "ref_drug_directory_map", "ref_drug_indication_clusters"]
+    required_tables = [
+        "ref_drug_names",
+        "ref_organizations",
+        "ref_directories",
+        "ref_drug_directory_map",
+        "ref_drug_indication_clusters",
+        "ref_drug_snomed_mapping",
+    ]
     missing = []
 
     for table in required_tables:

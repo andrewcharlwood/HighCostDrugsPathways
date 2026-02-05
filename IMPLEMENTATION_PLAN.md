@@ -1,218 +1,232 @@
-# Implementation Plan - UI Redesign Phase
+# Implementation Plan - Direct SNOMED Indication Mapping
 
 ## Project Overview
 
-Redesign the HCD Analysis application with a modern SaaS-style interface. The current NHS-dashboard style is functional but dated. This phase focuses on:
+Extend the pathway analysis application to use direct SNOMED code matching from GP records to:
+1. **Improve directorate assignment** - Use diagnosis-based directorate as primary method
+2. **Add indication-based icicle chart** - New chart type showing Trust → Search_Term → Drug → Pathway
 
-1. **Modern SaaS aesthetic** - Clean, ambitious design that looks like a premium product
-2. **Maximized chart space** - The icicle chart is the hero; everything else supports it
-3. **Compact controls** - Filters and KPIs should be efficient, not sprawling
-4. **Full-width layout** - Use the entire viewport width
+### Data Source
+`data/drug_snomed_mapping_enriched.csv` - 163K rows mapping:
+- Drug → Indication → TA_ID → Search_Term → SNOMEDCode → PrimaryDirectorate
 
-**Design Philosophy**:
-- Thematically aligned with blue color scheme but NOT constrained by NHS branding
-- Think Stripe, Linear, Vercel - clean, spacious, confident
-- Data visualization is the star; chrome should be minimal
-
-**Source Files**:
-- `pathways_app/pathways_app.py` - Main Reflex application
-- `pathways_app/styles.py` - Design tokens and style helpers
-- `DESIGN_SYSTEM.md` - Design specifications
+### Key Design Decisions
+| Aspect | Decision |
+|--------|----------|
+| Primary directorate method | Diagnosis-based (SNOMED match → PrimaryDirectorate) |
+| Fallback | department_identification() chain |
+| Grouping level | `Search_Term` column (187 unique values) |
+| Chart types | Two: "By Directory" and "By Indication" (user toggle) |
+| No-match display | Show assigned directorate in indication chart (mixed labels) |
+| Multiple matches | Use most recent SNOMED code by GP record date |
+| Data storage | SQLite table `ref_drug_snomed_mapping`, accessed at ingestion |
 
 ## Quality Checks
 
 Run after each task:
 
 ```bash
-# Syntax check for Python files
-python -m py_compile pathways_app/pathways_app.py
+# Syntax check
+python -m py_compile <modified_file.py>
 
 # Import verification
-python -c "from pathways_app.pathways_app import app"
+python -c "from data_processing.diagnosis_lookup import *"
+python -c "from data_processing.pathway_pipeline import *"
 
-# Reflex compile
+# For Reflex changes
 python -m reflex compile
 ```
 
-## Phase 5: UI Redesign
+---
 
-### 5.1 Update Design System for Modern SaaS
-- [x] Update `DESIGN_SYSTEM.md` with new specifications:
-  - Reduce top bar height from 64px to 48px
-  - Define compact filter row (single horizontal strip)
-  - Define compact KPI card dimensions (reduce padding, font sizes)
-  - Add full-width chart container specs
-- [x] Update `pathways_app/styles.py` tokens to match:
-  - Typography: DISPLAY 32→28px, H1 24→18px, H2 20→16px, CAPTION 12→11px
-  - Spacing: SM 8→6px, MD 12→8px, LG 16→12px, XL 24→16px, XXL 32→24px, XXXL 48→32px
-  - Shadows: Lighter values (0.04, 0.06, 0.08 opacity)
-  - Colors: Modernized semantic colors (SUCCESS #10B981, etc.)
-  - Layout: TOP_BAR_HEIGHT 64→48px, FILTER_STRIP_HEIGHT 48px
-- [x] Add new style helpers:
-  - `compact_kpi_card_style()` - 12px padding, 24px value font
-  - `compact_kpi_value_style()` / `compact_kpi_label_style()` - matching text styles
-  - `kpi_badge_style()` - inline pill/badge variant (zero height impact)
-  - `filter_strip_style()` - 48px horizontal container
-  - `compact_dropdown_trigger_style()` - 32px height triggers
-  - `searchable_dropdown_panel_style()` / `searchable_dropdown_item_style()` - compact items
-  - `chart_container_style()` / `chart_wrapper_style()` - full-width, flex-grow
-  - `top_bar_style()` / `top_bar_tab_style()` / `logo_style()` - 48px top bar
-- [x] Verify: `python -c "from pathways_app.styles import *"` - PASSED
+## Phase 1: Data Infrastructure
 
-### 5.2 Compact Filter Section (50-67% height reduction)
-- [x] Redesign filter_section() as a single horizontal strip:
-  - All filters in ONE row: Date dropdowns | Drugs | Indications | Directorates
-  - Remove "Filters" header (saves vertical space)
-  - Use smaller dropdown triggers (height: 32px instead of 40px)
-  - Use icon-only labels where possible
-- [x] Reduce searchable_dropdown() panel heights:
-  - Max item list height: 150px (was 200px)
-  - Smaller search input (size="1" instead of size="2")
-  - Tighter spacing (6px/8px gaps via Spacing.SM/MD)
-- [x] Make filter dropdowns collapsible/expandable (optional advanced feature)
-  - Note: This was already implemented - dropdowns open/close on click
-- [x] Verify: Filter section height ≤ 60px when collapsed
-  - Implemented: 48px filter strip via filter_strip_style()
-  - Note: Visual verification with reflex run recommended
+### 1.1 Create SQLite Table for SNOMED Mapping
+- [x] Add `REF_DRUG_SNOMED_MAPPING_SCHEMA` to `data_processing/schema.py`:
+  - Columns: drug_name, indication, ta_id, search_term, snomed_code, snomed_description, cleaned_drug_name, primary_directorate, all_directorates
+  - Index on: cleaned_drug_name, snomed_code, search_term
+- [x] Add `create_drug_snomed_mapping_table()` helper function
+- [x] Add to `ALL_TABLES_SCHEMA` and migration
+- [x] Verify: `python -m data_processing.migrate` creates table
 
-### 5.3 Compact KPI Cards (50% reduction)
-- [x] Reduce KPI card dimensions:
-  - Padding: 12px (was 24px)
-  - Value font size: 24px (was 32px)
-  - Label font size: 11px (was 12px)
-- [x] Make KPIs a single compact row:
-  - All 4 KPIs in horizontal strip
-  - Minimal vertical footprint
-  - Consider inline layout: "12,345 patients | £45.2M cost | 89 drugs | 7 trusts"
-- [x] Alternative: KPI badges/pills instead of cards
-  - Implemented kpi_badge() and kpi_badges() functions
-  - KPIs are now inline badges integrated into the filter strip
-  - Zero additional vertical height (Option A from design system)
-- [x] Verify: KPI row height ≤ 48px
-  - KPIs now embedded in filter strip - no separate row needed
-  - reflex compile succeeds in 15s
+### 1.2 Load Enriched Mapping Data
+- [ ] Create `data_processing/load_snomed_mapping.py` script:
+  - Read `data/drug_snomed_mapping_enriched.csv`
+  - Insert into `ref_drug_snomed_mapping` table
+  - Log: row count, unique drugs, unique search terms
+- [ ] Add CLI entry point: `python -m data_processing.load_snomed_mapping`
+- [ ] Verify: Query confirms 163K+ rows, 187 search terms
 
-### 5.4 Full-Width Chart Layout
-- [x] Remove PAGE_MAX_WIDTH constraint for chart container
-  - Removed from main_content() - now uses 100% width with 16px padding
-- [x] Chart should stretch to viewport width (with small padding: 16px each side)
-  - Using padding_x=Spacing.XL (16px) in main_content()
-- [x] Update chart height calculation:
-  - Using calc(100vh - 152px) for chart height
-  - 152px = 48px top bar + 48px filter strip + 16px padding + 40px chart header
-  - Minimum height: 500px preserved
-- [x] Update Plotly layout:
-  - Removed fixed height=600, using autosize=True
-  - Reduced margins to t:40, l:8, r:8, b:24 per DESIGN_SYSTEM.md
-- [x] Verify: Chart fills available space on 1920x1080 display
-  - Implemented: calc(100vh - 152px) height, width="100%"
-  - Note: Visual verification with reflex run recommended
+### 1.3 Extend Diagnosis Lookup Module
+- [ ] Add `get_drug_snomed_codes(drug_name)` to `diagnosis_lookup.py`:
+  - Query `ref_drug_snomed_mapping` for all SNOMED codes for a drug
+  - Return list of (snomed_code, snomed_description, search_term, primary_directorate)
+- [ ] Add `patient_has_indication_direct(patient_pseudonym, snomed_codes, connector)`:
+  - Query `PrimaryCareClinicalCoding` directly for exact SNOMED code matches
+  - Return most recent match by EventDateTime
+  - Return: (matched_code, search_term, primary_directorate, event_date) or None
+- [ ] Verify: Unit test with known drug/patient pair
 
-### 5.5 Top Bar Refinement
-- [x] Reduce top bar height to 48px (was 64px)
-  - Using `top_bar_style()` which sets `height: TOP_BAR_HEIGHT` (48px)
-- [x] Simplify chart tabs - smaller pills or just text links
-  - Using `top_bar_tab_style()` for 28px height pills with tighter spacing
-- [x] Consider moving data freshness indicator inline with filters
-  - Simplified to single line: "X records · Refreshed: 2m ago"
-  - Removed max_width constraint for full-width bar
-- [x] Make logo smaller (28px instead of 36px)
-  - Using `logo_style()` for 28px height
-- [x] Verify: Top bar is minimal but functional
-  - Syntax check: PASS
-  - Import check: PASS
-  - Reflex compile: PASS (1.7s)
+---
 
-### 5.6 Visual Polish
-- [x] Add subtle hover states to interactive elements
-  - KPI badges: subtle lift and shadow on hover
-  - Top bar tabs: slightly brighter hover (0.15 opacity vs 0.1)
-  - Dropdown triggers: background color change + border highlight on hover
-  - Dropdown items: background color change on hover
-  - Buttons: enhanced hover with transform/shadow
-- [x] Ensure consistent focus rings for accessibility
-  - Dropdown triggers: 2px Pale Blue focus ring
-  - Top bar tabs: 2px white semi-transparent focus ring
-  - Dropdown items: inset Primary border focus ring
-  - Buttons (primary/secondary/ghost): consistent Pale Blue focus rings
-  - All focus states use _focus and _focus_visible for keyboard nav
-- [x] Test responsive behavior at common breakpoints (1366, 1920, 2560px widths)
-  - Note: Layout uses calc(100vh - Xpx) for height, flexbox for width
-  - Full-width chart with 16px padding scales to any viewport width
-  - Visual verification required with `reflex run`
-- [x] Remove any unused styles from styles.py
-  - Removed compact_kpi_card_style, compact_kpi_value_style, compact_kpi_label_style (unused Option B)
-  - Cleaned up pathways_app.py imports: removed card_style, input_style, button_ghost_style, chart_container_style, chart_wrapper_style, PAGE_MAX_WIDTH, PAGE_PADDING, text_h3
-  - Kept kpi_value_style, kpi_label_style for legacy kpi_card fallback
-- [x] Verify: No visual regressions, app looks cohesive
-  - Syntax check: PASS
-  - Import check: PASS
-  - Reflex compile: PASS (14.6s)
+## Phase 2: Pathway Processing Updates
+
+### 2.1 Update Directorate Assignment Logic
+- [ ] Modify `tools/data.py` `department_identification()` or create wrapper:
+  - Add `get_directorate_from_diagnosis(upid, drug_name, connector)` function
+  - Logic: Try diagnosis-based first → fallback to department_identification()
+  - Return: (directorate, source) where source is "DIAGNOSIS" or "FALLBACK"
+- [ ] Track assignment source for metrics (how many diagnosis-based vs fallback)
+- [ ] Verify: Test with sample patient data
+
+### 2.2 Add Chart Type Support to Schema
+- [ ] Add `chart_type` column to `pathway_nodes` table:
+  - Values: "directory" (existing), "indication" (new)
+  - Update schema in `data_processing/schema.py`
+- [ ] Update `pathway_date_filters` or create `pathway_chart_types` reference table
+- [ ] Verify: Migration adds column, existing data defaults to "directory"
+
+### 2.3 Create Indication Pathway Processing
+- [ ] Add `process_indication_pathways()` to `pathway_pipeline.py`:
+  - Group by: Trust → Search_Term → Drug → Pathway
+  - For unmatched patients: use directorate name as Search_Term fallback
+  - Output: Same structure as directory pathways but with indication grouping
+- [ ] Add `extract_indication_fields()` for denormalized columns:
+  - Extract: trust_name, search_term (or fallback_directorate), drug_sequence
+- [ ] Verify: Process sample data, check hierarchy structure
+
+---
+
+## Phase 3: CLI & Data Refresh Updates
+
+### 3.1 Update Refresh Command for Dual Chart Types
+- [ ] Modify `cli/refresh_pathways.py`:
+  - Process both "directory" and "indication" chart types
+  - For each of 6 date filters: generate 2 chart datasets
+  - Total: 12 pathway datasets (6 dates × 2 chart types)
+- [ ] Add `--chart-type` argument: "all" (default), "directory", "indication"
+- [ ] Update progress logging to show both chart types
+- [ ] Verify: Dry run shows both chart types being processed
+
+### 3.2 Integrate Diagnosis-Based Directorate in Pipeline
+- [ ] Update `fetch_and_transform_data()` to include diagnosis lookup:
+  - After UPID creation, batch lookup SNOMED matches for all patients
+  - Store: matched_search_term, matched_directorate, match_source
+- [ ] Handle Snowflake connection for GP record queries (batched for performance)
+- [ ] Log coverage: X% diagnosis-matched, Y% fallback
+- [ ] Verify: Test refresh with --dry-run, check coverage stats
+
+### 3.3 Test Full Refresh Pipeline
+- [ ] Run `python -m cli.refresh_pathways` with real data
+- [ ] Verify pathway_nodes table has both chart_type values
+- [ ] Verify indication chart has expected hierarchy (Trust → SearchTerm → Drug)
+- [ ] Verify unmatched patients appear with directorate fallback label
+- [ ] Document: Processing time, record counts, coverage percentages
+
+---
+
+## Phase 4: Reflex UI Updates
+
+### 4.1 Add Chart Type State
+- [ ] Add state variables to `AppState`:
+  - `selected_chart_type: str = "directory"` (options: "directory", "indication")
+  - `chart_type_options: list[dict]` for dropdown
+- [ ] Add `set_chart_type()` event handler
+- [ ] Update `load_pathway_data()` to filter by chart_type
+- [ ] Verify: State changes correctly, data queries include chart_type filter
+
+### 4.2 Add Chart Type Toggle UI
+- [ ] Create `chart_type_toggle()` component:
+  - Radio buttons or segmented control: "By Directory" | "By Indication"
+  - Place in filter strip or chart header area
+- [ ] Wire to `set_chart_type()` handler
+- [ ] Verify: Toggle switches chart data, UI updates reactively
+
+### 4.3 Update Chart Display for Indication Labels
+- [ ] Ensure icicle chart handles mixed labels:
+  - Search_Term labels (e.g., "rheumatoid arthritis") for matched patients
+  - Directorate labels (e.g., "RHEUMATOLOGY (no GP dx)") for unmatched
+- [ ] Update hover templates if needed for indication context
+- [ ] Verify: Chart renders correctly with both label types
+
+---
+
+## Phase 5: Validation & Documentation
+
+### 5.1 Measure Coverage Improvement
+- [ ] Compare match rates: cluster-only vs cluster+direct SNOMED
+- [ ] Generate report: % of patients with diagnosis-based directorate
+- [ ] Identify drugs with best/worst coverage improvement
+- [ ] Document results in progress.txt
+
+### 5.2 End-to-End Validation
+- [ ] Run full app with both chart types
+- [ ] Verify chart toggle works correctly
+- [ ] Verify filter interactions (drugs, directorates) work for both types
+- [ ] Verify KPIs update correctly for both chart types
+- [ ] Test at multiple viewport sizes
+
+### 5.3 Update Documentation
+- [ ] Update CLAUDE.md with new architecture
+- [ ] Document new CLI arguments
+- [ ] Document chart_type toggle behavior
+- [ ] Update data flow diagrams
+
+---
 
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [x] App compiles without errors (`reflex compile` succeeds)
-  - Verified: 14.6s compile time, no errors
-- [x] Filter section height ≤ 60px (measured visually)
-  - Implemented: 48px filter strip with inline KPI badges
-- [x] KPI row height ≤ 48px (measured visually)
-  - Implemented: Zero extra height (KPIs as inline badges in filter strip)
-- [x] Top bar height = 48px
-  - Verified: Uses TOP_BAR_HEIGHT constant = "48px"
-- [x] Chart stretches to full viewport width (minus 32px total padding)
-  - Implemented: width="100%", padding_x=Spacing.XL (16px)
-- [x] Chart fills remaining vertical space (min 500px)
-  - Implemented: calc(100vh - 152px), min_height="500px"
-- [x] Design feels like modern SaaS, not NHS dashboard
-  - Implemented: Compact filters, inline KPI badges, full-width chart
-  - Implemented: Tighter spacing, smaller typography, lighter shadows
-  - Note: Visual verification with reflex run recommended
-- [x] All interactive elements have appropriate hover/focus states
-  - Implemented in Task 5.6: hover/focus for buttons, dropdowns, tabs, badges
+- [ ] App compiles without errors (`reflex compile` succeeds)
+- [ ] Both chart types generate pathway data (12 total: 6 dates × 2 types)
+- [ ] Chart type toggle switches between Directory and Indication views
+- [ ] Diagnosis-based directorate is primary method with fallback working
+- [ ] Unmatched patients show in indication chart with directorate fallback label
+- [ ] Coverage metrics logged (% diagnosis-matched vs fallback)
+- [ ] All filters work correctly for both chart types
+- [ ] Performance acceptable (< 10 min full refresh, < 500ms filter change)
+
+---
 
 ## Reference
 
-### Current Layout (to be improved)
+### Current Pathway Hierarchy (Directory-based)
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Top Bar (64px) - Logo, Tabs, Freshness                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Filter Section (~200px) - Headers, Date dropdowns, Multi-select│
-├─────────────────────────────────────────────────────────────────┤
-│  KPI Cards (~100px) - 4 large cards in row                     │
-├─────────────────────────────────────────────────────────────────┤
-│  Chart (~600px fixed) - Constrained width                      │
-└─────────────────────────────────────────────────────────────────┘
+Root (N&W ICS)
+└── Trust (NNUH, QEH, JPH, etc.)
+    └── Directory (RHEUMATOLOGY, OPHTHALMOLOGY, etc.)
+        └── Drug (ADALIMUMAB, RANIBIZUMAB, etc.)
+            └── Pathway (drug sequences)
 ```
 
-### Target Layout
+### New Pathway Hierarchy (Indication-based)
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Logo │ Tabs │                                    │ Freshness   │ 48px
-├─────────────────────────────────────────────────────────────────┤
-│ [Date▾] [Date▾] [Drugs▾] [Indications▾] [Directories▾] │ KPIs │ 48-60px
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│                        CHART                                    │ flex-grow
-│                    (full width)                                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+Root (N&W ICS)
+└── Trust (NNUH, QEH, JPH, etc.)
+    └── Search_Term (rheumatoid arthritis, macular degeneration, etc.)
+        │   OR Directorate (RHEUMATOLOGY - for unmatched patients)
+        └── Drug (ADALIMUMAB, RANIBIZUMAB, etc.)
+            └── Pathway (drug sequences)
 ```
-
-### Key Measurements
-| Element | Current | Target |
-|---------|---------|--------|
-| Top bar | 64px | 48px |
-| Filter section | ~200px | ≤60px |
-| KPI row | ~100px | ≤48px (or merged with filters) |
-| Chart | 600px fixed, constrained width | flex-grow, full width |
-| Total overhead | ~364px | ~156px (57% reduction) |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `pathways_app/pathways_app.py` | Main Reflex application |
-| `pathways_app/styles.py` | Design tokens and style helpers |
-| `DESIGN_SYSTEM.md` | Design specifications |
+| `data_processing/schema.py` | SQLite schema for ref_drug_snomed_mapping |
+| `data_processing/diagnosis_lookup.py` | Direct SNOMED lookup functions |
+| `data_processing/pathway_pipeline.py` | Indication pathway processing |
+| `cli/refresh_pathways.py` | CLI for dual chart type refresh |
+| `pathways_app/pathways_app.py` | Reflex UI with chart type toggle |
+| `data/drug_snomed_mapping_enriched.csv` | Source mapping data |
+
+### Expected Data Volumes
+
+| Metric | Expected |
+|--------|----------|
+| SNOMED mapping rows | ~163K |
+| Unique Search_Terms | 187 |
+| Unique drugs | ~364 |
+| Pathway nodes (directory, per date filter) | ~300 |
+| Pathway nodes (indication, per date filter) | ~400-600 (more granular) |
+| Total pathway nodes (6 dates × 2 types) | ~4,000-5,000 |
