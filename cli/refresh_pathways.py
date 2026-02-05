@@ -48,6 +48,7 @@ from data_processing.pathway_pipeline import (
     extract_indication_fields,
     convert_to_records,
 )
+from data_processing.diagnosis_lookup import batch_lookup_indication_groups
 
 logger = get_logger(__name__)
 
@@ -358,14 +359,86 @@ def refresh_pathways(
                     results[f"{filter_id}:directory"] = records
 
             elif current_chart_type == "indication":
-                # For indication charts, we need indication_df from GP diagnosis lookups
-                # This will be implemented in Task 3.2
-                # For now, log that indication processing requires the diagnosis pipeline
-                logger.warning("Indication chart processing not yet fully integrated")
-                logger.warning("Task 3.2 will add GP diagnosis lookup integration")
-                logger.info("Skipping indication charts for now...")
-                for config in DATE_FILTER_CONFIGS:
-                    results[f"{config.id}:indication"] = []
+                # For indication charts, we need to look up GP diagnoses for all patients
+                # This creates indication_df mapping UPID -> Indication_Group
+                logger.info("Building indication groups from GP diagnosis lookups...")
+
+                # Get Snowflake connector for GP lookups
+                from data_processing.snowflake_connector import get_connector, is_snowflake_available
+
+                if not is_snowflake_available():
+                    logger.warning("Snowflake not available - cannot process indication charts")
+                    for config in DATE_FILTER_CONFIGS:
+                        results[f"{config.id}:indication"] = []
+                    continue
+
+                try:
+                    connector = get_connector()
+
+                    # Batch lookup indication groups for all patients
+                    indication_df = batch_lookup_indication_groups(
+                        df=df,
+                        connector=connector,
+                        batch_size=500,
+                    )
+
+                    # Log coverage statistics
+                    if not indication_df.empty:
+                        diagnosis_count = (indication_df['Source'] == 'DIAGNOSIS').sum()
+                        fallback_count = (indication_df['Source'] == 'FALLBACK').sum()
+                        total = len(indication_df)
+                        stats["diagnosis_coverage"] = {
+                            "diagnosis": diagnosis_count,
+                            "fallback": fallback_count,
+                            "total": total,
+                            "diagnosis_pct": round(100 * diagnosis_count / total, 1) if total > 0 else 0,
+                        }
+                        logger.info(f"Indication coverage: {diagnosis_count}/{total} ({stats['diagnosis_coverage']['diagnosis_pct']}%) diagnosis-matched")
+
+                        # Rename column for compatibility with generate_icicle_chart_indication
+                        # It expects indication_df to have 'Directory' column (mapped from Indication_Group)
+                        indication_df_for_chart = indication_df[['UPID', 'Indication_Group']].copy()
+                        indication_df_for_chart = indication_df_for_chart.rename(columns={'Indication_Group': 'Directory'})
+                        indication_df_for_chart = indication_df_for_chart.set_index('UPID')
+
+                        # Process each date filter with indication grouping
+                        for config in DATE_FILTER_CONFIGS:
+                            logger.info(f"Processing indication pathway for {config.id}")
+
+                            ice_df = process_indication_pathway_for_date_filter(
+                                df=df,
+                                indication_df=indication_df_for_chart,
+                                config=config,
+                                trust_filter=trust_filter,
+                                drug_filter=drug_filter,
+                                directory_filter=directory_filter,
+                                minimum_patients=minimum_patients,
+                                paths=paths,
+                            )
+
+                            if ice_df is None:
+                                logger.warning(f"No indication pathway data for {config.id}")
+                                results[f"{config.id}:indication"] = []
+                                continue
+
+                            # Extract denormalized fields (using indication variant)
+                            ice_df = extract_indication_fields(ice_df)
+
+                            # Convert to records with chart_type="indication"
+                            records = convert_to_records(ice_df, config.id, refresh_id, chart_type="indication")
+                            results[f"{config.id}:indication"] = records
+
+                            logger.info(f"Completed {config.id}:indication: {len(records)} nodes")
+                    else:
+                        logger.warning("Empty indication_df - skipping indication charts")
+                        for config in DATE_FILTER_CONFIGS:
+                            results[f"{config.id}:indication"] = []
+
+                except Exception as e:
+                    logger.error(f"Error processing indication charts: {e}")
+                    logger.exception(e)
+                    for config in DATE_FILTER_CONFIGS:
+                        results[f"{config.id}:indication"] = []
 
         # Count records per filter and chart type
         stats["chart_type_counts"] = {}

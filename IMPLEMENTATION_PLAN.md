@@ -114,14 +114,19 @@ python -m reflex compile
   - Total: 12 pathway datasets (6 dates × 2 chart types)
 - [x] Add `--chart-type` argument: "all" (default), "directory", "indication"
 - [x] Update progress logging to show both chart types
-- [ ] Verify: Dry run shows both chart types being processed (requires Task 3.2 for full indication support)
+- [x] Verify: Dry run shows both chart types being processed (Task 3.2 complete)
 
 ### 3.2 Integrate Diagnosis-Based Directorate in Pipeline
-- [ ] Update `fetch_and_transform_data()` to include diagnosis lookup:
-  - After UPID creation, batch lookup SNOMED matches for all patients
-  - Store: matched_search_term, matched_directorate, match_source
-- [ ] Handle Snowflake connection for GP record queries (batched for performance)
-- [ ] Log coverage: X% diagnosis-matched, Y% fallback
+- [x] Add `batch_lookup_indication_groups()` to `diagnosis_lookup.py`:
+  - Batch lookup SNOMED matches for all patients (500 patients per batch)
+  - Returns DataFrame with UPID, Indication_Group, Source columns
+  - Source is "DIAGNOSIS" (GP match found) or "FALLBACK" (no match)
+- [x] Update `cli/refresh_pathways.py` indication processing:
+  - Call `batch_lookup_indication_groups()` before processing indication charts
+  - Build `indication_df` for use with `process_indication_pathway_for_date_filter()`
+  - Process all 6 date filters with indication grouping
+- [x] Handle Snowflake connection for GP record queries (batched for performance)
+- [x] Log coverage: X% diagnosis-matched, Y% fallback
 - [ ] Verify: Test refresh with --dry-run, check coverage stats
 
 ### 3.3 Test Full Refresh Pipeline
