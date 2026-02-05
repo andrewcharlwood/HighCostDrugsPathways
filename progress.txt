@@ -199,3 +199,60 @@ The `ids` column in ice_df contains hierarchical paths like:
 - Compare patient counts with original app to validate correctness
 ### Blocked items:
 - None
+
+## Iteration 5 — 2026-02-05
+### Task: 2.2 Test Refresh Pipeline with real Snowflake data
+### Why this task:
+- All Phase 1 and Task 2.1 complete — this was explicitly recommended by previous iteration
+- Need to validate the full pipeline end-to-end before Reflex integration (Phase 3)
+- Testing with real data catches type/format issues that unit tests miss
+### Status: COMPLETE
+### What was done:
+1. **Configuration fixes**:
+   - Added Snowflake account identifier: `ZK91403.uk-south.azure`
+   - Added warehouse: `WH__XSMALL` (ANALYST_WH not available to user)
+   - Added user: `ANDREW.CHARLWOOD@NHS.NET`
+2. **Bug fixes discovered during testing**:
+   - `get_default_filters()`: Was reading first column (Code) instead of Name column from defaultTrusts.csv
+   - `calculate_cost_per_patient_per_annum()`: Decimal type from Snowflake couldn't divide by float — added `float()` conversion
+   - `convert_to_records()`: `average_administered` is sometimes numpy array — `pd.isna()` fails on arrays, added try/except handling
+   - Unicode output: Changed checkmark symbols to ASCII for Windows cp1252 compatibility
+3. **Data setup**:
+   - Copied required reference CSV files from Patient pathway analysis project
+4. **Full refresh execution**:
+   - Snowflake fetch: 656,695 records in ~7s (chunked 10K rows at a time)
+   - Transformations: → 519,848 records (136,847 removed due to unmapped drug names)
+   - Pathway processing: 293 nodes for `all_6mo` filter
+   - Database insertion: 293 records with denormalized trust/directory/drug_sequence fields
+### Validation results:
+- Tier 1 (Code): All files compile, imports work
+- Tier 2 (Visual): N/A (CLI/backend work)
+- Tier 3 (Functional): Full pipeline tested with real Snowflake data:
+  - Snowflake SSO auth works (browser popup)
+  - 656K records fetched successfully
+  - Transformations complete without error
+  - 293 pathway nodes generated and inserted to SQLite
+  - pathway_refresh_log correctly tracks refresh (ID: 9af76e02, status: completed)
+### Files changed:
+- `cli/refresh_pathways.py` — Fixed trust filter column selection
+- `analysis/statistics.py` — Fixed Decimal/float division
+- `data_processing/pathway_pipeline.py` — Fixed array handling in convert_to_records
+- `config/snowflake.toml` — Added account, warehouse, user settings
+- `IMPLEMENTATION_PLAN.md` — Marked Task 2.2 complete with notes
+- `data/*.csv` — Added 7 reference CSV files
+### Committed: adc1dbf "feat: complete Task 2.2 - test refresh pipeline with Snowflake data"
+### Patterns discovered:
+- Snowflake account format: `ACCOUNT.uk-south.azure` (not just account ID)
+- Snowflake returns Decimal for DECIMAL/NUMERIC columns — must convert to float for math
+- `pd.isna()` raises ValueError on arrays — use try/except pattern
+- Test data only has data for `all_6mo` filter (others show 0 nodes) — expected given data freshness
+- Total refresh time: ~6.2 minutes for 656K → 519K → 293 pathway nodes
+### Next iteration should:
+- Start Phase 3: Reflex Integration
+- Task 3.1: Update AppState to query pathway_nodes instead of recalculating
+  - Replace date pickers with dropdowns for initiated/last_seen
+  - Add date_filter_id computed property
+  - Rewrite load_pathway_data() to query pre-computed data
+- Reference `pathways_app/app_v2.py` for existing state structure
+### Blocked items:
+- None
