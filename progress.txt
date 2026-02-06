@@ -2524,7 +2524,7 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 ### Files changed:
 - `CLAUDE.md` — Updated with two-view architecture
 - `IMPLEMENTATION_PLAN.md` — Task 10.11 and Phase 10 completion criteria marked [x]
-### Committed: [pending]
+### Committed: 5f890f2 "docs: final integration verification + CLAUDE.md update for two-view architecture (Task 10.11)"
 ### Patterns discovered:
 - Programmatic verification (running queries and figure builders via `python -c`) is more reliable than manual browser testing for an amnesiac loop
 - The final integration task is primarily verification + documentation — no code changes needed when previous iterations were thorough
