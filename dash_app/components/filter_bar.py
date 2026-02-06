@@ -1,20 +1,19 @@
-"""Filter bar component — drug, trust, and directorate filter buttons.
+"""Patient Pathways filter strip — drug, trust, and directorate filter buttons.
 
-View-specific controls for Patient Pathways. Global controls (chart type
-toggle, date filters) live in sub_header.py.
+View-specific controls for Patient Pathways only. Hidden when on Trust Comparison.
+Global controls (chart type toggle, date filters) live in sub_header.py.
 """
 from dash import html
 
 
 def make_filter_bar():
-    """Return a filter bar with drug, trust, and directorate filter buttons."""
-    return html.Section(
-        className="filter-bar",
-        **{"aria-label": "Filters"},
+    """Return a pathway filter strip with drug, trust, and directorate buttons."""
+    return html.Div(
+        className="pathway-filters",
+        id="pathway-filters",
         children=[
-            # Filter trigger buttons
             html.Div(
-                className="filter-bar__group",
+                className="pathway-filters__buttons",
                 children=[
                     html.Button(
                         children=[
@@ -54,7 +53,6 @@ def make_filter_bar():
                     ),
                 ],
             ),
-            # Clear all filters
             html.Button(
                 "Clear All",
                 id="clear-all-filters",

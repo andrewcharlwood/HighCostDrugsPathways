@@ -548,11 +548,11 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: All 6 charts render for a selected directorate, comparing drugs across trusts. Charts update when date filter or chart type changes.
 
 ### 10.9 Patient Pathways filter relocation
-- [ ] Drug/trust/directorate filter buttons (with count badges) only visible when on Patient Pathways view
-- [ ] Hidden when on Trust Comparison view
-- [ ] Placement per design from 10.1 (could be below the global sub-header, or inline with Patient Pathways content)
-- [ ] Filter modals still work as before (drug modal, trust modal, directorate modal)
-- [ ] "Clear All Filters" still works
+- [x] Drug/trust/directorate filter buttons (with count badges) only visible when on Patient Pathways view
+- [x] Hidden when on Trust Comparison view
+- [x] Placement per design from 10.1 (could be below the global sub-header, or inline with Patient Pathways content)
+- [x] Filter modals still work as before (drug modal, trust modal, directorate modal)
+- [x] "Clear All Filters" still works
 - **Checkpoint**: Filters visible on Patient Pathways, hidden on Trust Comparison, all filter functionality preserved
 
 ### 10.10 CSS updates + polish

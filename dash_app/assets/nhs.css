@@ -228,25 +228,17 @@ body {
     font-size: 13px; color: var(--nhs-mid-grey); margin-top: 4px;
 }
 
-/* ── Filter Bar ── */
-.filter-bar {
+/* ── Patient Pathways Filter Strip ── */
+.pathway-filters {
     background: var(--nhs-white);
     border: 1px solid var(--nhs-pale-grey);
-    padding: 12px 20px;
-    display: flex; align-items: center; gap: 16px;
-    flex-wrap: wrap;
+    border-bottom: 2px solid var(--nhs-blue);
+    padding: 8px 20px;
+    display: flex; align-items: center;
+    justify-content: space-between;
 }
-.filter-bar__group {
+.pathway-filters__buttons {
     display: flex; align-items: center; gap: 8px;
-}
-.filter-bar__divider {
-    width: 1px; height: 28px; background: var(--nhs-pale-grey);
-}
-.filter-bar__label {
-    font-size: 12px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--nhs-mid-grey);
-    white-space: nowrap;
 }
 
 /* Toggle pills */
