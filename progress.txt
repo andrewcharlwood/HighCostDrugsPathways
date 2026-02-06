@@ -1445,3 +1445,67 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Read `get_pathway_costs()` data shape
 ### Blocked items:
 - None
+
+## Iteration 26 — 2026-02-06
+### Task: Phase 9 — Task 9.4 (Pathway Cost Effectiveness chart — Tab 3)
+### Why this task:
+- Tasks 9.1 (tab infra), 9.2 (queries), 9.3 (market share) complete. Task 9.4 is next in sequence.
+- Progress.txt from iteration 25 explicitly recommended this task.
+- This is the user's key insight chart — shows cost effectiveness of different treatment pathways with retention annotations.
+### Status: COMPLETE
+### What was done:
+- **Fixed `calculate_retention_rate()` in `src/data_processing/parsing.py`**:
+  - Added `_get_patients()` helper that accepts either `"value"` or `"patients"` key
+  - Bug: function returned 0 entries because `get_pathway_costs()` returns data with `"patients"` key, not `"value"`. The original function only checked `node.get("value", 0)`.
+  - Now works with both chart data nodes (`value`) and pathway cost data (`patients`).
+- **Created `create_cost_effectiveness_figure(data, retention, title)` in `src/visualization/plotly_generator.py`**:
+  - Horizontal lollipop chart: stick lines from 0 to cost, dot at cost value
+  - Y-axis = pathway label (e.g., "Adalimumab → Secukinumab → Rituximab"), X-axis = £ per patient per annum
+  - Dot size scaled by patient count (min 8px, max 30px)
+  - Colour gradient: green (#009639) for cheap, amber (#ED8B00) for mid, red (#DA291C) for expensive
+  - Hover shows: pathway name, cost p.p.p.a., patients, total cost, avg duration, directorate, treatment lines, retention rate
+  - Retention annotations for pathways with <90% retention and ≥10 patients (up to 8 annotations)
+  - Caps at top 40 pathways by cost for readability
+  - Dynamic height based on pathway count
+  - NHS design aesthetic: Source Sans 3, transparent backgrounds, clean gridlines
+- **Added `_render_cost_effectiveness(app_state, chart_data, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params (date_filter_id, chart_type, single directory/trust)
+  - Calls `get_pathway_costs()` → `calculate_retention_rate()` → `create_cost_effectiveness_figure()`
+  - Handles empty data and exceptions gracefully
+- **Wired into `update_chart` dispatch**: `active_tab == "cost-effectiveness"` → `_render_cost_effectiveness()`
+- **Architecture note**: Like market share, uses the `_render_X()` helper pattern within the single `update_chart` callback. No separate callback file needed.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 11 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory chart: 111 pathways, 111 retention entries, 41 traces — renders correctly
+  - Indication chart: 92 pathways, 92 retention entries — renders correctly
+  - RHEUMATOLOGY filter: 38 pathways, 39 traces — filters correctly
+  - NNUH trust filter: 50 pathways — filters correctly
+  - Empty filter (nonexistent directory): 0 pathways — returns empty figure
+  - Date filter (2yr_12mo): 17 pathways — filters correctly
+  - Icicle still works: 293 nodes, 11,118 patients — no regression
+  - Market share still works — no regression
+### Files changed:
+- `src/data_processing/parsing.py` — Fixed: calculate_retention_rate() accepts both 'value' and 'patients' keys
+- `src/visualization/plotly_generator.py` — Added: create_cost_effectiveness_figure() (~170 lines)
+- `dash_app/callbacks/chart.py` — Added: _render_cost_effectiveness() helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.4 marked [x]
+### Committed: 4ef7239 "feat: add Pathway Cost Effectiveness lollipop chart (Task 9.4)"
+### Patterns discovered:
+- `get_pathway_costs()` returns `"patients"` as the key while chart data nodes use `"value"`. Shared parsing functions that operate on either data format need to handle both keys.
+- Lollipop chart pattern: separate `go.Scatter` with `mode="lines"` for sticks + one `go.Scatter` with `mode="markers"` for dots. Each stick is its own trace (40 pathways = 41 total traces).
+- Retention annotation threshold: `rate < 90% AND patients >= 10` avoids annotating trivial pathways. Cap of 8 annotations prevents visual clutter.
+- The `_render_X(app_state, chart_data, title)` pattern differs slightly from market share (`_render_market_share(app_state, title)`) by accepting `chart_data` — this is because cost effectiveness queries directly from SQLite rather than using chart-data nodes. Future charts may also use this pattern.
+### Next iteration should:
+- Start Task 9.5 — Cost Waterfall chart (Tab 4)
+- Sub-steps:
+  1. Create figure function in `src/visualization/plotly_generator.py` — `create_cost_waterfall_figure(data, title)`
+  2. Build Plotly waterfall chart from `get_cost_waterfall()` data
+  3. Each bar = one directorate's average cost_pp_pa, sorted highest to lowest
+  4. NHS colours, responds to chart_type toggle, date filter, trust filter
+  5. Wire into `update_chart` via `_render_cost_waterfall()` helper
+- The query `get_cost_waterfall()` returns [{directory, cost_pp, patients, total_cost}] sorted by cost_pp desc
+- Read `get_cost_waterfall()` in pathway_queries.py for exact data shape
+### Blocked items:
+- None
