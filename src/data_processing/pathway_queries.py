@@ -92,12 +92,24 @@ def load_initial_data(db_path: Path) -> dict:
         """)
         available_trusts = [row[0] for row in cursor.fetchall()]
 
+        # Total patients from default root node (fallback when source_row_count is empty)
+        total_patients = 0
+        if not total_records:
+            cursor.execute("""
+                SELECT value FROM pathway_nodes
+                WHERE level = 0 AND date_filter_id = 'all_6mo' AND chart_type = 'directory'
+                LIMIT 1
+            """)
+            root_row = cursor.fetchone()
+            total_patients = (root_row[0] or 0) if root_row else 0
+
         return {
             "available_drugs": available_drugs,
             "available_directorates": available_directorates,
             "available_indications": available_indications,
             "available_trusts": available_trusts,
             "total_records": total_records,
+            "total_patients": total_patients,
             "last_updated": last_updated,
         }
     except sqlite3.Error as e:

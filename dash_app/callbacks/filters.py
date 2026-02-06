@@ -1,5 +1,37 @@
 """Callbacks for reference data loading and filter state management."""
+from datetime import datetime
 from dash import Input, Output, State, callback, ctx, no_update
+
+
+def _format_relative_time(iso_timestamp: str) -> str:
+    """Format an ISO timestamp as relative time (e.g., '2h ago', 'yesterday')."""
+    if not iso_timestamp:
+        return "Unknown"
+    try:
+        dt = datetime.fromisoformat(iso_timestamp)
+        now = datetime.now()
+        delta = now - dt
+        seconds = int(delta.total_seconds())
+
+        if seconds < 60:
+            return "just now"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        days = hours // 24
+        if days == 1:
+            return "yesterday"
+        if days < 7:
+            return f"{days}d ago"
+        if days < 30:
+            weeks = days // 7
+            return f"{weeks}w ago"
+        return dt.strftime("%d %b %Y")
+    except (ValueError, TypeError):
+        return iso_timestamp[:10] if len(iso_timestamp) >= 10 else "Unknown"
 
 
 def register_filter_callbacks(app):
@@ -16,10 +48,18 @@ def register_filter_callbacks(app):
         from dash_app.data.queries import load_initial_data
 
         ref = load_initial_data()
+
         total = ref.get("total_records", 0)
-        record_text = f"{total:,} records" if total else "Data loaded"
+        patients = ref.get("total_patients", 0)
+        if total:
+            record_text = f"{total:,} records"
+        elif patients:
+            record_text = f"{patients:,} patients"
+        else:
+            record_text = "Data loaded"
+
         last_updated = ref.get("last_updated", "")
-        updated_text = last_updated[:10] if last_updated else "Unknown"
+        updated_text = _format_relative_time(last_updated)
 
         return ref, record_text, updated_text
 

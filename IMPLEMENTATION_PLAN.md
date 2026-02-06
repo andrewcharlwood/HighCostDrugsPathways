@@ -242,9 +242,9 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Loading spinner appears during data fetch, empty state shows message
 
 ### 5.3 Data freshness indicator
-- [ ] Header shows: green dot + "{N} records" + "Last updated: {relative_time}"
-- [ ] Pull from `pathway_refresh_log` via `queries.load_initial_data()`
-- [ ] Format as relative time (e.g., "2h ago", "yesterday")
+- [x] Header shows: green dot + "{N} patients" + "Last updated: {relative_time}"
+- [x] Pull from `pathway_refresh_log` via `queries.load_initial_data()` (uses total_patients from root node as fallback when source_row_count is 0)
+- [x] Format as relative time (e.g., "2h ago", "yesterday")
 - **Checkpoint**: Header shows correct data freshness
 
 ### 5.4 Remove Reflex + final validation
