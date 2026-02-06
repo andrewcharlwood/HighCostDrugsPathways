@@ -2,7 +2,14 @@
 from dash import html, dcc
 
 
+# Patient Pathways view: only Icicle + Sankey
 TAB_DEFINITIONS = [
+    ("icicle", "Icicle"),
+    ("sankey", "Sankey"),
+]
+
+# Full set retained for Trust Comparison dashboard (Phase 10.8)
+ALL_TAB_DEFINITIONS = [
     ("icicle", "Icicle"),
     ("market-share", "Market Share"),
     ("cost-effectiveness", "Cost Effectiveness"),
@@ -18,7 +25,7 @@ def make_chart_card():
     """Return a chart card with tab bar and dcc.Graph.
 
     Contains:
-    - Tab bar with 8 chart tabs (Icicle active by default)
+    - Tab bar with 2 chart tabs (Icicle active by default, Sankey)
     - Header with title and dynamic subtitle
     - dcc.Loading wrapper around dcc.Graph for loading spinner
     """

@@ -503,10 +503,10 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Global sub-header renders below main header, date/chart-type controls work, visible in both views ✓
 
 ### 10.5 Patient Pathways view — reduce to Icicle + Sankey
-- [ ] Create a Patient Pathways view component (or update chart_card.py) with only 2 tabs: Icicle, Sankey
-- [ ] Remove Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness from this view's tab bar
-- [ ] Existing filter → chart-data → chart callback pipeline stays for these 2 tabs
-- [ ] This view is shown when `active_view == "patient-pathways"`
+- [x] Create a Patient Pathways view component (or update chart_card.py) with only 2 tabs: Icicle, Sankey
+- [x] Remove Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness from this view's tab bar
+- [x] Existing filter → chart-data → chart callback pipeline stays for these 2 tabs
+- [x] This view is shown when `active_view == "patient-pathways"`
 - **Checkpoint**: Patient Pathways shows only Icicle + Sankey tabs, both still work with all existing filters
 
 ### 10.6 Trust Comparison query functions

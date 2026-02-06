@@ -1,4 +1,10 @@
-"""Callbacks for tab switching, pathway data loading, and chart rendering."""
+"""Callbacks for tab switching, pathway data loading, and chart rendering.
+
+NOTE: The _render_* helper functions for all 8 chart types are preserved here.
+Patient Pathways view uses only icicle + sankey tabs. The remaining 6 chart
+renderers (_render_market_share, _render_cost_waterfall, etc.) will be reused
+by the Trust Comparison dashboard in Task 10.8.
+"""
 import logging
 
 from dash import Input, Output, State, ctx, no_update
@@ -8,7 +14,7 @@ from dash_app.components.chart_card import TAB_DEFINITIONS
 
 log = logging.getLogger(__name__)
 
-# Tab IDs for callback inputs
+# Tab IDs for callback inputs — matches Patient Pathways tab bar (2 tabs)
 _TAB_IDS = [f"tab-{tab_id}" for tab_id, _ in TAB_DEFINITIONS]
 
 
