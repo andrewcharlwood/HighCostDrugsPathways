@@ -402,14 +402,14 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Cost Waterfall tab renders real data, responds to filters ✓
 
 ### 9.6 Drug Switching Sankey chart (Tab 5)
-- [ ] Create `dash_app/callbacks/sankey.py`:
+- [x] Create `dash_app/callbacks/sankey.py`:
   - Build Plotly Sankey diagram from `get_drug_transitions()` data
   - Left nodes = 1st-line drugs, middle = 2nd-line, right = 3rd-line
   - Link width = patient count, colour by drug or directorate
   - Uses `parse_pathway_drugs()` to extract drug transitions from `ids` column
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
-- **Checkpoint**: Sankey tab renders real drug transition flows
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
+- **Checkpoint**: Sankey tab renders real drug transition flows ✓
 
 ### 9.7 Dosing Interval Comparison chart (Tab 6)
 - [ ] Create `dash_app/callbacks/dosing.py`:

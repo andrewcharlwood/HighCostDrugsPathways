@@ -158,6 +158,31 @@ def _render_cost_waterfall(app_state, title):
     return create_cost_waterfall_figure(data, title)
 
 
+def _render_sankey(app_state, title):
+    """Build the Sankey diagram from current filter state."""
+    from dash_app.data.queries import get_drug_transitions
+    from visualization.plotly_generator import create_sankey_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_dirs = (app_state or {}).get("selected_directorates") or []
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    directory = selected_dirs[0] if len(selected_dirs) == 1 else None
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_drug_transitions(filter_id, chart_type, directory, trust)
+    except Exception:
+        log.exception("Failed to load drug transition data")
+        return _empty_figure("Failed to load drug transition data.")
+
+    if not data.get("nodes") or not data.get("links"):
+        return _empty_figure("No drug switching data available.\nTry adjusting your filters.")
+
+    return create_sankey_figure(data, title)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -279,6 +304,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "cost-waterfall":
             fig = _render_cost_waterfall(app_state, title)
+
+        elif active_tab == "sankey":
+            fig = _render_sankey(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented
