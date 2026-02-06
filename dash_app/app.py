@@ -27,6 +27,7 @@ app.layout = dmc.MantineProvider(
         }),
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),
+        dcc.Location(id="url", refresh=False),
 
         # Page structure
         make_header(),
@@ -42,5 +43,9 @@ app.layout = dmc.MantineProvider(
         ),
     ],
 )
+
+from dash_app.callbacks import register_callbacks
+
+register_callbacks(app)
 
 server = app.server

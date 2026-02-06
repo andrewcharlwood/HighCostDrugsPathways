@@ -163,12 +163,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Phase 3: Core Callbacks
 
 ### 3.1 Reference data loading + filter state management
-- [ ] Create `dash_app/callbacks/filters.py`:
+- [x] Create `dash_app/callbacks/filters.py`:
   - `load_reference_data` callback: fires on page load, calls `queries.load_initial_data()`, populates `reference-data` store + header indicators
   - `update_app_state` callback: fires when chart-type toggle or date dropdowns change, computes `date_filter_id` (e.g., `"all_6mo"`), updates `app-state` store
   - Chart type toggle: use `callback_context` to determine which button was clicked, set active class via `className`
-- [ ] Create `dash_app/callbacks/__init__.py` with `register_callbacks(app)` that imports and registers all callback modules
-- [ ] Wire `register_callbacks(app)` in `app.py`
+- [x] Create `dash_app/callbacks/__init__.py` with `register_callbacks(app)` that imports and registers all callback modules
+- [x] Wire `register_callbacks(app)` in `app.py`
 - **Checkpoint**: Page loads reference data, filter dropdowns update app-state store (verify via browser dev tools → dcc.Store)
 
 ### 3.2 Pathway data loading callback
