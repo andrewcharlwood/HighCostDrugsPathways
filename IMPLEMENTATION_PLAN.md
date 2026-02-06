@@ -248,12 +248,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Header shows correct data freshness
 
 ### 5.4 Remove Reflex + final validation
-- [ ] Remove `reflex` from `pyproject.toml` dependencies
-- [ ] Delete or archive `pathways_app/` directory (move to `archive/`)
-- [ ] Delete `pathways_app/styles.py` and any Reflex-specific files
-- [ ] Update project `CLAUDE.md` to document Dash app structure, new run command, callback architecture
-- [ ] Verify: `python run_dash.py` starts cleanly, full end-to-end workflow works
-- [ ] Verify: No Reflex imports anywhere in `dash_app/`
+- [x] Remove `reflex` from `pyproject.toml` dependencies
+- [x] Delete or archive `pathways_app/` directory (move to `archive/`)
+- [x] Delete `pathways_app/styles.py` and any Reflex-specific files
+- [x] Update project `CLAUDE.md` to document Dash app structure, new run command, callback architecture
+- [x] Verify: `python run_dash.py` starts cleanly, full end-to-end workflow works
+- [x] Verify: No Reflex imports anywhere in `dash_app/`
 - **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
 
 ---
@@ -261,16 +261,16 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [ ] `python run_dash.py` starts cleanly at localhost:8050
-- [ ] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
-- [ ] Icicle chart renders with real SQLite data (pathway_nodes)
-- [ ] Date filters + chart type toggle update chart correctly
-- [ ] dmc.Drawer opens, shows directorate cards with indications/drugs
-- [ ] Selecting a drug from drawer filters the chart
-- [ ] "All Drugs" card allows selecting any drug across all contexts
-- [ ] "Clear Filters" resets all selections
-- [ ] KPIs update dynamically (patients, drugs, cost)
-- [ ] No Reflex imports in `dash_app/`
+- [x] `python run_dash.py` starts cleanly at localhost:8050
+- [x] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
+- [x] Icicle chart renders with real SQLite data (pathway_nodes)
+- [x] Date filters + chart type toggle update chart correctly
+- [x] dmc.Drawer opens, shows directorate cards with indications/drugs
+- [x] Selecting a drug from drawer filters the chart
+- [x] "All Drugs" card allows selecting any drug across all contexts
+- [x] "Clear Filters" resets all selections
+- [x] KPIs update dynamically (patients, drugs, cost)
+- [x] No Reflex imports in `dash_app/`
 
 ---
 

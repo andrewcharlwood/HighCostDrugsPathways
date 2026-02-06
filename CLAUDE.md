@@ -11,7 +11,7 @@ NHS High-Cost Drug Patient Pathway Analysis Tool - a web-based application that 
 - **Pre-computed pathway architecture**: Treatment pathways pre-processed and stored in SQLite for instant filtering
 - **GP diagnosis matching**: Patient indications matched from GP records using SNOMED cluster codes queried directly from Snowflake (~93% match rate)
 - Data pipeline: Snowflake → pre-computed SQLite pathway nodes (CSV/Parquet file loading retained for legacy compatibility)
-- Interactive browser-based UI using Reflex framework
+- Interactive browser-based UI using Dash (Plotly) + Dash Mantine Components
 - 6 pre-defined date filter combinations × 2 chart types = 12 pre-computed datasets with sub-50ms response times
 
 ## Running the Application
@@ -29,11 +29,11 @@ python -m data_processing.migrate
 # Refresh pathway data from Snowflake (requires SSO auth)
 python -m cli.refresh_pathways
 
-# Run the Reflex web application
-reflex run
+# Run the Dash web application
+python run_dash.py
 ```
 
-The application requires Python 3.10+ and runs on http://localhost:3000 by default.
+The application requires Python 3.10+ and runs on http://localhost:8050 by default.
 
 ### CLI Commands
 
@@ -68,7 +68,7 @@ The refresh command:
 2. Applies UPID, drug name, and directory transformations (~6 minutes)
 3. For indication charts: queries GP records via SNOMED clusters (~9 minutes for 37K patients)
 4. Processes 6 date filter combinations × selected chart types
-5. Inserts pathway nodes to SQLite for fast Reflex filtering
+5. Inserts pathway nodes to SQLite for fast Dash filtering
 
 ## Architecture
 
@@ -103,20 +103,41 @@ The refresh command:
 │   │   └── statistics.py       # Statistical calculation functions
 │   │
 │   ├── visualization/           # Chart generation
-│   │   └── plotly_generator.py # create_icicle_figure, save_figure_html
+│   │   └── plotly_generator.py # create_icicle_figure, create_icicle_from_nodes
 │   │
 │   └── cli/                     # CLI tools
 │       └── refresh_pathways.py # Data refresh command
 │
-├── pathways_app/                # Reflex web app (stays at root — framework requirement)
-│   ├── pathways_app.py         # AppState + page components
-│   └── components/             # Layout and navigation components
+├── dash_app/                    # Dash web application
+│   ├── app.py                  # Dash app, layout root, dcc.Store, register_callbacks
+│   ├── assets/
+│   │   └── nhs.css             # NHS design system CSS (from 01_nhs_classic.html)
+│   ├── data/
+│   │   ├── queries.py          # Thin wrapper calling src/data_processing/pathway_queries.py
+│   │   └── card_browser.py     # DimSearchTerm.csv → directorate tree for drawer
+│   ├── components/
+│   │   ├── header.py           # Top header bar with data freshness indicator
+│   │   ├── sidebar.py          # Left navigation with drawer triggers
+│   │   ├── kpi_row.py          # 4 KPI cards (patients, drugs, cost, match rate)
+│   │   ├── filter_bar.py       # Chart type toggle pills + date filter dropdowns
+│   │   ├── chart_card.py       # Chart area with tabs + dcc.Graph + loading spinner
+│   │   ├── drawer.py           # dmc.Drawer with drug/trust chips + directorate cards
+│   │   └── footer.py           # Page footer
+│   ├── callbacks/
+│   │   ├── __init__.py         # register_callbacks(app)
+│   │   ├── filters.py          # Reference data loading + filter state management
+│   │   ├── chart.py            # Pathway data loading + icicle chart rendering
+│   │   ├── drawer.py           # Drawer open/close + drug/trust selection
+│   │   └── kpi.py              # KPI card value updates
+│   └── utils/
+│       └── __init__.py
 │
+├── run_dash.py                  # Entry point: python run_dash.py
 ├── tests/                       # Test suite (113 tests)
 ├── data/                        # Reference data + SQLite DB
 ├── docs/                        # Documentation
 ├── assets/                      # Static assets (logo, favicon)
-├── archive/                     # Historical/deprecated
+├── archive/                     # Historical/deprecated (includes old Reflex app)
 └── logs/                        # Runtime logs
 ```
 
@@ -127,11 +148,11 @@ All imports use package names directly: `from core import ...`, `from data_proce
 
 The application uses a pre-computed pathway architecture for performance:
 
-**Architecture:** `Snowflake → Pathway Processing → SQLite (pre-computed) → Reflex (filter & view)`
+**Architecture:** `Snowflake → Pathway Processing → SQLite (pre-computed) → Dash (filter & view)`
 
 **Key Benefits:**
 - **Performance**: Pathway calculation done once during data refresh, not on every filter change
-- **Simplicity**: Reflex filters pre-computed data with simple SQL WHERE clauses
+- **Simplicity**: Dash callbacks filter pre-computed data with simple SQL WHERE clauses
 - **Full Pathways**: Sequential treatment pathways (drug_0 → drug_1 → drug_2...) with statistics
 
 **Chart Types:**
@@ -203,7 +224,7 @@ Each node in `pathway_nodes` contains:
   - `process_all_date_filters()` - Convenience function to process all 6 filters
 
 **Data Loaders:**
-- `FileDataLoader` - Loads from CSV/Parquet files (used by legacy pipeline, not by Reflex app)
+- `FileDataLoader` - Loads from CSV/Parquet files (used by legacy pipeline, not by Dash app)
 - Factory function `get_loader()` creates a `FileDataLoader`
 
 **Snowflake Integration:**
@@ -233,25 +254,51 @@ Refactored from the original 267-line `generate_graph()` function:
 
 ### Visualization Module (`visualization/`)
 
-- **create_icicle_figure()** - Generate Plotly icicle chart figure
+- **create_icicle_figure(ice_df)** - Generate Plotly icicle chart from DataFrame (legacy/pipeline use)
+- **create_icicle_from_nodes(nodes, title)** - Generate icicle chart from list-of-dicts (Dash use). Accepts JSON-serializable node dicts from `dcc.Store`. Uses NHS blue gradient colorscale, 10-field customdata, Source Sans 3 font.
 - **save_figure_html()** - Save interactive HTML file
 - **open_figure_in_browser()** - Open chart in default browser
 
-### Reflex Application (`pathways_app/`)
+### Shared Data Queries (`data_processing/pathway_queries.py`)
 
-The `AppState` class manages all application state:
-- **Chart type**: `selected_chart_type` ("directory" or "indication"), toggled via `set_chart_type()`
-- **Computed vars**: `chart_hierarchy_label` (dynamic "Trust → Directorate → ..." or "Trust → Indication → ..."), `chart_type_label`
-- Filter variables: dates, drugs, trusts, directories
-- Reference data: available options loaded from pathway_nodes and CSV files
-- Analysis state: running flag, status messages, chart data
-- `load_data()` sources available drugs/directorates from `pathway_nodes` and `total_records` from `pathway_refresh_log.source_row_count`
+Shared query functions used by both the Dash app and potentially other consumers:
+- **load_initial_data(db_path)** - Returns available drugs (42), directorates (14), indications (32), trusts (7), total_patients, last_updated
+- **load_pathway_nodes(db_path, filter_id, chart_type, selected_drugs, selected_directorates, selected_trusts)** - Returns pathway nodes, unique_patients, total_drugs, total_cost, last_updated. Parameterized SQL with optional drug/directorate/trust filters.
 
-**Chart Type Toggle** (`chart_type_toggle()` component):
-- Segmented control with "By Directory" and "By Indication" pill buttons
-- Placed first in the filter strip before date filters
-- Switching reloads pathway data from SQLite filtered by `chart_type`
-- Note: Directory filter only applies to directory charts (indication charts store Search_Terms in the directory column)
+### Dash Application (`dash_app/`)
+
+**State Management** via 3 `dcc.Store` components:
+- **app-state** (session): `chart_type`, `initiated`, `last_seen`, `date_filter_id`, `selected_drugs`, `selected_directorates`, `selected_trusts`
+- **chart-data** (memory): `nodes[]`, `unique_patients`, `total_drugs`, `total_cost`, `last_updated`
+- **reference-data** (session): `available_drugs`, `available_directorates`, `available_indications`, `available_trusts`, `total_patients`, `last_updated`
+
+**Callback Chain** (unidirectional):
+```
+Page Load → load_reference_data → reference-data store + header indicators
+         → update_app_state → app-state store (default filters)
+                             → load_pathway_data → chart-data store
+                                                  ├→ update_kpis → KPI cards
+                                                  └→ update_chart → dcc.Graph
+
+Filter change → update_app_state → app-state → load_pathway_data → (chain above)
+Drawer selection → all-drugs-chips/trust-chips → update_app_state → (chain above)
+```
+
+**Key Components:**
+- **Header** (`header.py`): NHS branding, data freshness indicator (patient count + relative time)
+- **Sidebar** (`sidebar.py`): Navigation items with drawer trigger IDs for Drug Selection, Trust Selection, Indications
+- **Filter Bar** (`filter_bar.py`): Chart type toggle pills (By Directory / By Indication) + date filter dropdowns
+- **KPI Row** (`kpi_row.py`): 4 cards — Unique Patients, Drug Types, Total Cost, Indication Match Rate (~93%)
+- **Chart Card** (`chart_card.py`): Icicle chart with `dcc.Loading` spinner, dynamic subtitle, tab row
+- **Drawer** (`drawer.py`): `dmc.Drawer` with drug chips (`dmc.ChipGroup`), trust chips, directorate accordion with indication sub-items and drug fragment badges
+- **Footer** (`footer.py`): NHS Norfolk and Waveney ICB branding
+
+**Drawer Drug Browser:**
+- "All Drugs" section: flat `dmc.ChipGroup` with 42 drugs from pathway_nodes level 3
+- "Trusts" section: `dmc.ChipGroup` with 7 trusts
+- "By Directorate" section: nested `dmc.Accordion` — 19 directorates → indications → drug fragment `dmc.Badge` items
+- Clicking a drug fragment badge selects all full drug names containing that fragment (substring match)
+- "Clear All Filters" button resets drug and trust selections
 
 ### Data Transformations (`data_processing/transforms.py`)
 
@@ -317,38 +364,33 @@ Core data transformation functions used by the pipeline:
     └──────────────────────────────────────────┘
 
 
-[Reflex App: reflex run]
+[Dash App: python run_dash.py]
 
     ┌──────────────────────────────────────────┐
-    │ Chart Type Toggle (segmented control)    │
-    │   → "By Directory" | "By Indication"     │
-    │   → Triggers set_chart_type() handler    │
+    │ Filter Bar + Drawer (toggle pills,       │
+    │   date dropdowns, drug/trust chips)      │
+    │   → Triggers update_app_state callback   │
     └──────────────────────────────────────────┘
            │
            ▼
     ┌──────────────────────────────────────────┐
-    │ AppState.load_pathway_data()             │
-    │   → Query pathway_nodes WHERE            │
-    │     date_filter AND chart_type            │
-    │   → Apply drug/directory filters         │
-    │   → recalculate_parent_totals()          │
+    │ load_pathway_data callback               │
+    │   → Input: app-state dcc.Store           │
+    │   → Calls pathway_queries.load_pathway_  │
+    │     nodes() with filters                 │
+    │   → Output: chart-data dcc.Store         │
     └──────────────────────────────────────────┘
            │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ AppState.icicle_figure                   │
-    │   → Plotly icicle chart                  │
-    │   → 10-field customdata structure        │
-    │   → Full hover/text templates            │
-    └──────────────────────────────────────────┘
-           │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ Reflex UI (rx.plotly component)          │
-    │   → <50ms filter response time           │
-    │   → Treatment statistics in tooltips     │
-    │   → Dynamic hierarchy label updates      │
-    └──────────────────────────────────────────┘
+           ├──────────────────────────────┐
+           ▼                              ▼
+    ┌────────────────────┐  ┌──────────────────────┐
+    │ update_kpis        │  │ update_chart         │
+    │   → 4 KPI cards    │  │   → create_icicle_   │
+    │   → formatted      │  │     from_nodes()     │
+    │     counts/costs   │  │   → 10-field custom- │
+    └────────────────────┘  │     data + NHS blue  │
+                            │   → dcc.Graph figure │
+                            └──────────────────────┘
 ```
 
 ### Reference Data Files (`data/`)
@@ -386,7 +428,7 @@ The `department_identification()` function has 5 levels of fallback:
 3. Build `indication_df` mapping UPID → Search_Term (matched) or Directorate + " (no GP dx)" (unmatched)
 4. Pass to `generate_icicle_chart_indication()` for pathway hierarchy building
 
-**Data Source Fallback Chain** (for raw data loading, not used by Reflex app):
+**Data Source Fallback Chain** (for raw data loading, not used by Dash app):
 1. Query cache for recent results
 2. Attempt Snowflake connection
 3. Fall back to CSV/Parquet files
@@ -491,26 +533,19 @@ The pre-computed pathway architecture introduces these changes:
 - **Impact**: Data is as fresh as the last `python -m cli.refresh_pathways` run
 - **Benefit**: Sub-50ms filter response time vs multi-minute calculations
 
-### State Variables
-- **Removed**: `start_date`, `end_date`, `set_start_date()`, `set_end_date()`
-- **Added**: `selected_initiated`, `selected_last_seen`, `date_filter_id`
-- **Added**: `selected_chart_type` ("directory" or "indication"), `chart_type_options`
-- **Added**: `set_chart_type()` - switches chart type and reloads data
-- **Added**: `chart_hierarchy_label`, `chart_type_label` - computed vars for dynamic UI text
-- **Added**: `load_pathway_data()` - queries pre-computed `pathway_nodes` filtered by `date_filter_id` AND `chart_type`
-- **Added**: `recalculate_parent_totals()` - adjusts hierarchy after filtering
-
-### Chart Type Toggle
-- **New**: Segmented control ("By Directory" | "By Indication") in filter strip
-- **Added**: `selected_chart_type` state variable, `set_chart_type()` handler
-- **Added**: Dynamic hierarchy label ("Trust → Directorate → ..." or "Trust → Indication → ...")
-- **Note**: Directory filter only applies to directory charts; for indication charts the `directory` column stores Search_Terms
+### State Management (Dash)
+- State lives in 3 `dcc.Store` components: `app-state`, `chart-data`, `reference-data`
+- Filter state: `chart_type`, `initiated`, `last_seen`, `date_filter_id`, `selected_drugs`, `selected_directorates`, `selected_trusts`
+- Chart type toggle: "By Directory" / "By Indication" pills in filter bar
+- Dynamic subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway"
+- Drug/trust selection via `dmc.ChipGroup` in right-side drawer
 
 ### Icicle Chart
-- **Enhanced**: Now includes full 10-field customdata structure
-- **Added**: Treatment statistics (average_spacing, cost_pp_pa) in hover tooltips
-- **Added**: First/last seen dates for drug nodes
-- **Added**: Indication chart uses `generate_icicle_chart_indication()` with Search_Term hierarchy
+- Full 10-field customdata structure (value, colour, cost, costpp, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, cost_pp_pa)
+- NHS blue gradient colorscale: Heritage Blue #003087 → Pale Blue #E3F2FD
+- Treatment statistics (average_spacing, cost_pp_pa) in hover tooltips
+- First/last seen dates for drug nodes
+- `create_icicle_from_nodes()` in `src/visualization/plotly_generator.py` — shared function accepting list-of-dicts
 
 ## Development
 
