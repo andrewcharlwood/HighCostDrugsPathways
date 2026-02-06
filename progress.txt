@@ -330,7 +330,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - `dash_app/components/footer.py` — NEW: footer component
 - `dash_app/app.py` — Updated: import + added footer to main area
 - `IMPLEMENTATION_PLAN.md` — Task 2.3 marked [x]
-### Committed: [pending]
+### Committed: 3568e03 "feat: add footer component and complete Phase 2 static layout (Task 2.3)"
 ### Patterns discovered:
 - Phase 2 was incrementally built across iterations 4-6. The layout assembly (app.py) evolved naturally — each iteration added its components. No "big bang" assembly step was needed.
 ### Next iteration should:
