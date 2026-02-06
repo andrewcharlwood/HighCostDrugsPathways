@@ -66,6 +66,48 @@ body {
     display: inline-block; margin-right: 4px;
 }
 
+/* ── Header KPIs ── */
+.top-header__kpis {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+.header-kpi {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-weight: 400;
+    white-space: nowrap;
+}
+.header-kpi__num {
+    color: var(--nhs-white);
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.header-kpi__sep {
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 300;
+    font-size: 14px;
+    margin: 0 1px;
+}
+.header-kpi__den {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+.header-kpi__label {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 4px;
+}
+
 /* ── Sidebar ── */
 .sidebar {
     position: fixed; top: 56px; left: 0; bottom: 0;

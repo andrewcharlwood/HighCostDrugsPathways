@@ -481,17 +481,17 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Sidebar switches between two views, active state highlights correctly, app starts without errors ✓
 
 ### 10.3 Header redesign — remove KPI row, add fraction KPIs
-- [ ] Remove `dash_app/components/kpi_row.py` (or gut it)
-- [ ] Remove KPI row from `app.py` layout
-- [ ] Update `dash_app/components/header.py`:
+- [x] Remove `dash_app/components/kpi_row.py` (or gut it)
+- [x] Remove KPI row from `app.py` layout
+- [x] Update `dash_app/components/header.py`:
   - Add fraction KPI display: "X / X patients", "X / X drugs", "£X / £X cost"
   - Numerator = filtered values (from chart-data store), denominator = global totals (from reference-data store)
   - Position: right side of header, alongside existing data freshness indicator
   - Remove indication match rate KPI entirely
-- [ ] Update header callbacks to receive both filtered and total values
-- [ ] Update CSS in `dash_app/assets/nhs.css` for new header layout
-- [ ] Apply design from 10.1
-- **Checkpoint**: Header shows fraction KPIs, KPI row is gone, header looks clean with design from 10.1
+- [x] Update header callbacks to receive both filtered and total values
+- [x] Update CSS in `dash_app/assets/nhs.css` for new header layout
+- [x] Apply design from 10.1
+- **Checkpoint**: Header shows fraction KPIs, KPI row is gone, header looks clean with design from 10.1 ✓
 
 ### 10.4 Global filter sub-header bar
 - [ ] Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component (or restyle existing filter_bar)

@@ -24,6 +24,8 @@ def load_initial_data(db_path: Path) -> dict:
         available_directorates: sorted list of unique directorate labels (level 2, directory charts)
         available_indications: sorted list of unique indications from ref_drug_indication_clusters
         total_records: source row count from latest completed refresh
+        total_patients: patient count from default root node
+        total_cost: total cost from default root node
         last_updated: ISO timestamp of latest completed refresh
     """
     if not db_path.exists():
@@ -92,16 +94,18 @@ def load_initial_data(db_path: Path) -> dict:
         """)
         available_trusts = [row[0] for row in cursor.fetchall()]
 
-        # Total patients from default root node (fallback when source_row_count is empty)
+        # Total patients and cost from default root node
         total_patients = 0
-        if not total_records:
-            cursor.execute("""
-                SELECT value FROM pathway_nodes
-                WHERE level = 0 AND date_filter_id = 'all_6mo' AND chart_type = 'directory'
-                LIMIT 1
-            """)
-            root_row = cursor.fetchone()
-            total_patients = (root_row[0] or 0) if root_row else 0
+        total_cost = 0.0
+        cursor.execute("""
+            SELECT value, cost FROM pathway_nodes
+            WHERE level = 0 AND date_filter_id = 'all_6mo' AND chart_type = 'directory'
+            LIMIT 1
+        """)
+        root_row = cursor.fetchone()
+        if root_row:
+            total_patients = root_row[0] or 0
+            total_cost = root_row[1] or 0.0
 
         return {
             "available_drugs": available_drugs,
@@ -110,6 +114,7 @@ def load_initial_data(db_path: Path) -> dict:
             "available_trusts": available_trusts,
             "total_records": total_records,
             "total_patients": total_patients,
+            "total_cost": total_cost,
             "last_updated": last_updated,
         }
     except sqlite3.Error as e:
