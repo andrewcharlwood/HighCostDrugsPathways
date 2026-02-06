@@ -1680,3 +1680,61 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Data returns: `{directories: [...], drugs: [...], matrix: {dir: {drug: {patients, cost, cost_pp_pa}}}}`
 ### Blocked items:
 - None
+
+## Iteration 30 — 2026-02-06
+### Task: Phase 9 — Task 9.8 (Directorate × Drug Heatmap chart — Tab 7)
+### Why this task:
+- Tasks 9.1–9.7 complete. Task 9.8 is next in sequence.
+- Progress.txt from iteration 29 explicitly recommended this task.
+- Uses existing `get_drug_directory_matrix()` query which returns pre-aggregated matrix data.
+### Status: COMPLETE
+### What was done:
+- **Created `create_heatmap_figure(data, title, metric)` in `src/visualization/plotly_generator.py`** (~120 lines):
+  - Accepts matrix data from `get_drug_directory_matrix()` with `directories`, `drugs`, `matrix` keys
+  - `metric` parameter supports "patients" (default), "cost", and "cost_pp_pa" for switching cell colouring
+  - Caps at top 25 drugs for readability (drugs sorted by patient count desc from query)
+  - NHS blue colorscale: pale grey (#F0F4F8) → deep NHS blue (#003087)
+  - Rich hover text: drug name, directorate, patients, total cost, cost per patient p.a.
+  - Dynamic sizing: width/height scales with matrix dimensions
+  - Gap between cells (xgap=2, ygap=2) for visual clarity
+  - Directorate y-axis reversed (most patients at top)
+  - Drug x-axis at 45° angle for readability
+- **Added `_render_heatmap(app_state, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params (date_filter_id, chart_type, single trust)
+  - Calls `get_drug_directory_matrix()` wrapper then `create_heatmap_figure()`
+  - Handles empty data and exceptions gracefully
+- **Wired into `update_chart` dispatch**: `active_tab == "heatmap"` → `_render_heatmap()`
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory chart: 12 rows × 25 cols — renders correctly
+  - Indication chart: 39 rows × 25 cols — renders correctly
+  - NNUH trust filter: 10 rows × 25 cols — filters correctly
+  - Date filter (2yr_12mo): 12 rows × 25 cols — filters correctly
+  - All three metrics (patients, cost, cost_pp_pa) — titles/colorbar correct
+  - Empty data: returns empty figure — handled correctly
+  - Icicle still works: 293 nodes, 11,118 patients — no regression
+  - Market share, cost waterfall, Sankey, dosing — no regressions
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: `create_heatmap_figure()` (~120 lines)
+- `dash_app/callbacks/chart.py` — Added: `_render_heatmap()` helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.8 marked [x]
+### Committed: 0af76e6 "feat: add Directorate × Drug Heatmap chart (Task 9.8)"
+### Patterns discovered:
+- Capping at 25 columns is important for readability — the query returns up to 39 drugs but many have minimal presence. The top 25 by patient count covers all meaningful data.
+- `go.Heatmap` with `xgap`/`ygap` of 2 pixels creates clear cell separation that makes the matrix much more readable.
+- NHS blue colorscale starting from near-white (#F0F4F8) for zero values prevents the heatmap from looking washed out, while the dark NHS blue (#003087) for high values provides strong contrast.
+- `yaxis autorange="reversed"` ensures the most popular directorate is at the top (matching the query's desc sort order).
+### Next iteration should:
+- Start Task 9.9 — Treatment Duration chart (Tab 8)
+- Sub-steps:
+  1. Create figure function in `src/visualization/plotly_generator.py` — `create_duration_figure(data, title)`
+  2. Build Plotly horizontal bar chart from `get_treatment_durations()` data
+  3. Y-axis = drug, X-axis = average days, colour intensity by patient count
+  4. Wire into `update_chart` via `_render_duration()` helper
+  5. Responds to directorate filter, trust filter, date filter, chart type toggle
+- Read `get_treatment_durations()` in pathway_queries.py for exact data shape
+- Data returns: list of dicts with `drug`, `directory`, `trust_name`, `avg_days`, `patients`, `cost_pp_pa`
+### Blocked items:
+- None
