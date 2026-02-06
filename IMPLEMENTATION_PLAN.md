@@ -186,12 +186,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: KPIs update when date filters change
 
 ### 3.4 Icicle chart rendering callback
-- [ ] Add a `create_icicle_from_nodes(nodes: list[dict], title: str) -> go.Figure` function to `src/visualization/plotly_generator.py`:
+- [x] Add a `create_icicle_from_nodes(nodes: list[dict], title: str) -> go.Figure` function to `src/visualization/plotly_generator.py`:
   - Accepts list-of-dicts (the format stored in `chart-data` dcc.Store / returned by `load_pathway_data`)
   - Same 10-field customdata, colorscale, texttemplate, hovertemplate as the existing Reflex `icicle_figure` (pathways_app.py lines 769-920)
   - The existing `create_icicle_figure(ice_df)` stays untouched — the new function is an additional entry point for dict-based data
   - Use the NHS blue gradient colorscale from the Reflex version: `[[0.0, "#003087"], [0.25, "#0066CC"], ...]`
-- [ ] Add to `dash_app/callbacks/chart.py`:
+- [x] Add to `dash_app/callbacks/chart.py`:
   - `update_chart` callback: Input=`chart-data` store, Output=`pathway-chart` figure
   - Calls `create_icicle_from_nodes(chart_data["nodes"], title)` from the shared visualization module
   - Dynamic title based on chart type and filters

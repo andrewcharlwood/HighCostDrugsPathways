@@ -1,9 +1,42 @@
-"""Callback for loading pathway data from SQLite into chart-data store."""
-from dash import Input, Output, callback, no_update
+"""Callbacks for pathway data loading and icicle chart rendering."""
+from dash import Input, Output, no_update
+
+
+def _generate_chart_title(app_state):
+    """Generate chart title from current filter state."""
+    parts = []
+
+    chart_type = app_state.get("chart_type", "directory")
+    parts.append("By Indication" if chart_type == "indication" else "By Directory")
+
+    initiated = app_state.get("initiated", "all")
+    initiated_labels = {"all": "All years", "1yr": "Last 1 year", "2yr": "Last 2 years"}
+    last_seen = app_state.get("last_seen", "6mo")
+    last_seen_labels = {"6mo": "Last 6 months", "12mo": "Last 12 months"}
+    parts.append(
+        f"{initiated_labels.get(initiated, 'All years')} / "
+        f"{last_seen_labels.get(last_seen, 'Last 6 months')}"
+    )
+
+    selected_drugs = app_state.get("selected_drugs") or []
+    if selected_drugs:
+        if len(selected_drugs) <= 3:
+            parts.append(", ".join(selected_drugs))
+        else:
+            parts.append(f"{len(selected_drugs)} drugs selected")
+
+    selected_directorates = app_state.get("selected_directorates") or []
+    if selected_directorates:
+        if len(selected_directorates) <= 2:
+            parts.append(", ".join(selected_directorates))
+        else:
+            parts.append(f"{len(selected_directorates)} directorates")
+
+    return " | ".join(parts) if parts else "All Patients"
 
 
 def register_chart_callbacks(app):
-    """Register pathway data loading callback."""
+    """Register pathway data loading and chart rendering callbacks."""
 
     @app.callback(
         Output("chart-data", "data"),
@@ -27,3 +60,27 @@ def register_chart_callbacks(app):
             selected_drugs=selected_drugs,
             selected_directorates=selected_directorates,
         )
+
+    @app.callback(
+        Output("pathway-chart", "figure"),
+        Output("chart-subtitle", "children"),
+        Input("chart-data", "data"),
+        Input("app-state", "data"),
+    )
+    def update_chart(chart_data, app_state):
+        """Render icicle chart from chart-data nodes."""
+        if not chart_data or not chart_data.get("nodes"):
+            return no_update, no_update
+
+        from visualization.plotly_generator import create_icicle_from_nodes
+
+        title = _generate_chart_title(app_state) if app_state else ""
+        fig = create_icicle_from_nodes(chart_data["nodes"], title)
+
+        chart_type = (app_state or {}).get("chart_type", "directory")
+        if chart_type == "indication":
+            subtitle = "Trust \u2192 Indication \u2192 Drug \u2192 Patient Pathway"
+        else:
+            subtitle = "Trust \u2192 Directorate \u2192 Drug \u2192 Patient Pathway"
+
+        return fig, subtitle
