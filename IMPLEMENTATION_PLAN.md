@@ -494,13 +494,13 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Header shows fraction KPIs, KPI row is gone, header looks clean with design from 10.1 ✓
 
 ### 10.4 Global filter sub-header bar
-- [ ] Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component (or restyle existing filter_bar)
-- [ ] Style as a prominent bar directly below the main header — visually distinct per design from 10.1
-- [ ] Remove drug/trust/directorate filter buttons from this bar (they move to Patient Pathways view only — see 10.7)
-- [ ] Ensure sub-header is constant across both views (Patient Pathways and Trust Comparison)
-- [ ] Date filter and chart type toggle changes update `app-state` globally (triggering updates in whichever view is active)
-- [ ] Update CSS per design from 10.1
-- **Checkpoint**: Global sub-header renders below main header, date/chart-type controls work, visible in both views
+- [x] Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component (or restyle existing filter_bar)
+- [x] Style as a prominent bar directly below the main header — visually distinct per design from 10.1
+- [x] Remove drug/trust/directorate filter buttons from this bar (they move to Patient Pathways view only — see 10.7)
+- [x] Ensure sub-header is constant across both views (Patient Pathways and Trust Comparison)
+- [x] Date filter and chart type toggle changes update `app-state` globally (triggering updates in whichever view is active)
+- [x] Update CSS per design from 10.1
+- **Checkpoint**: Global sub-header renders below main header, date/chart-type controls work, visible in both views ✓
 
 ### 10.5 Patient Pathways view — reduce to Icicle + Sankey
 - [ ] Create a Patient Pathways view component (or update chart_card.py) with only 2 tabs: Icicle, Sankey

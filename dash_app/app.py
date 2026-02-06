@@ -3,6 +3,7 @@ from dash import Dash, html, dcc
 import dash_mantine_components as dmc
 
 from dash_app.components.header import make_header
+from dash_app.components.sub_header import make_sub_header
 from dash_app.components.sidebar import make_sidebar
 from dash_app.components.filter_bar import make_filter_bar
 from dash_app.components.chart_card import make_chart_card
@@ -35,6 +36,7 @@ app.layout = dmc.MantineProvider(
 
         # Page structure
         make_header(),
+        make_sub_header(),
         make_sidebar(),
         make_modals(),
         html.Main(
