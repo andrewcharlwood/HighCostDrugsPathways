@@ -135,6 +135,29 @@ def _render_cost_effectiveness(app_state, chart_data, title):
     return create_cost_effectiveness_figure(data, retention, title)
 
 
+def _render_cost_waterfall(app_state, title):
+    """Build the cost waterfall figure from current filter state."""
+    from dash_app.data.queries import get_cost_waterfall
+    from visualization.plotly_generator import create_cost_waterfall_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_cost_waterfall(filter_id, chart_type, trust)
+    except Exception:
+        log.exception("Failed to load cost waterfall data")
+        return _empty_figure("Failed to load cost waterfall data.")
+
+    if not data:
+        return _empty_figure("No cost waterfall data available.\nTry adjusting your filters.")
+
+    return create_cost_waterfall_figure(data, title)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -253,6 +276,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "cost-effectiveness":
             fig = _render_cost_effectiveness(app_state, chart_data, title)
+
+        elif active_tab == "cost-waterfall":
+            fig = _render_cost_waterfall(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented

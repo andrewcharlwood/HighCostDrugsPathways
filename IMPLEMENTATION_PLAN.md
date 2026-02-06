@@ -393,13 +393,13 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Cost Effectiveness tab renders with lollipop dots and retention annotations ✓
 
 ### 9.5 Cost Waterfall chart (Tab 4)
-- [ ] Create `dash_app/callbacks/cost_waterfall.py`:
+- [x] Create `dash_app/callbacks/cost_waterfall.py`:
   - Build Plotly waterfall chart from `get_cost_waterfall()` data
   - Each bar = one directorate's average cost_pp_pa, sorted highest to lowest
   - NHS colours, responds to chart_type toggle, date filter, trust filter
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
-- **Checkpoint**: Cost Waterfall tab renders real data, responds to filters
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
+- **Checkpoint**: Cost Waterfall tab renders real data, responds to filters ✓
 
 ### 9.6 Drug Switching Sankey chart (Tab 5)
 - [ ] Create `dash_app/callbacks/sankey.py`:

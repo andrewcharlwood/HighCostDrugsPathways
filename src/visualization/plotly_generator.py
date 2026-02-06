@@ -559,6 +559,150 @@ def create_cost_effectiveness_figure(
     return fig
 
 
+def create_cost_waterfall_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create waterfall chart showing cost per patient by directorate/indication.
+
+    Args:
+        data: List of dicts from get_cost_waterfall() with keys:
+              directory, patients, total_cost, cost_pp.
+              Sorted by cost_pp desc.
+        title: Chart title suffix (filter description).
+
+    Returns:
+        Plotly Figure with waterfall bars and total.
+    """
+    if not data:
+        return go.Figure()
+
+    labels = [d["directory"] for d in data]
+    cost_pp_values = [d["cost_pp"] for d in data]
+    patients_list = [d["patients"] for d in data]
+    total_costs = [d["total_cost"] for d in data]
+
+    # NHS colour palette for bars
+    nhs_colours = [
+        "#005EB8", "#003087", "#41B6E6", "#0066CC", "#1E88E5",
+        "#4FC3F7", "#009639", "#ED8B00", "#768692", "#425563",
+        "#DA291C", "#7C2855",
+    ]
+
+    # Assign colours cycling through palette
+    bar_colours = [nhs_colours[i % len(nhs_colours)] for i in range(len(data))]
+
+    hover_texts = []
+    for d in data:
+        hover_texts.append(
+            f"<b>{d['directory']}</b><br>"
+            f"Cost per patient: £{d['cost_pp']:,.0f}<br>"
+            f"Patients: {d['patients']:,}<br>"
+            f"Total cost: £{d['total_cost']:,.0f}"
+        )
+
+    # Use a standard bar chart (not go.Waterfall) for cleaner control
+    # Each bar shows cost_pp for a directorate, sorted highest to lowest
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=cost_pp_values,
+            marker=dict(
+                color=bar_colours,
+                line=dict(color="#FFFFFF", width=1),
+            ),
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
+            text=[f"£{v:,.0f}" for v in cost_pp_values],
+            textposition="outside",
+            textfont=dict(size=11, color="#425563"),
+        )
+    )
+
+    # Add patient count annotations below each bar
+    for i, (label, pts) in enumerate(zip(labels, patients_list)):
+        fig.add_annotation(
+            x=label,
+            y=0,
+            text=f"n={pts:,}",
+            showarrow=False,
+            yshift=-18,
+            font=dict(size=10, color="#768692", family="Source Sans 3"),
+        )
+
+    # Grand total line
+    if cost_pp_values:
+        total_patients = sum(patients_list)
+        total_cost = sum(total_costs)
+        weighted_avg = total_cost / total_patients if total_patients else 0
+        fig.add_hline(
+            y=weighted_avg,
+            line_dash="dash",
+            line_color="#DA291C",
+            line_width=1.5,
+            annotation_text=f"Weighted avg: £{weighted_avg:,.0f}",
+            annotation_position="top right",
+            annotation_font=dict(
+                size=11, color="#DA291C", family="Source Sans 3"
+            ),
+        )
+
+    display_title = (
+        f"Cost per Patient by Directorate — {title}" if title
+        else "Cost per Patient by Directorate"
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=display_title,
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=18,
+                color="#1E293B",
+            ),
+            x=0.5,
+            xanchor="center",
+        ),
+        xaxis=dict(
+            title="",
+            tickangle=-45 if len(data) > 6 else 0,
+            tickfont=dict(size=11),
+            automargin=True,
+        ),
+        yaxis=dict(
+            title="£ per patient",
+            tickprefix="£",
+            tickformat=",",
+            gridcolor="#E2E8F0",
+            zeroline=True,
+            zerolinecolor="#CBD5E1",
+        ),
+        margin=dict(t=60, l=8, r=24, b=40),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        autosize=True,
+        showlegend=False,
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            bordercolor="#CBD5E1",
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=13,
+                color="#1E293B",
+            ),
+        ),
+        font=dict(
+            family="Source Sans 3, system-ui, sans-serif",
+        ),
+        height=max(450, 500),
+        bargap=0.25,
+    )
+
+    return fig
+
+
 def save_figure_html(
     fig: go.Figure, save_dir: str, title: str, open_browser: bool = False
 ) -> str:
