@@ -233,6 +233,34 @@ def _render_heatmap(app_state, title):
     return create_heatmap_figure(data, title, metric="patients")
 
 
+def _render_duration(app_state, title):
+    """Build the treatment duration horizontal bar chart from current filter state."""
+    from dash_app.data.queries import get_treatment_durations
+    from visualization.plotly_generator import create_duration_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_dirs = (app_state or {}).get("selected_directorates") or []
+    directory = selected_dirs[0] if len(selected_dirs) == 1 else None
+
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_treatment_durations(filter_id, chart_type, directory, trust)
+    except Exception:
+        log.exception("Failed to load treatment duration data")
+        return _empty_figure("Failed to load treatment duration data.")
+
+    if not data:
+        return _empty_figure("No treatment duration data available.\nTry adjusting your filters.")
+
+    # Show directory breakdown when no specific directory is filtered
+    show_directory = directory is None and chart_type == "indication"
+    return create_duration_figure(data, title, show_directory=show_directory)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -363,6 +391,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "heatmap":
             fig = _render_heatmap(app_state, title)
+
+        elif active_tab == "duration":
+            fig = _render_duration(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented

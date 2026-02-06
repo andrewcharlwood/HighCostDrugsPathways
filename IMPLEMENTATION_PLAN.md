@@ -431,12 +431,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Heatmap tab renders matrix with correct colour mapping ✓
 
 ### 9.9 Treatment Duration chart (Tab 8)
-- [ ] Create `dash_app/callbacks/duration.py`:
+- [x] Create `dash_app/callbacks/duration.py`:
   - Build horizontal bar chart from `get_treatment_durations()` data
   - Y-axis = drug, X-axis = average days, colour intensity by patient count
   - Directorate filter drives which drugs are shown
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
 - **Checkpoint**: Duration tab renders real data, responds to directorate filter
 
 ### 9.10 Final integration + polish
