@@ -493,3 +493,64 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - After 3.4, Phase 3 is complete — Phase 4 (Drawer) is next
 ### Blocked items:
 - None
+
+## Iteration 10 — 2026-02-06
+### Task: Phase 3 — Task 3.4 (Icicle chart rendering callback)
+### Why this task:
+- Tasks 3.1-3.3 complete. Task 3.4 is the final task in Phase 3.
+- Previous iteration (9) explicitly recommended this task.
+- This is the most critical callback — it renders the actual Plotly icicle chart from pathway data.
+### Status: COMPLETE
+### What was done:
+- Added `create_icicle_from_nodes(nodes, title)` to `src/visualization/plotly_generator.py`:
+  - Accepts list-of-dicts (the JSON format from dcc.Store / load_pathway_nodes)
+  - Same 10-field customdata structure as Reflex icicle_figure (value, colour, cost, costpp, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, cost_pp_pa)
+  - NHS blue gradient colorscale: Heritage Blue #003087 → Pale Blue #E3F2FD (5 stops)
+  - Same texttemplate and hovertemplate strings as Reflex version
+  - maxdepth=3, branchvalues="total", sort=False
+  - Layout: transparent background, reduced margins (t:40, l:8, r:8, b:24), autosize
+  - Font: Source Sans 3 (matching nhs.css) instead of Inter (Reflex used Inter)
+  - Existing `create_icicle_figure(ice_df)` left completely untouched
+- Added `update_chart` callback to `dash_app/callbacks/chart.py`:
+  - Input: chart-data store + app-state store
+  - Output: pathway-chart figure + chart-subtitle children
+  - Calls `create_icicle_from_nodes(chart_data["nodes"], title)`
+  - Dynamic subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway"
+- Added `_generate_chart_title()` helper mirroring Reflex `_generate_pathway_chart_title()`:
+  - Formats: "By Directory | All years / Last 6 months" (default)
+  - Handles drug/directorate selections in title
+### Validation results:
+- Tier 1 (Code): `from visualization.plotly_generator import create_icicle_from_nodes` — OK
+- Tier 1 (Code): `from dash_app.callbacks.chart import register_chart_callbacks` — OK
+- Tier 1 (App starts): `from dash_app.app import app` — OK, 5 callbacks registered
+- Tier 3 (Functional):
+  - Directory chart: 293 nodes → Figure with 1 icicle trace, 293 labels, 10-field customdata
+  - Indication chart: 438 nodes → Figure renders correctly
+  - Colorscale starts at (0.0, '#003087') — NHS Heritage Blue confirmed
+  - Title: "Patient Pathways — By Directory | All years / Last 6 months"
+  - All 14 expected layout IDs present
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: create_icicle_from_nodes() function (115 lines)
+- `dash_app/callbacks/chart.py` — Rewritten: added update_chart callback + _generate_chart_title helper
+- `IMPLEMENTATION_PLAN.md` — Task 3.4 items marked [x]
+### Committed: 40ce7fc "feat: add icicle chart rendering with NHS colorscale and dynamic titles (Task 3.4)"
+### Patterns discovered:
+- The Reflex version uses "Inter" font; switched to "Source Sans 3" to match the nhs.css design reference. This is the only intentional deviation from the Reflex code.
+- `\u00a3` (£) works in Plotly template strings for the pound sign — no encoding issues.
+- The `update_chart` callback uses both `chart-data` (for nodes) and `app-state` (for chart_type to determine subtitle) as Inputs. Both fire when filters change, but Dash deduplicates — the callback runs once with both updated values.
+- `_generate_chart_title()` is a module-level function (not inside `register_chart_callbacks`) so it can be tested independently.
+### Next iteration should:
+- Start Phase 4: Task 4.1 — dmc.Drawer layout
+- Create `dash_app/components/drawer.py` with `make_drawer()` function:
+  - `dmc.Drawer(id="drug-drawer", position="right", size="480px")`
+  - Top section: "All Drugs" card with flat alphabetical drug list from pathway_nodes level 3
+  - Below: one card per PrimaryDirectorate from DimSearchTerm.csv with dmc.Accordion per Search_Term
+  - Drug chips with pattern-matching IDs: `{"type": "drug-chip", "index": drug_name}`
+  - Bottom: "Clear Filters" button
+- Read `01_nhs_classic.html` for drawer styling if applicable (though drawer is mostly DMC-styled)
+- Use `build_directorate_tree()` from `dash_app/data/card_browser.py` (already built in Task 1.2)
+- Use `get_all_drugs()` from `dash_app/data/card_browser.py` for the flat drug list
+- Add drawer to the app layout in `app.py`
+- IMPORTANT: DMC version is 2.5.1 (Mantine v7 based). Check DMC 2.x API for Drawer, Accordion, Chip — prop names may differ from 0.14.x. E.g., `dmc.Drawer` may use `opened` instead of `open`, `onClose` instead of `on_close`.
+### Blocked items:
+- None
