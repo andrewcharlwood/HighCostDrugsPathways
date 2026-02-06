@@ -25,6 +25,7 @@ app.layout = dmc.MantineProvider(
             "date_filter_id": "all_6mo",
             "selected_drugs": [],
             "selected_directorates": [],
+            "selected_trusts": [],
         }),
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),

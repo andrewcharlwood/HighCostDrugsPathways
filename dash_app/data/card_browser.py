@@ -81,3 +81,15 @@ def get_all_drugs() -> list[str]:
 
     data = load_initial_data()
     return data.get("available_drugs", [])
+
+
+def get_all_trusts() -> list[str]:
+    """
+    Return a sorted flat list of all unique trust names from pathway_nodes level 1.
+
+    Delegates to load_initial_data() which already queries the database.
+    """
+    from dash_app.data.queries import load_initial_data
+
+    data = load_initial_data()
+    return data.get("available_trusts", [])

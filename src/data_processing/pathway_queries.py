@@ -31,6 +31,7 @@ def load_initial_data(db_path: Path) -> dict:
             "available_drugs": [],
             "available_directorates": [],
             "available_indications": [],
+            "available_trusts": [],
             "total_records": 0,
             "last_updated": "",
             "error": "Database not found",
@@ -82,10 +83,20 @@ def load_initial_data(db_path: Path) -> dict:
         if not available_indications:
             available_indications = ["(No indications available)"]
 
+        # Unique trusts from pathway_nodes level 1
+        cursor.execute("""
+            SELECT DISTINCT trust_name
+            FROM pathway_nodes
+            WHERE level = 1 AND trust_name IS NOT NULL AND trust_name != ''
+            ORDER BY trust_name
+        """)
+        available_trusts = [row[0] for row in cursor.fetchall()]
+
         return {
             "available_drugs": available_drugs,
             "available_directorates": available_directorates,
             "available_indications": available_indications,
+            "available_trusts": available_trusts,
             "total_records": total_records,
             "last_updated": last_updated,
         }
@@ -94,6 +105,7 @@ def load_initial_data(db_path: Path) -> dict:
             "available_drugs": [],
             "available_directorates": [],
             "available_indications": [],
+            "available_trusts": [],
             "total_records": 0,
             "last_updated": "",
             "error": f"Database error: {e}",
@@ -108,6 +120,7 @@ def load_pathway_nodes(
     chart_type: str,
     selected_drugs: Optional[list[str]] = None,
     selected_directorates: Optional[list[str]] = None,
+    selected_trusts: Optional[list[str]] = None,
 ) -> dict:
     """
     Load pre-computed pathway nodes from SQLite.
@@ -120,6 +133,7 @@ def load_pathway_nodes(
         chart_type: "directory" or "indication"
         selected_drugs: optional list of drug names to filter by
         selected_directorates: optional list of directorate names to filter by
+        selected_trusts: optional list of trust names to filter by
 
     Returns dict with keys:
         nodes: list of dicts (JSON-serializable) with chart node data
@@ -156,6 +170,13 @@ def load_pathway_nodes(
             where_clauses.append(
                 f"({' OR '.join(drug_conditions)} OR drug_sequence IS NULL)"
             )
+
+        if selected_trusts:
+            placeholders = ",".join("?" * len(selected_trusts))
+            where_clauses.append(
+                f"(trust_name IN ({placeholders}) OR trust_name IS NULL OR trust_name = '')"
+            )
+            params.extend(selected_trusts)
 
         where_clause = " AND ".join(where_clauses)
 

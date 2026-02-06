@@ -26,6 +26,7 @@ def load_pathway_data(
     chart_type: str = "directory",
     selected_drugs: Optional[list[str]] = None,
     selected_directorates: Optional[list[str]] = None,
+    selected_trusts: Optional[list[str]] = None,
 ) -> dict:
     """Load pre-computed pathway nodes with optional filters."""
     return _load_pathway_nodes(
@@ -34,4 +35,5 @@ def load_pathway_data(
         chart_type=chart_type,
         selected_drugs=selected_drugs,
         selected_directorates=selected_directorates,
+        selected_trusts=selected_trusts,
     )

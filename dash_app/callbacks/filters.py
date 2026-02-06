@@ -32,12 +32,14 @@ def register_filter_callbacks(app):
         Input("filter-initiated", "value"),
         Input("filter-last-seen", "value"),
         Input("all-drugs-chips", "value"),
+        Input("trust-chips", "value"),
         State("app-state", "data"),
     )
     def update_app_state(
-        _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs, current_state
+        _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs,
+        selected_trusts, current_state
     ):
-        """Update app-state when chart type toggle, date filters, or drug chips change."""
+        """Update app-state when chart type toggle, date filters, drug chips, or trust chips change."""
         if not current_state:
             current_state = {
                 "chart_type": "directory",
@@ -46,6 +48,7 @@ def register_filter_callbacks(app):
                 "date_filter_id": "all_6mo",
                 "selected_drugs": [],
                 "selected_directorates": [],
+                "selected_trusts": [],
             }
 
         triggered_id = ctx.triggered_id
@@ -68,6 +71,7 @@ def register_filter_callbacks(app):
             "last_seen": last_seen,
             "date_filter_id": date_filter_id,
             "selected_drugs": selected_drugs or [],
+            "selected_trusts": selected_trusts or [],
         }
 
         # Toggle pill CSS classes

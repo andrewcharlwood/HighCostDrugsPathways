@@ -32,6 +32,13 @@ def _generate_chart_title(app_state):
         else:
             parts.append(f"{len(selected_directorates)} directorates")
 
+    selected_trusts = app_state.get("selected_trusts") or []
+    if selected_trusts:
+        if len(selected_trusts) <= 2:
+            parts.append(", ".join(selected_trusts))
+        else:
+            parts.append(f"{len(selected_trusts)} trusts")
+
     return " | ".join(parts) if parts else "All Patients"
 
 
@@ -53,12 +60,14 @@ def register_chart_callbacks(app):
         chart_type = app_state.get("chart_type", "directory")
         selected_drugs = app_state.get("selected_drugs") or None
         selected_directorates = app_state.get("selected_directorates") or None
+        selected_trusts = app_state.get("selected_trusts") or None
 
         return query_pathway_data(
             filter_id=filter_id,
             chart_type=chart_type,
             selected_drugs=selected_drugs,
             selected_directorates=selected_directorates,
+            selected_trusts=selected_trusts,
         )
 
     @app.callback(

@@ -47,7 +47,9 @@ def make_sidebar():
                     _sidebar_item(
                         "Drug Selection", "drug", item_id="sidebar-drug-selection"
                     ),
-                    _sidebar_item("Trust Selection", "trust"),
+                    _sidebar_item(
+                        "Trust Selection", "trust", item_id="sidebar-trust-selection"
+                    ),
                     _sidebar_item("Directory Selection", "directory"),
                     _sidebar_item(
                         "Indications", "indication", item_id="sidebar-indications"

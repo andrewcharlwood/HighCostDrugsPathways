@@ -9,14 +9,16 @@ def register_drawer_callbacks(app):
         Output("drug-drawer", "opened"),
         Input("sidebar-drug-selection", "n_clicks"),
         Input("sidebar-indications", "n_clicks"),
+        Input("sidebar-trust-selection", "n_clicks"),
         prevent_initial_call=True,
     )
-    def open_drawer(_drug_clicks, _indication_clicks):
-        """Open the drawer when sidebar Drug Selection or Indications is clicked."""
+    def open_drawer(_drug_clicks, _indication_clicks, _trust_clicks):
+        """Open the drawer when sidebar Drug Selection, Indications, or Trust Selection is clicked."""
         return True
 
     @app.callback(
         Output("all-drugs-chips", "value"),
+        Output("trust-chips", "value"),
         Input({"type": "drug-fragment", "index": ALL}, "n_clicks"),
         Input("clear-drug-filters", "n_clicks"),
         State("all-drugs-chips", "value"),
@@ -27,20 +29,20 @@ def register_drawer_callbacks(app):
         """Handle drug fragment badge click (substring match) or clear all filters.
 
         Fragment click: find all full drug names containing the fragment substring,
-        toggle them in the chip selection.
-        Clear click: reset chip selection to empty.
+        toggle them in the chip selection. Trust chips unchanged.
+        Clear click: reset both drug and trust chip selections.
         """
         triggered = ctx.triggered_id
 
-        # Clear button
+        # Clear button — reset both drug and trust chips
         if triggered == "clear-drug-filters":
-            return []
+            return [], []
 
         # Fragment badge click — triggered_id is a dict like {"type": "drug-fragment", "index": "DIR|FRAG"}
         if isinstance(triggered, dict) and triggered.get("type") == "drug-fragment":
             # Check if any fragment was actually clicked (not just initial render)
             if not any(n for n in (fragment_clicks or []) if n):
-                return no_update
+                return no_update, no_update
 
             fragment_key = triggered["index"]  # e.g. "CARDIOLOGY|ABCIXIMAB"
             fragment = fragment_key.split("|", 1)[-1] if "|" in fragment_key else fragment_key
@@ -55,7 +57,7 @@ def register_drawer_callbacks(app):
             ]
 
             if not matching_drugs:
-                return no_update
+                return no_update, no_update
 
             # Toggle: if all matching drugs are already selected, deselect them;
             # otherwise, add them to selection
@@ -67,6 +69,6 @@ def register_drawer_callbacks(app):
             else:
                 updated = current | set(matching_drugs)
 
-            return sorted(updated)
+            return sorted(updated), no_update
 
-        return no_update
+        return no_update, no_update

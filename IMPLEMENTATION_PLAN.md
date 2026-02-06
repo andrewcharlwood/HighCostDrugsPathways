@@ -228,10 +228,10 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Phase 5: Polish & Cleanup
 
 ### 5.1 Trust selection
-- [ ] Add trust selection either:
+- [x] Add trust selection either:
   - In the dmc.Drawer as a "Trusts" section (preferred — keeps all filters in one place), OR
   - As sidebar checkboxes
-- [ ] Wire trust selection to `selected_trusts` in `app-state` → pathway data reload
+- [x] Wire trust selection to `selected_trusts` in `app-state` → pathway data reload
 - **Checkpoint**: Selecting trusts filters the chart correctly
 
 ### 5.2 Loading/error/empty states + dynamic hierarchy label

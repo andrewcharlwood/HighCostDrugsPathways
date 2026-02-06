@@ -1,8 +1,9 @@
 """
-Drug browser drawer component using Dash Mantine Components.
+Filter drawer component using Dash Mantine Components.
 
 Provides a right-side drawer with:
 - "All Drugs" section: flat alphabetical list of all drugs from pathway_nodes
+- "Trusts" section: all NHS trusts from pathway_nodes for trust filtering
 - Directorate cards: grouped by PrimaryDirectorate from DimSearchTerm.csv,
   with Accordion items per Search_Term containing drug fragment chips
 - "Clear Filters" button at the bottom
@@ -11,7 +12,7 @@ Provides a right-side drawer with:
 from dash import html
 import dash_mantine_components as dmc
 
-from dash_app.data.card_browser import build_directorate_tree, get_all_drugs
+from dash_app.data.card_browser import build_directorate_tree, get_all_drugs, get_all_trusts
 
 
 def _make_drug_chips(drugs: list[str]) -> dmc.ChipGroup:
@@ -23,6 +24,19 @@ def _make_drug_chips(drugs: list[str]) -> dmc.ChipGroup:
         children=[
             dmc.Chip(drug, value=drug, size="xs")
             for drug in drugs
+        ],
+    )
+
+
+def _make_trust_chips(trusts: list[str]) -> dmc.ChipGroup:
+    """Create a ChipGroup with multiple selection for the 'Trusts' section."""
+    return dmc.ChipGroup(
+        id="trust-chips",
+        multiple=True,
+        value=[],
+        children=[
+            dmc.Chip(trust, value=trust, size="xs")
+            for trust in trusts
         ],
     )
 
@@ -97,6 +111,7 @@ def make_drawer():
     Returns a dmc.Drawer that will be opened/closed via callbacks in Phase 4.2.
     """
     drugs = get_all_drugs()
+    trusts = get_all_trusts()
     directorate_tree = build_directorate_tree()
 
     # All Drugs section
@@ -112,6 +127,23 @@ def make_drawer():
             html.Div(
                 className="drawer-chips-wrap",
                 children=_make_drug_chips(drugs),
+            ),
+        ],
+    )
+
+    # Trusts section
+    trusts_section = html.Div(
+        className="drawer-section",
+        children=[
+            dmc.Text("Trusts", fw=700, size="sm", className="drawer-section-title"),
+            dmc.Text(
+                f"{len(trusts)} NHS trusts",
+                size="xs",
+                c="dimmed",
+            ),
+            html.Div(
+                className="drawer-chips-wrap",
+                children=_make_trust_chips(trusts),
             ),
         ],
     )
@@ -162,6 +194,8 @@ def make_drawer():
                     gap="md",
                     children=[
                         all_drugs_section,
+                        dmc.Divider(),
+                        trusts_section,
                         dmc.Divider(),
                         directorate_section,
                         clear_button,
