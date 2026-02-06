@@ -91,7 +91,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - `dash_app/components/__init__.py` — empty package
 - `dash_app/callbacks/__init__.py` — empty package
 - `dash_app/utils/__init__.py` — empty package
-### Committed: (see below)
+### Committed: 1c3ece6 "feat: create dash_app skeleton with nhs.css and MantineProvider (Phase 0)"
 ### Patterns discovered:
 - Dash 4.0.0 and DMC 2.5.1 installed (plan said 2.x and 0.14.x). The API is compatible — `MantineProvider`, `Drawer`, `Accordion`, `Chip` all available. DMC 2.x is based on Mantine v7.
 - `dmc.MantineProvider(children=[...])` works for wrapping the layout in both DMC versions.
@@ -102,5 +102,46 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Create shared functions in `src/data_processing/pathway_queries.py` (database.py is already used for DatabaseManager)
 - Create thin wrapper `dash_app/data/queries.py` that calls the shared functions
 - Verify with `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"`
+### Blocked items:
+- None
+
+## Iteration 2 — 2026-02-06
+### Task: Phase 1 — Task 1.1 (Create shared data access functions)
+### Why this task:
+- Phase 0 complete in iteration 1; Phase 1 is next in dependency order
+- progress.txt from iteration 1 explicitly recommended this task
+- All UI components and callbacks (Phases 2-5) depend on having data access working
+### Status: COMPLETE
+### What was done:
+- Created `src/data_processing/pathway_queries.py` with two shared functions:
+  - `load_initial_data(db_path)` — returns available drugs (42), directorates (14), indications (32), total_records, last_updated
+  - `load_pathway_nodes(db_path, filter_id, chart_type, selected_drugs, selected_directorates)` — returns nodes list, unique_patients, total_drugs, total_cost, last_updated
+- Both functions extracted directly from AppState methods in pathways_app.py (lines 407-642), with Reflex `self.*` references replaced by function parameters
+- All return values are plain dicts/lists — JSON-serializable for dcc.Store
+- Created thin wrapper `dash_app/data/queries.py` that resolves DB_PATH and delegates to shared functions
+- Used separate file (pathway_queries.py) rather than adding to database.py because database.py is connection management (240 lines), queries are a distinct concern
+### Validation results:
+- Tier 1 (Code): `python -c "from dash_app.data.queries import load_initial_data"` — OK (requires uv run for .pth file)
+- Tier 1 (App starts): `from dash_app.app import app` — OK, layout type is MantineProvider
+- Tier 3 (Functional):
+  - `load_initial_data()`: 42 drugs, 14 directorates, 32 indications, last_updated=2026-02-06T00:08:55
+  - `load_pathway_data("all_6mo", "directory")`: 293 nodes, 11,118 patients, 39 drugs, £130.5M cost
+  - `load_pathway_data("all_6mo", "indication")`: 438 nodes, 11,252 patients
+  - `load_pathway_data("all_6mo", "directory", selected_drugs=["ADALIMUMAB"])`: 70 nodes (drug filter works)
+### Files changed:
+- `src/data_processing/pathway_queries.py` — NEW: shared query functions
+- `dash_app/data/queries.py` — NEW: thin Dash wrapper with DB_PATH resolution
+- `IMPLEMENTATION_PLAN.md` — Task 1.1 marked [x]
+### Committed: (pending)
+### Patterns discovered:
+- `src/` is on sys.path only when using `uv run` (via .pth file created by setup_dev.py). Running `python` directly won't find `data_processing` module. Always use `uv run python` for testing.
+- `total_records` from `pathway_refresh_log` returns 0 — the refresh log's `source_row_count` field appears empty despite `completed_at` having a value. This is cosmetic — the KPI can use `unique_patients` from chart-data instead.
+- Drug filtering correctly includes nodes with NULL drug_sequence (root, trust, directory levels) alongside matching drug nodes. Root node patient count becomes 0 when drug filter is active — this matches Reflex behavior.
+### Next iteration should:
+- Start Task 1.2 — Build directorate card tree from DimSearchTerm.csv
+- Create `dash_app/data/card_browser.py` with `build_directorate_tree()` and `get_all_drugs()`
+- Read `data/DimSearchTerm.csv` to understand the data format
+- Import SEARCH_TERM_MERGE_MAP from `data_processing.diagnosis_lookup` for asthma normalization
+- Remember: drug fragments in CleanedDrugName are UPPERCASE substrings, not exact matches
 ### Blocked items:
 - None

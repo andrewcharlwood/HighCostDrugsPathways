@@ -98,12 +98,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Phase 1: Data Access Layer
 
 ### 1.1 Create shared data access functions
-- [ ] Add query functions to `src/data_processing/database.py` (or a new `src/data_processing/pathway_queries.py` if database.py is already large):
+- [x] Add query functions to `src/data_processing/pathway_queries.py`:
   - `load_initial_data(db_path) -> dict` — extracted from `AppState.load_data()` (pathways_app.py lines 407-488): returns `{"available_drugs": [...], "available_directorates": [...], "available_indications": [...], "total_records": int, "last_updated": str}`
-  - `load_pathway_data(db_path, filter_id, chart_type, selected_drugs=None, selected_directorates=None) -> dict` — extracted from `AppState.load_pathway_data()` (lines 490-642): returns `{"nodes": [...], "unique_patients": int, "total_drugs": int, "total_cost": float, "last_updated": str}`
+  - `load_pathway_nodes(db_path, filter_id, chart_type, selected_drugs=None, selected_directorates=None) -> dict` — extracted from `AppState.load_pathway_data()` (lines 490-642): returns `{"nodes": [...], "unique_patients": int, "total_drugs": int, "total_cost": float, "last_updated": str}`
   - These are plain Python functions that accept `db_path` as a parameter (no Reflex state objects)
-- [ ] Create thin `dash_app/data/queries.py` that imports and calls the shared functions with the correct `db_path`
-- [ ] Return plain dicts/lists — JSON-serializable for dcc.Store
+- [x] Create thin `dash_app/data/queries.py` that imports and calls the shared functions with the correct `db_path`
+- [x] Return plain dicts/lists — JSON-serializable for dcc.Store
 - **Checkpoint**: `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"` returns valid data
 
 ### 1.2 Build directorate card tree from DimSearchTerm.csv
