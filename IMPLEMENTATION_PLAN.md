@@ -119,16 +119,16 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Phase 2: Static Layout
 
 ### 2.1 Header + sidebar components
-- [ ] Create `dash_app/components/header.py` — `make_header()` function returning Dash HTML component
+- [x] Create `dash_app/components/header.py` — `make_header()` function returning Dash HTML component
   - NHS logo, title "HCD Analysis", breadcrumb, data freshness indicator (status dot + record count + last updated)
   - Use CSS classes from `nhs.css`: `.top-header`, `.top-header__brand`, `.top-header__logo`, `.top-header__title`, etc.
   - Record count and last updated are `html.Span` with IDs for callback updates: `id="header-record-count"`, `id="header-last-updated"`
-- [ ] Create `dash_app/components/sidebar.py` — `make_sidebar()` function
+- [x] Create `dash_app/components/sidebar.py` — `make_sidebar()` function
   - Navigation items matching 01_nhs_classic.html sidebar (Pathway Overview active, Drug Selection, Trust Selection, Directory Selection, Indications, Cost Analysis, Export Data)
-  - SVG icons as raw HTML (copy from 01_nhs_classic.html)
-  - "Drug Selection" and "Indications" items trigger the dmc.Drawer (via callback, wired in Phase 4)
+  - SVG icons via data URI img elements (Dash doesn't support inline SVGs natively)
+  - "Drug Selection" (`id="sidebar-drug-selection"`) and "Indications" (`id="sidebar-indications"`) items have IDs for drawer callbacks (Phase 4)
   - Footer: "NHS Norfolk & Waveney ICB / High Cost Drugs Programme"
-- **Checkpoint**: Components render in browser with correct NHS styling
+- **Checkpoint**: Components render in browser with correct NHS styling ✓
 
 ### 2.2 Main content area: KPI row + filter bar + chart card
 - [ ] Create `dash_app/components/kpi_row.py` — `make_kpi_row()` function

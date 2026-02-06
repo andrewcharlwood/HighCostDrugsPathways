@@ -2,6 +2,9 @@
 from dash import Dash, html, dcc
 import dash_mantine_components as dmc
 
+from dash_app.components.header import make_header
+from dash_app.components.sidebar import make_sidebar
+
 app = Dash(
     __name__,
     suppress_callback_exceptions=True,
@@ -21,13 +24,17 @@ app.layout = dmc.MantineProvider(
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),
 
-        # Placeholder layout — will be replaced by assembled components
-        html.Div(
+        # Page structure
+        make_header(),
+        make_sidebar(),
+        html.Main(
             className="main",
-            style={"marginLeft": "0", "marginTop": "0"},
             children=[
                 html.H1("HCD Analysis", style={"color": "#003087"}),
-                html.P("Dash application scaffolding complete. Components will be added in subsequent phases."),
+                html.P(
+                    "Layout scaffolding with header and sidebar. "
+                    "KPIs, filter bar, and chart card will be added in Task 2.2."
+                ),
             ],
         ),
     ],
