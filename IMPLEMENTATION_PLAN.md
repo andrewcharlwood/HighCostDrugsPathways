@@ -202,7 +202,7 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 ## Phase 4: Directorate Card Browser
 
 ### 4.1 dmc.Drawer layout
-- [ ] Create `dash_app/components/drawer.py` — `make_drawer()` function:
+- [x] Create `dash_app/components/drawer.py` — `make_drawer()` function:
   - `dmc.Drawer(id="drug-drawer", position="right", size="480px")`
   - **Top section**: "All Drugs" card — flat alphabetical list of all drug names from pathway_nodes level 3
     - Each drug as a `dmc.Chip` or clickable badge, ID pattern: `{"type": "drug-chip", "index": drug_name}`

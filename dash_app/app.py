@@ -8,6 +8,7 @@ from dash_app.components.kpi_row import make_kpi_row
 from dash_app.components.filter_bar import make_filter_bar
 from dash_app.components.chart_card import make_chart_card
 from dash_app.components.footer import make_footer
+from dash_app.components.drawer import make_drawer
 
 app = Dash(
     __name__,
@@ -32,6 +33,7 @@ app.layout = dmc.MantineProvider(
         # Page structure
         make_header(),
         make_sidebar(),
+        make_drawer(),
         html.Main(
             className="main",
             children=[

@@ -254,6 +254,33 @@ body {
 .chart-tab:hover:not(.chart-tab--active) { color: var(--nhs-dark-grey); }
 .chart-tab:focus-visible { box-shadow: inset 0 0 0 3px var(--nhs-yellow); }
 
+/* ── Drug Browser Drawer ── */
+.drawer-section {
+    padding: 4px 0;
+}
+.drawer-section-title {
+    margin-bottom: 4px;
+}
+.drawer-chips-wrap {
+    margin-top: 8px;
+}
+.drawer-chips-wrap .mantine-Chip-label {
+    font-family: 'Source Sans 3', Arial, sans-serif;
+}
+.drawer-drug-badge {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.drawer-drug-badge:hover {
+    filter: brightness(0.9);
+}
+.drawer-directorate-accordion {
+    margin-top: 8px;
+}
+.drawer-clear-btn {
+    margin-top: 8px;
+}
+
 /* ── Footer ── */
 .page-footer {
     background: var(--nhs-pale-grey);
