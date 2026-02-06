@@ -2189,3 +2189,53 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Refer to `AdditionalAnalytics.md` for chart specifications and data requirements
 ### Blocked items:
 - None
+
+## Iteration 38 — 2026-02-06
+### Task: 10.6 — Trust Comparison query functions
+### Why this task:
+- Task 10.5 (Patient Pathways 2-tab view) was completed in iteration 37
+- Progress.txt from iteration 37 explicitly recommended Task 10.6 as next
+- These query functions are the data layer prerequisite for Tasks 10.7 (landing page) and 10.8 (6-chart dashboard)
+### Status: COMPLETE
+### What was done:
+- **Added 5 new trust-comparison query functions** to `src/data_processing/pathway_queries.py`:
+  1. `get_trust_market_share(db_path, filter_id, chart_type, directory)` — drugs by trust within a single directorate, with per-trust proportions
+  2. `get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)` — cost per patient by trust within a directorate
+  3. `get_trust_dosing(db_path, filter_id, chart_type, directory)` — drug dosing intervals by trust, uses `parse_average_spacing()`
+  4. `get_trust_heatmap(db_path, filter_id, chart_type, directory)` — trust x drug matrix for one directorate (rows=trusts, cols=drugs)
+  5. `get_trust_durations(db_path, filter_id, chart_type, directory)` — per-trust drug durations, no aggregation
+- **Verified existing `get_pathway_costs(directory=X)` works** for directorate-scoped Cost Effectiveness (38 RHEUMATOLOGY pathway records returned correctly). No new `get_directorate_pathway_costs` function needed — the existing function already handles this.
+- **Added thin wrappers** in `dash_app/data/queries.py` for all 5 new functions
+- **Tested all queries** with both chart types:
+  - `directory` chart type with RHEUMATOLOGY: 42 market share rows, 6 trusts in waterfall, 40 dosing records, 6x17 heatmap, 40 duration records
+  - `indication` chart type with "asthma": 3 market share rows, 2 trusts, 2x2 heatmap, 3 duration records
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 1 (Imports): All 5 new wrappers import successfully via `dash_app.data.queries`
+- Tier 3 (Functional): All 5 queries return correct per-trust data for both chart types
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added 5 trust-comparison query functions + section comment
+- `dash_app/data/queries.py` — Added 5 thin wrappers + imports
+- `IMPLEMENTATION_PLAN.md` — Task 10.6 marked [x]
+### Committed: 9d4e329 "feat: add 5 trust-comparison query functions for Phase 10.6"
+### Patterns discovered:
+- Trust Comparison queries are simpler than Phase 9 equivalents because they DON'T aggregate across trusts — each row in pathway_nodes is already per-trust. The Phase 9 functions had aggregation logic (dictionaries, weighted averages) that these don't need.
+- `directory` parameter is required (not optional) for all trust-comparison functions, since Trust Comparison always operates within a single directorate/indication.
+- The indication chart type uses the same `directory` column as directory charts — e.g., "asthma", "crohn's disease" as directory values. The column name is the same, just the content differs.
+- Existing `get_pathway_costs` already has `directory` and `trust` params. For Trust Comparison Cost Effectiveness (directorate-scoped, no trust split), call it with `directory=selected` and no trust filter. Works out of the box.
+### Next iteration should:
+- Start Task 10.7 — Trust Comparison landing page + directorate selector
+- Key sub-steps:
+  1. Create a new `dash_app/components/trust_comparison.py` with two rendering modes:
+     - Landing page: grid of directorate/indication buttons (from reference-data store)
+     - Dashboard: placeholder for 6-chart layout (filled in Task 10.8)
+  2. Read the design from Task 10.1 (iteration 33) to match layout approach — the /frontend-design skill output was captured there
+  3. Wire button clicks to set `selected_comparison_directorate` in app-state
+  4. Add a "Back" button to return to landing (clears `selected_comparison_directorate`)
+  5. Respect chart_type toggle: "By Directory" shows ~14 directorate buttons, "By Indication" shows ~32 indication buttons
+  6. The view should be visible when `active_view == "trust-comparison"` in app-state
+- The query functions for the 6-chart dashboard are now ready (5 new + existing get_pathway_costs)
+- Reference-data store already has `available_directorates` (14) and `available_indications` (32+) from `load_initial_data()`
+### Blocked items:
+- None
