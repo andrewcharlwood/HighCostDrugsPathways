@@ -18,6 +18,11 @@ from data_processing.pathway_queries import (
     get_dosing_intervals as _get_dosing_intervals,
     get_drug_directory_matrix as _get_drug_directory_matrix,
     get_treatment_durations as _get_treatment_durations,
+    get_trust_market_share as _get_trust_market_share,
+    get_trust_cost_waterfall as _get_trust_cost_waterfall,
+    get_trust_dosing as _get_trust_dosing,
+    get_trust_heatmap as _get_trust_heatmap,
+    get_trust_durations as _get_trust_durations,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -115,3 +120,51 @@ def get_treatment_durations(
 ) -> list[dict]:
     """Treatment duration data (avg_days) by drug."""
     return _get_treatment_durations(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+# --- Trust Comparison query wrappers (Phase 10) ---
+
+
+def get_trust_market_share(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: str = "",
+) -> list[dict]:
+    """Drug market share by trust within a single directorate."""
+    return _get_trust_market_share(DB_PATH, date_filter_id, chart_type, directory)
+
+
+def get_trust_cost_waterfall(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: str = "",
+) -> list[dict]:
+    """Cost per patient by trust within a single directorate."""
+    return _get_trust_cost_waterfall(DB_PATH, date_filter_id, chart_type, directory)
+
+
+def get_trust_dosing(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: str = "",
+) -> list[dict]:
+    """Drug dosing intervals by trust within a single directorate."""
+    return _get_trust_dosing(DB_PATH, date_filter_id, chart_type, directory)
+
+
+def get_trust_heatmap(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: str = "",
+) -> dict:
+    """Trust x drug matrix for a single directorate."""
+    return _get_trust_heatmap(DB_PATH, date_filter_id, chart_type, directory)
+
+
+def get_trust_durations(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: str = "",
+) -> list[dict]:
+    """Drug durations by trust within a single directorate."""
+    return _get_trust_durations(DB_PATH, date_filter_id, chart_type, directory)

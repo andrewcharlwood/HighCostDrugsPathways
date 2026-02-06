@@ -510,15 +510,15 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Patient Pathways shows only Icicle + Sankey tabs, both still work with all existing filters
 
 ### 10.6 Trust Comparison query functions
-- [ ] Add new/modified query functions to `src/data_processing/pathway_queries.py` for per-trust-within-directorate perspective:
+- [x] Add new/modified query functions to `src/data_processing/pathway_queries.py` for per-trust-within-directorate perspective:
   - `get_trust_market_share(db_path, filter_id, chart_type, directory)` — drugs by trust within a single directorate (stacked bars per trust instead of per directorate)
   - `get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)` — one bar per trust showing cost_pp within that directorate
   - `get_trust_dosing(db_path, filter_id, chart_type, directory)` — drug dosing intervals broken down by trust within a directorate
   - `get_trust_heatmap(db_path, filter_id, chart_type, directory)` — trust × drug matrix for one directorate (rows=trusts, cols=drugs)
   - `get_trust_durations(db_path, filter_id, chart_type, directory)` — drug durations by trust within a directorate
-  - `get_directorate_pathway_costs(db_path, filter_id, chart_type, directory)` — pathway costs filtered to one directorate (same as existing `get_pathway_costs` with directory param, but verify it works correctly)
-- [ ] Add thin wrappers in `dash_app/data/queries.py`
-- [ ] Verify all queries return correct data for both "directory" and "indication" chart types
+  - `get_directorate_pathway_costs(db_path, filter_id, chart_type, directory)` — verified existing `get_pathway_costs(directory=X)` works correctly (no new function needed)
+- [x] Add thin wrappers in `dash_app/data/queries.py`
+- [x] Verify all queries return correct data for both "directory" and "indication" chart types
 - **Checkpoint**: All 6 query functions return correct per-trust data for sample directorates
 
 ### 10.7 Trust Comparison landing page + directorate selector
