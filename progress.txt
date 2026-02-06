@@ -2423,3 +2423,55 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - If filter_bar is already in the right place, this task may just need verification and minor CSS adjustments per the design spec
 ### Blocked items:
 - None
+
+## Iteration 42 — 2026-02-06
+### Task: 10.10 — CSS updates + polish
+### Why this task:
+- Task 10.9 (pathway filter relocation) was completed in iteration 41
+- Progress.txt from iteration 41 explicitly recommended Task 10.10 as next
+- This is a cleanup/polish task: remove dead CSS, add CSS variables, improve responsive behavior
+### Status: COMPLETE
+### What was done:
+- **Removed dead CSS classes** from `dash_app/assets/nhs.css`:
+  - `.kpi-row`, `.kpi-card`, `.kpi-card--green`, `.kpi-card__label`, `.kpi-card__value`, `.kpi-card__sub` (28 lines) — KPI row replaced by header fraction KPIs in Task 10.3
+  - `.top-header__breadcrumb` (4 lines) — breadcrumb removed in Task 10.3
+  - `.filter-select` and `.filter-select:focus` (8 lines) — replaced by dcc.Dropdown with `.filter-dropdown` class
+  - `.sidebar__item--disabled` (4 lines) — disabled sidebar items removed when restructured to 2-item nav
+- **Deleted dead file** `dash_app/components/kpi_row.py` — not imported anywhere since Task 10.3 removed the KPI row
+- **Added CSS variables** to `:root`:
+  - `--sub-header-h: 44px`
+  - `--header-total-h: 100px` (56px header + 44px sub-header)
+- **Updated `.main`** to use `var(--header-total-h)` instead of hardcoded `100px`
+- **Updated `.sub-header`** to use `var(--sub-header-h)` instead of hardcoded `44px`
+- **Improved responsive rules**:
+  - `@media (max-width: 1200px)`: tighten header KPI gap, hide KPI labels (numbers-only)
+  - `@media (max-width: 768px)`: hide header KPIs entirely, wrap pathway-filters, stack TC grids
+  - Removed dead `.kpi-row` responsive rules at 1024px and 768px breakpoints
+- **Verified against design spec** (`docs/PHASE10_DESIGN.md`): all Phase 10 CSS matches spec
+- **Note on `01_nhs_classic.html`**: Phase 10 diverges from the original HTML concept. The original file is retained as historical reference but `docs/PHASE10_DESIGN.md` is the current spec.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` — OK, no errors
+- Tier 2 (Layout): CSS reduced from 542 to 493 lines. All remaining classes actively used.
+### Files changed:
+- `dash_app/assets/nhs.css` — Removed 5 dead CSS blocks, added 2 CSS variables, updated responsive rules
+- `dash_app/components/kpi_row.py` — Deleted (dead code)
+- `IMPLEMENTATION_PLAN.md` — Task 10.10 marked [x]
+### Committed: c5b6191 "style: clean up dead CSS, add CSS variables, improve responsive rules (Task 10.10)"
+### Patterns discovered:
+- CSS variable indirection (`--header-total-h`) makes layout math more maintainable than hardcoded pixel values
+- Dead CSS accumulates across iterations. Cleanup pass: check every CSS class against `grep -r "classname" dash_app/ --include="*.py"` to find orphans.
+### Next iteration should:
+- Start Task 10.11 — Final integration + documentation
+- Key sub-steps:
+  1. Verify all views work: Patient Pathways (Icicle + Sankey), Trust Comparison (landing + 6-chart dashboard)
+  2. Verify global filters (date, chart type) affect both views
+  3. Verify Patient Pathways filters (drug, trust, directorate) only affect Patient Pathways
+  4. Verify Trust Comparison directorate selector works for all directorates and indications
+  5. Verify no regressions in Icicle and Sankey charts
+  6. Test with both "directory" and "indication" chart types
+  7. Update CLAUDE.md with new architecture (two views, state management, callback chains)
+  8. `python run_dash.py` starts cleanly
+- This is the FINAL task — if all checks pass, the project is complete
+### Blocked items:
+- None
