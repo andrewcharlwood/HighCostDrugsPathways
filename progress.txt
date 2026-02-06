@@ -2000,3 +2000,78 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - CSS for the Trust Comparison landing page will come in Task 10.10, don't worry about it now
 ### Blocked items:
 - None
+
+## Iteration 35 — 2026-02-06
+### Task: Phase 10 — Task 10.3 (Header redesign — remove KPI row, add fraction KPIs)
+### Why this task:
+- Task 10.2 (state management + sidebar restructure) complete in iteration 34
+- Progress.txt from iteration 34 explicitly recommended Task 10.3 as next
+- Header fraction KPIs are needed before sub-header (10.4) — they establish the new header layout
+### Status: COMPLETE
+### What was done:
+- **Updated `dash_app/components/header.py`**:
+  - Removed breadcrumb div (was "Dashboard › Pathway Analysis")
+  - Added 3 fraction KPI divs in center: patients, drugs, cost
+  - Each KPI has 4 spans: numerator (filtered, bold white), separator (/), denominator (total, muted), label (uppercase tiny)
+  - 6 new callback IDs: `kpi-filtered-patients`, `kpi-total-patients`, `kpi-filtered-drugs`, `kpi-total-drugs`, `kpi-filtered-cost`, `kpi-total-cost`
+  - Right section (data freshness) unchanged
+- **Removed KPI row from `app.py`**:
+  - Removed `from dash_app.components.kpi_row import make_kpi_row` import
+  - Removed `make_kpi_row()` from patient-pathways-view children
+  - `kpi_row.py` file kept but not imported (dead code, can be deleted later)
+- **Refactored `dash_app/callbacks/kpi.py`**:
+  - Old: 4 outputs to KPI card IDs (kpi-patients, kpi-drugs, kpi-cost, kpi-match)
+  - New: 6 outputs — 3 filtered (from chart-data) + 3 total (from reference-data)
+  - Inputs: `chart-data` (filtered values) and `reference-data` (totals)
+  - Total patients from `reference-data.total_patients`, total drugs from `len(reference-data.available_drugs)`, total cost from `reference-data.total_cost`
+  - Removed indication match rate KPI entirely
+- **Updated `src/data_processing/pathway_queries.py`**:
+  - `load_initial_data()` now also returns `total_cost` from the default root node (alongside `total_patients`)
+  - Query changed from `SELECT value` to `SELECT value, cost` for root node
+  - Always fetches root node (removed the `if not total_records` gate — total_patients and total_cost always needed)
+- **Added CSS to `dash_app/assets/nhs.css`**:
+  - `.top-header__kpis` — flex container centered in header
+  - `.header-kpi` — flex row with baseline alignment, muted white text
+  - `.header-kpi__num` — bold white 16px with tabular-nums
+  - `.header-kpi__sep` — dim separator "/"
+  - `.header-kpi__den` — muted 13px denominator
+  - `.header-kpi__label` — uppercase 11px label (patients/drugs/cost)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - 6 header KPI IDs in layout: kpi-filtered-patients/drugs/cost, kpi-total-patients/drugs/cost — all FOUND
+  - Breadcrumb removed from layout — confirmed
+  - `top-header__kpis` and `header-kpi` CSS classes in layout — confirmed
+- Tier 3 (Functional):
+  - 12 callbacks registered (same count — old KPI callback replaced with new one)
+  - Reference data: total_patients=11,118, total_cost=£130.6M, 42 drugs
+  - Chart data unfiltered: 11,118 patients, 39 drugs, £130.6M
+  - Chart data ADALIMUMAB: 3,236 patients, 17 drugs, £29.2M (fractions work correctly)
+### Files changed:
+- `dash_app/components/header.py` — Rewritten: breadcrumb removed, 3 fraction KPIs added
+- `dash_app/app.py` — Removed: kpi_row import and make_kpi_row() call
+- `dash_app/callbacks/kpi.py` — Refactored: 6 header KPI outputs (3 filtered + 3 total)
+- `dash_app/assets/nhs.css` — Added: header KPI CSS classes (~42 lines)
+- `src/data_processing/pathway_queries.py` — Updated: load_initial_data() returns total_cost
+- `IMPLEMENTATION_PLAN.md` — Task 10.3 marked [x]
+### Committed: 11b5cc5 "feat: header fraction KPIs replacing KPI row (Task 10.3)"
+### Patterns discovered:
+- The reference-data store lacked `total_cost` — had to add it to `load_initial_data()` by expanding the root node query from `SELECT value` to `SELECT value, cost`. This is a safe addition to the shared utility (not pipeline logic).
+- The `if not total_records` gate on the root node query was wrong — we always need total_patients and total_cost for the header KPIs regardless of whether source_row_count is populated. Removed the gate.
+- `kpi_row.py` file kept but unused. Could be deleted in cleanup but doesn't hurt.
+- The `_format_cost` helper was preserved in kpi.py — it's reused for both filtered and total cost formatting.
+### Next iteration should:
+- Start Task 10.4 — Global filter sub-header bar
+- Key sub-steps:
+  1. Read `docs/PHASE10_DESIGN.md` Section 2 for exact HTML structure and CSS classes
+  2. Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component
+  3. The sub-header is a fixed 44px bar below the main header, full width minus sidebar
+  4. Background: `#E8F0FE` with `#C5D4E8` bottom border
+  5. Contains ONLY: chart type toggle pills + date filter dropdowns (no drug/trust/directorate buttons)
+  6. Drug/trust/directorate filter buttons stay in filter_bar.py but move to Patient Pathways view only (Task 10.9)
+  7. Update `.main` margin-top from 56px to 100px (56 header + 44 sub-header)
+  8. Sub-header must be constant across both views (fixed position, not inside view container)
+- The existing filter_bar.py has both global controls (chart type, dates) and view-specific controls (drug/trust/directorate buttons). Task 10.4 extracts the global controls into a sub-header; the view-specific buttons stay temporarily until Task 10.9 relocates them.
+### Blocked items:
+- None
