@@ -1,20 +1,14 @@
-"""Callbacks for the drug browser drawer: open/close, drug selection, fragment matching, clear."""
+"""Callbacks for drug selection: fragment matching and clear filters.
+
+The open_drawer callback was removed in Task 7.3 (sidebar restructure) because
+the sidebar no longer has filter trigger items. Task 7.4 will replace the drawer
+with modals opened from the filter bar.
+"""
 from dash import Input, Output, State, ctx, no_update, ALL
 
 
 def register_drawer_callbacks(app):
-    """Register drawer-related callbacks."""
-
-    @app.callback(
-        Output("drug-drawer", "opened"),
-        Input("sidebar-drug-selection", "n_clicks"),
-        Input("sidebar-indications", "n_clicks"),
-        Input("sidebar-trust-selection", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def open_drawer(_drug_clicks, _indication_clicks, _trust_clicks):
-        """Open the drawer when sidebar Drug Selection, Indications, or Trust Selection is clicked."""
-        return True
+    """Register drug/trust selection callbacks (fragment matching + clear)."""
 
     @app.callback(
         Output("all-drugs-chips", "value"),

@@ -1,4 +1,4 @@
-"""Chart card component — header, tabs, and dcc.Graph for icicle chart."""
+"""Chart card component — header and dcc.Graph for icicle chart."""
 from dash import html, dcc
 
 
@@ -7,8 +7,8 @@ def make_chart_card():
 
     Contains:
     - Header with title and dynamic subtitle (hierarchy label)
-    - Tab row (Icicle active, Sankey and Timeline as disabled placeholders)
     - dcc.Loading wrapper around dcc.Graph for loading spinner
+    Chart view selection (icicle/sankey/timeline) is in the sidebar.
     """
     return html.Section(
         className="chart-card",
@@ -30,33 +30,6 @@ def make_chart_card():
                                 id="chart-subtitle",
                             ),
                         ]
-                    ),
-                ],
-            ),
-            # Tab row
-            html.Div(
-                className="chart-card__tabs",
-                role="tablist",
-                children=[
-                    html.Button(
-                        "Icicle",
-                        className="chart-tab chart-tab--active",
-                        role="tab",
-                        **{"aria-selected": "true"},
-                    ),
-                    html.Button(
-                        "Sankey",
-                        className="chart-tab",
-                        role="tab",
-                        disabled=True,
-                        **{"aria-selected": "false"},
-                    ),
-                    html.Button(
-                        "Timeline",
-                        className="chart-tab",
-                        role="tab",
-                        disabled=True,
-                        **{"aria-selected": "false"},
                     ),
                 ],
             ),

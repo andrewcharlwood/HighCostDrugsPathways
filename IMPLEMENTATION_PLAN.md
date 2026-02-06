@@ -286,12 +286,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Drug selection filters chart without "multiple implied roots" error.
 
 ### 7.3 Restructure sidebar: move chart views to sidebar, remove placeholder items
-- [ ] **Remove** from sidebar: "Cost Analysis" and "Export Data" items (no functionality behind them)
-- [ ] **Remove** from sidebar: "Drug Selection", "Trust Selection", "Directory Selection", "Indications" items (filters moving to top bar — see 7.5)
-- [ ] **Add** to sidebar: chart view buttons — "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled). These replace the tab row currently in chart_card.py.
-- [ ] **Keep**: "Pathway Overview" as the top active item
-- [ ] Update sidebar IDs and callback wiring. The chart type toggle pills (By Directory / By Indication) stay in the filter bar — they're data filters, not view selectors.
-- [ ] Remove the tab row from `chart_card.py` since chart view selection moves to sidebar
+- [x] **Remove** from sidebar: "Cost Analysis" and "Export Data" items (no functionality behind them)
+- [x] **Remove** from sidebar: "Drug Selection", "Trust Selection", "Directory Selection", "Indications" items (filters moving to top bar — see 7.5)
+- [x] **Add** to sidebar: chart view buttons — "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled). These replace the tab row currently in chart_card.py.
+- [x] **Keep**: "Pathway Overview" as the top active item
+- [x] Update sidebar IDs and callback wiring. The chart type toggle pills (By Directory / By Indication) stay in the filter bar — they're data filters, not view selectors.
+- [x] Remove the tab row from `chart_card.py` since chart view selection moves to sidebar
 - **Checkpoint**: Sidebar shows chart view options, no placeholder items, app runs without errors.
 
 ### 7.4 Replace dmc.Drawer with dmc.Modal for filter selection
@@ -335,8 +335,8 @@ All tasks marked `[x]` AND:
 - [x] "Clear Filters" resets all selections
 - [x] KPIs update dynamically (patients, drugs, cost)
 - [x] No Reflex imports in `dash_app/`
-- [ ] No duplicate component ID errors on first load
-- [ ] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
+- [x] No duplicate component ID errors on first load
+- [x] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
 - [ ] Filter bar has drug/trust/directorate trigger buttons with selection count badges
 
 ---
