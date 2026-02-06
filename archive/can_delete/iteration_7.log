@@ -1,0 +1,330 @@
+﻿
+
+I'll start by reading the required files in order to understand the current state of the project.
+Reading progress.txt, IMPLEMENTATION_PLAN.md, and guardrails.md. Now checking recent git history.
+Good. I can see the state of the project:
+
+**Completed**: Tasks 1.1, 1.2, 1.3 (Phase 1), Tasks 2.1, 2.2 (Phase 2), Task 3.1 (Phase 3 integration)
+**Next up**: Task 3.2 ÔÇö Test with dry run (`python -m cli.refresh_pathways --chart-type indication --dry-run -v`)
+
+This is the first task that requires a live Snowflake connection. Let me examine the current state of the refresh_pathways.py code and understand the dry run flag behavior before running it.
+
+**Why Task 3.2**: It's the next logical step ÔÇö 3.1 (pipeline integration) is complete, and 3.2 validates that the integrated pipeline actually works end-to-end. All later tasks (4.1, 4.2, 4.3) depend on 3.2 passing.
+Good, the pipeline code looks clean. Now let me mark Task 3.2 as in-progress and run the dry run test. This requires a live Snowflake connection. Let me first check if Snowflake is accessible.
+Running the dry run test. This will fetch data from Snowflake and process indication charts without inserting to the database.
+The command is running in the background. Let me check the output.
+Every batch is timing out after ~30 seconds. The query is too slow with the `GROUP BY + COUNT(*)` change. The previous version (with `QUALIFY ROW_NUMBER()`) worked because it returned 1 row per patient. Now it's doing `GROUP BY + COUNT(*)` which is much more expensive on the large GP records table.
+
+Let me stop the background task since it's going to keep failing, and investigate the query.
+The issue is clear: the updated query with `GROUP BY + COUNT(*)` is timing out at 30 seconds per batch. The original `QUALIFY ROW_NUMBER()` version worked within the timeout. I need to understand the query structure and the timeout setting.
+
+Let me look at the actual query and the timeout configuration.
+Let me check the default query timeout and the `execute_dict` method to understand the 30s timeout.
+The config is not defined in this file. Let me find where the timeout defaults are.
+The default query_timeout is 300 seconds. But the logs show queries being cancelled after ~30 seconds: `000604 (57014): SQL execution was cancelled by the client due to a timeout`. Wait ÔÇö the error says "SQL execution cancelled by the client due to a timeout" but the Snowflake session timeout is set to 300s. Let me look more carefully. The `execute_dict` method is what's being called.
+The log says `Executing query (timeout=300s)` but the queries are dying at ~30s. Wait ÔÇö let me re-read the error timestamps more carefully:
+
+- Batch 1: 23:18:58 ÔåÆ 23:19:29 = 31s
+- Batch 2: 23:19:29 ÔåÆ 23:20:00 = 31s
+
+Each batch is timing out at ~30s. The error code is `000604 (57014)` which is Snowflake's SQL cancellation. But the timeout is set to 300s. This suggests something else is cancelling ÔÇö maybe the warehouse has a statement timeout configured at the Snowflake level (30s), which would override the session setting.
+
+The real issue is the query performance. The `GROUP BY + COUNT(*)` with the large CTE and join on `PrimaryCareClinicalCoding` is expensive. The original `QUALIFY ROW_NUMBER()` query worked because it could short-circuit once it found one match per patient.
+
+Let me understand the problem better. The key difference is:
+- **Old query**: `QUALIFY ROW_NUMBER() = 1` ÔåÆ returns 1 row per patient (efficient, limits result set)
+- **New query**: `GROUP BY + COUNT(*)` ÔåÆ scans ALL matching rows, groups them, counts ÔåÆ much heavier
+
+The solution is to optimize the query. Let me think about approaches:
+
+1. **Increase timeout** ÔÇö Won't help if the query is inherently slow for 500-patient batches
+2. **Reduce batch size** ÔÇö smaller batches might complete faster
+3. **Optimize query structure** ÔÇö maybe restructure to be more efficient
+
+Let me test with a direct Snowflake query to understand the actual query plan. First, let me check if we can run a smaller test batch.
+Let me test the query directly against Snowflake to understand the performance characteristics. I'll run a small batch (10 patients) to see if the query works at all, and also test the current timeout behavior.
+Good progress ÔÇö I can see two things:
+1. The session timeout IS set to 300s, but queries still fail at ~30s. This suggests the warehouse itself has a timeout (e.g., XSMALL warehouse with its own statement timeout).
+2. The query test failed because I used the wrong database name. Let me fix that and test properly.
+
+Let me check the warehouse statement timeout and also run the actual test with the correct database.
+The warehouse timeout is 7200s (2 hours) and the session timeout is 300s. Neither would cause a 30s timeout. Let me re-read the error messages more carefully ÔÇö maybe it's a network/connection timeout rather than a query execution timeout.
+
+Actually, looking at the log more carefully: the session sets `STATEMENT_TIMEOUT_IN_SECONDS = 300` but the queries fail at 30s. The error is `000604 (57014): SQL execution was cancelled by the client due to a timeout`. The key phrase is "**by the client**" ÔÇö this is the Python client (snowflake-connector-python) timing out, not Snowflake server. 
+
+Let me check if there's a Python-side network timeout or client-side configuration.
+I see `network_timeout` being set. Let me check the timeout defaults.
+`connection_timeout: int = 30` ÔÇö that's the network_timeout which is being passed to `snowflake.connector.connect()` as `network_timeout=30`. This is the **network-level timeout** for Snowflake operations. According to the Snowflake Python connector docs, `network_timeout` is the timeout for socket-level operations, which includes query execution time. When a query takes longer than 30 seconds, the client kills it.
+
+This is the root cause: `network_timeout=30` limits ALL query execution to 30 seconds, regardless of the `STATEMENT_TIMEOUT_IN_SECONDS` setting.
+
+Now I have two options to fix this:
+1. **Increase `network_timeout`** ÔÇö but this would affect all queries
+2. **Pass a larger timeout to `execute_dict` calls in `get_patient_indication_groups`** 
+
+Actually wait ÔÇö the `network_timeout` parameter in the Snowflake connector is for network-level operations. Let me double-check. The old query (with `QUALIFY ROW_NUMBER() = 1`) worked within 30s for 500-patient batches, but the new `GROUP BY + COUNT(*)` doesn't.
+
+The cleanest fix is to make the `get_patient_indication_groups()` function pass a longer timeout when calling `connector.execute_dict()`. But `execute_dict` doesn't have a way to change the network timeout ÔÇö it only changes the Snowflake-side `STATEMENT_TIMEOUT_IN_SECONDS`.
+
+The real issue is the client-side `network_timeout=30`. This was fine for the old query but not for the new one. Let me think about the best approach:
+
+1. **Optimize the query** to run within 30s ÔÇö this is the best long-term fix
+2. **Increase connection_timeout** ÔÇö easy but affects everything
+3. **Create a new connection with higher timeout** for GP lookups
+
+Let me first try to understand if the query can be optimized. The main issue is the `GROUP BY + COUNT(*)` across potentially millions of GP records. Let me check the query structure and think about optimization.
+
+Actually, looking at this more carefully, I think the most pragmatic approach is a combination:
+
+1. **Optimize the query** ÔÇö we can use `COUNT(DISTINCT ...)` or add better filtering
+2. **Reduce batch size** from 500 to something smaller (say 100) 
+3. **Increase the timeout** for this specific query path
+
+But first, let me try running the query with just a few patients to confirm it works at all.
+Wrong table name. Let me check the actual Snowflake schema being used for the HCD data.
+OK. Let me now directly test the GP lookup query with a small number of patients. I'll pull from the same table used in the actual pipeline.
+Even with just 5 patients, the query times out at 30 seconds. This confirms the problem is the query execution time, not batch size. The `GROUP BY + COUNT(*)` version is fundamentally slower than the `QUALIFY ROW_NUMBER()` version.
+
+The `PrimaryCareClinicalCoding` table is massive (national GP records). The join with the CTE + GROUP BY is too expensive. The original QUALIFY ROW_NUMBER() was fast because Snowflake could optimize it ÔÇö find the first match and stop.
+
+Let me think about the optimization approach. The core problem is:
+1. Large CTE (148 rows ÔåÆ joined with SNOMED codes ÔåÆ potentially thousands of codes)
+2. Join with massive `PrimaryCareClinicalCoding` table
+3. GROUP BY forces a full scan
+
+**Strategy**: Keep the efficient QUALIFY approach but return multiple rows. Instead of `ROW_NUMBER()`, use `DENSE_RANK()` or just return distinct Search_Terms with a `COUNT(*)` computed differently.
+
+Actually, the best approach: split the query into two steps:
+1. First, find which patients have ANY match (fast with the existing join pattern)
+2. Then, for matched patients, compute the code_frequency
+
+Or better: use a different approach to get code_frequency without GROUP BY on the massive table:
+
+```sql
+-- Use QUALIFY to get distinct Search_Terms per patient (no aggregation)
+SELECT DISTINCT pc."PatientPseudonym", aic.Search_Term
+FROM PrimaryCareClinicalCoding pc
+JOIN AllIndicationCodes aic ON pc."SNOMEDCode" = aic.SNOMEDCode
+WHERE pc."PatientPseudonym" IN (...)
+```
+
+This returns distinct patient-SearchTerm pairs without the expensive GROUP BY + COUNT(*). For the tiebreaker, we could:
+- Use a separate query to count codes (but that's also slow)
+- Use a window function instead of GROUP BY
+
+Let me try the DISTINCT approach first ÔÇö it should be much faster.
+Even SELECT DISTINCT times out. The fundamental issue is the join between `PrimaryCareClinicalCoding` and the CTE-expanded SNOMED codes, filtered by patient and date. This is consistently timing out at ~30s even for 5 patients.
+
+But wait ÔÇö the **old query** (with QUALIFY ROW_NUMBER()) worked! Let me verify that the old query still works, and check how long it takes.
+The old query takes 19.7s for 5 patients. That's already very close to the 30s timeout! With 500 patients, it would definitely take much longer. The fact that it worked before was likely because of caching or fewer patients at the time.
+
+Now I understand the full picture:
+- Old query: ~20s for 5 patients (borderline, 500 patients would be ~30s+ with caching help)
+- New query (GROUP BY): even slower, consistently >30s
+- The `network_timeout=30` in the connector config kills both
+
+The fix needs two parts:
+1. **Increase the network_timeout** to allow these queries to complete
+2. **Possibly optimize the query** for better performance
+
+But the network_timeout is the immediate blocker. Let me fix that first. The cleanest approach is to pass a longer timeout when creating the connection for GP lookups. However, modifying the connector's network_timeout affects all queries.
+
+Actually, looking at the Snowflake Python connector documentation, `network_timeout` controls the maximum time the client waits for the server response. To allow longer-running queries, we should increase this. The question is whether to increase it globally or per-connection.
+
+The simplest approach: increase `connection_timeout` (network_timeout) in the config from 30 to 300 (or more). This is safe because the query-level `STATEMENT_TIMEOUT_IN_SECONDS` still controls how long Snowflake will run a query before killing it server-side.
+
+Let me also check if we can pass timeout directly to `get_patient_indication_groups` ÔåÆ `execute_dict`.
+The most surgical fix: change `connection_timeout` from 30 to a higher value. But modifying a shared config file affects all Snowflake operations. 
+
+Actually, looking at `get_patient_indication_groups`, it calls `connector.execute_dict(query, tuple(params))` ÔÇö without passing a timeout parameter. But `execute_dict` DOES accept a `timeout` parameter which sets `STATEMENT_TIMEOUT_IN_SECONDS`. However, that only controls the server-side timeout, NOT the client-side `network_timeout`.
+
+The real fix is to increase `network_timeout` when connecting. Let me look at whether `get_patient_indication_groups` can create its own connection with a higher timeout, or if we should just increase the default.
+
+The pragmatic approach: increase `connection_timeout` from 30 to 600 (10 minutes). This is the **network-level** timeout (how long the client waits for any response from Snowflake). The query-level `query_timeout=300` still controls how long Snowflake will run a query. This is safe because:
+- Activity data fetch already takes ~10s and uses chunked queries (separate timeout mechanism)
+- GP lookup queries can take 20-30+ seconds per batch
+- The query_timeout (300s) is the actual safety net against runaway queries
+Now, there are two approaches to fix this:
+
+**Option A**: Increase the global `connection_timeout` from 30 to 600 in the config. Simple but affects all queries.
+
+**Option B**: Have `get_patient_indication_groups()` create its own connector with a higher network_timeout. More surgical but adds complexity.
+
+I think Option A is the right call. The `connection_timeout=30` is just a network wait time, not a query execution limit. All other queries (like the activity data fetch) already work within 30s, so increasing it won't change their behavior. It just gives the GP lookup queries room to complete.
+
+But I also need to consider query optimization. Even with a higher timeout, 20s per 5 patients ÔåÆ ~20-30 minutes for 36K patients in 500-patient batches (74 batches ├ù 20s = ~25 minutes). The old approach took ~9 minutes (according to CLAUDE.md). So the new GROUP BY query will be significantly slower.
+
+Let me think about a better query strategy. Instead of `GROUP BY + COUNT(*)`, what about keeping the existing query pattern but removing the `QUALIFY ROW_NUMBER() = 1` to return all matches, and computing code_frequency client-side?
+
+```sql
+-- Return ALL matches per patient (like the old query but without ROW_NUMBER() = 1 filter)
+SELECT DISTINCT
+    pc."PatientPseudonym",
+    aic.Search_Term,
+    pc."SNOMEDCode"
+FROM PrimaryCareClinicalCoding pc
+JOIN AllIndicationCodes aic ON pc."SNOMEDCode" = aic.SNOMEDCode
+WHERE pc."PatientPseudonym" IN (...)
+  AND pc."EventDateTime" >= ...
+```
+
+Then compute `code_frequency` in Python: `df.groupby(['PatientPseudonym', 'Search_Term']).size()`.
+
+Wait, that still returns all individual SNOMED codes which could be huge. And `SELECT DISTINCT` already timed out.
+
+Let me try a different approach ÔÇö use `QUALIFY` with a higher rank instead of removing it entirely:
+
+```sql
+-- Return multiple rows per patient but use window function to get count
+SELECT 
+    pc."PatientPseudonym",
+    aic.Search_Term,
+    COUNT(*) OVER (PARTITION BY pc."PatientPseudonym", aic.Search_Term) AS code_frequency
+FROM PrimaryCareClinicalCoding pc
+JOIN AllIndicationCodes aic ON pc."SNOMEDCode" = aic.SNOMEDCode
+WHERE ...
+QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym", aic.Search_Term ORDER BY pc."EventDateTime" DESC) = 1
+```
+
+This uses `ROW_NUMBER() = 1` but partitioned by `PatientPseudonym + Search_Term` (not just PatientPseudonym), so it returns one row per patient-SearchTerm pair. And the `COUNT(*) OVER(...)` window function gives us the code_frequency without a GROUP BY.
+
+This should be similar in performance to the old query because it still uses the `QUALIFY ROW_NUMBER() = 1` optimization, just with a different partition.
+
+Let me test this.
+Still timing out at 30s. The window function approach is just as slow. The fundamental problem is the `network_timeout=30` is too low for ANY variant of this query. The old query barely squeaked through at 19.7s for 5 patients.
+
+The key insight: even the OLD working query takes ~20s per batch. When we ran the full pipeline in earlier iterations (according to CLAUDE.md, "~9 minutes for 37K patients"), that's ~74 batches ├ù ~7s per batch with Snowflake query caching helping subsequent batches. But the first batch is always the slowest.
+
+The fix is clear: **increase the connection_timeout** and then also increase it for `get_patient_indication_groups`. Let me also check if there's a way to make the query faster.
+
+Actually, I realize the old query that took 19.7s was for the FIRST 5 random patients. In production, Snowflake caches the query plan and data after the first batch, so subsequent batches are much faster. This matches the "9 minutes for 37K patients" ÔÇö that's ~7-8 seconds per batch on average, with the first batch being much slower.
+
+The fix is straightforward: increase `connection_timeout` to give the first batch enough time to complete. Let me do that.
+Now let me test again with the new timeout. Let me try the window function + QUALIFY approach first.
+Still timing out. The config change didn't take effect. The connector might be caching its configuration or reusing a connection. Let me check if the connector singleton is caching the old config.
+Let me check how the config is loaded and passed to the connector.
+The config is cached. Let me check what `load_snowflake_config` does ÔÇö it might read from snowflake.toml and override the defaults.
+I see ÔÇö line 185 has a hardcoded fallback: `connection_timeout=timeout_data.get("connection_timeout", 30)`. The TOML file overrides the dataclass default. Let me check the TOML file.
+Found it. Line 40: `connection_timeout = 30` in `config/snowflake.toml`. This is what gets loaded. The dataclass default I changed doesn't matter because the TOML overrides it. Let me update the TOML file.
+Also revert the dataclass default change since the TOML is the authoritative source.
+Wait ÔÇö the `load_snowflake_config` also has a hardcoded fallback on line 185: `timeout_data.get("connection_timeout", 30)`. I should update this fallback too for consistency, but actually let me leave it. The TOML value (600) will be used since the key exists. The fallback 30 only applies if the key is missing from TOML.
+
+Actually, I should also update the fallback to match the new intent. Let me do that for consistency:
+Now let me test the query again with the updated timeout. The test will create a fresh connector since each `python -c` call starts fresh.
+The query now works with the 600s timeout. It took 39.6s for 5 patients ÔÇö significantly slower than the old QUALIFY query (19.7s). Let me now test with the 500-patient batch size to estimate total time.
+
+Actually, let me first consider: at 39.6s per batch with batch_size=5, that's ~8s per patient. For 36K patients, that would be absurd. But the first batch is always the slowest (cold cache). Let me test with 500 patients to see if Snowflake's caching kicks in.
+Excellent. The 500-patient batch takes 38.4s ÔÇö very similar to the 5-patient batch (39.6s). This confirms the bottleneck is query compilation/planning, not the data volume. Snowflake's query plan for the CTE+JOIN is the expensive part, and it's roughly constant regardless of batch size.
+
+Key data:
+- 500 patients ÔåÆ 38.4s, 5517 rows, 488 matched (97.6% match rate)
+- Avg 11.3 indications per patient (this includes non-drug-related diagnoses like "sepsis", "influenza")
+- 115 unique Search_Terms found
+
+For 36K patients at 500/batch = 72 batches ├ù ~38s = ~46 minutes. That's significantly longer than the old approach (9 minutes). But subsequent batches might be faster due to Snowflake query caching.
+
+Let me test a second batch to see if caching helps.
+No caching benefit ÔÇö still ~40s per batch. This means 72 batches ├ù 40s = ~48 minutes just for the GP lookup. That's too slow. Let me think about optimization.
+
+The core problem: each batch re-executes the massive CTE (148 cluster mappings ÔåÆ SNOMED codes expansion) and joins with the huge `PrimaryCareClinicalCoding` table. The CTE is identical across all batches ÔÇö only the patient list changes.
+
+**Optimization ideas:**
+1. **Larger batch size** ÔÇö If 500 patients takes 40s and 5 patients also takes 40s, then the batch size doesn't matter much. Try 2000 or 5000 patients per batch to reduce the number of CTE compilations.
+2. **Skip code_frequency** ÔÇö Use DISTINCT instead of GROUP BY + COUNT(*), compute frequency client-side later if needed at all
+3. **Pre-create temp table** for the CTE results, then query against that
+
+Let me try option 1 first ÔÇö increase batch size to 5000.
+Huge improvement. 5000 patients takes 41.3s ÔÇö almost the same as 500 patients. The overhead is in the CTE compilation, not the data volume. With 5000-patient batches:
+- 36K patients / 5000 per batch = ~8 batches
+- 8 ├ù 41s = ~5.5 minutes for GP lookups
+
+That's reasonable and much better than the 48 minutes with 500-patient batches. Let me try an even larger batch.
+10K patients takes ~43s. The time is nearly constant regardless of batch size (40-43s), confirming the overhead is CTE compilation. With 10K-patient batches:
+- ~42K patients / 10000 = ~5 batches ├ù 43s = ~3.5 minutes
+
+That's excellent. Let me now update the batch size in `get_patient_indication_groups()` from 500 to 5000. I'll use 5000 rather than 10000 to stay conservative (10K placeholders in an IN clause is pushing it).
+
+Actually wait ÔÇö the caller in `refresh_pathways.py` passes `batch_size=500`. Let me check.
+I need to change the batch_size in the caller. Let me update both the default in the function and the call site.
+There are two functions with `batch_size: int = 500`. Let me update the specific one.
+Now update the caller in refresh_pathways.py:
+Let me verify both files compile correctly.
+Now let me run the full dry run test with the fixes applied.
+The dry run is running in the background. It will take a while ÔÇö Snowflake fetch (~10s), data transformations (~6 min), GP lookup (~5 min with new batch sizes), pathway processing (~1 min). Let me check on it periodically.
+Data transformations are running. Let me wait for them to complete and check the GP lookup phase.
+The first batch completed successfully: **Batch 1: 54,300 rows in 48.72s**. The GP lookup is now working with the 5000-patient batches and 600s network timeout. Batch 2 is running. 8 batches total.
+
+Let me wait for the full pipeline to complete.
+The dry run completed successfully! Let me read the full output to get all the key metrics.
+Let me also see the tiebreaker and top indications stats.
+Excellent. Here's the full picture of the dry run results:
+
+**GP Lookup Results:**
+- 36,628 patients queried ÔåÆ 33,642 with GP match (91.8%)
+- 8 batches of 5000 patients, ~40-48s each
+- 537,794 total patient-indication matches (avg 16 per patient ÔÇö includes non-drug-related like sepsis, influenza)
+- Top GP indications: sepsis (32K), drug misuse (31K), influenza (28K)
+
+**Drug-Aware Matching Results:**
+- 50,797 UPID-Drug pairs processed
+- **25,059 matched (49.3%)** ÔÇö drug has a DimSearchTerm mapping AND patient has GP dx for that condition
+- **25,738 fallback (50.7%)** ÔÇö no match, falls back to directory
+- **15,238 tiebreaker used** ÔÇö drug matched multiple indications, picked by highest code_frequency
+- **42,072 unique modified UPIDs** (up from original ~37K unique patients)
+- Top assigned indications: "Undefined (no GP dx)" (8,110), macular degeneration (5,256), diabetes (3,841), "OPHTHALMOLOGY (no GP dx)" (3,040), rheumatoid arthritis (2,216)
+
+**Pathway Node Counts:**
+| Date Filter | Nodes |
+|---|---|
+| all_6mo | 438 |
+| all_12mo | 484 |
+| 1yr_6mo | 181 |
+| 1yr_12mo | 199 |
+| 2yr_6mo | 257 |
+| 2yr_12mo | 287 |
+| **Total** | **1,846** |
+
+This is comparable to the old approach (~300 per date filter for the wider filters). The 49.3% match rate seems reasonable ÔÇö drugs without a DimSearchTerm mapping (or where the patient has no GP coding for the drug's indication) fall back to directory labels.
+
+The dry run is a success. Let me now mark Task 3.2 as complete, commit the changes, and update progress.
+Let me update the IMPLEMENTATION_PLAN.md to mark Task 3.2 complete.
+Now update progress.txt with the iteration log.
+There are 4 occurrences of "### Blocked items:\n- None" in the file. I need to be more specific. Let me append to the end of the file instead.
+Now let me add a guardrail for the timeout issue since it's a failure pattern future iterations should know about.
+Now let me commit all the changes.
+There are many changed files from prior uncommitted work (DESIGN_SYSTEM.md, RALPH_PROMPT.md, etc.). I should only commit the files I changed for Task 3.2. Let me stage just the relevant files.
+Now update progress.txt with the commit hash.
+Task 3.2 is complete. Let me verify the final state.
+## Summary ÔÇö Iteration 6 Complete
+
+**Task 3.2: Test with dry run** ÔÇö COMPLETE
+
+### Key findings and fixes:
+1. **Root cause**: GP lookup queries timing out at 30s due to `connection_timeout=30` in snowflake.toml (controls Python client `network_timeout`, not server-side timeout)
+2. **Fix 1**: Increased `connection_timeout` from 30 ÔåÆ 600 seconds
+3. **Fix 2**: Increased GP lookup batch_size from 500 ÔåÆ 5000 (query time is ~40s regardless of batch size ÔÇö bottleneck is CTE compilation, not data volume)
+4. **Dry run successful**: 
+   - 91.8% GP match rate
+   - 49.3% drug-indication match rate, 50.7% fallback to directory
+   - 15,238 tiebreaker decisions made
+   - 42,072 unique modified UPIDs
+   - 1,846 total pathway nodes across 6 date filters
+
+### Next: Task 4.1 (Full refresh with both chart types)
+## Summary ÔÇö Iteration 6 Complete
+
+**Task 3.2: Test with dry run** ÔÇö COMPLETE
+
+### Key findings and fixes:
+1. **Root cause**: GP lookup queries timing out at 30s due to `connection_timeout=30` in snowflake.toml (controls Python client `network_timeout`, not server-side timeout)
+2. **Fix 1**: Increased `connection_timeout` from 30 ÔåÆ 600 seconds
+3. **Fix 2**: Increased GP lookup batch_size from 500 ÔåÆ 5000 (query time is ~40s regardless of batch size ÔÇö bottleneck is CTE compilation, not data volume)
+4. **Dry run successful**: 
+   - 91.8% GP match rate
+   - 49.3% drug-indication match rate, 50.7% fallback to directory
+   - 15,238 tiebreaker decisions made
+   - 42,072 unique modified UPIDs
+   - 1,846 total pathway nodes across 6 date filters
+
+### Next: Task 4.1 (Full refresh with both chart types)
+

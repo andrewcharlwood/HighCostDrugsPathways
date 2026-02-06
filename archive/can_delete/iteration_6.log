@@ -1,0 +1,90 @@
+﻿
+
+I'll start by reading the required files in order to understand the current state of the project.
+Now let me check the recent git log and read the current state of `refresh_pathways.py` since Task 3.1 is next.
+Reading progress.txt, IMPLEMENTATION_PLAN.md, and guardrails.md. I can see:
+
+**Status**: Phase 1 (Tasks 1.1, 1.2, 1.3) and Phase 2 (Tasks 2.1, 2.2) are all complete. The next task is **Task 3.1: Update `refresh_pathways.py` indication processing to use `assign_drug_indications()`**.
+
+**Why Task 3.1**: This is the first task in Phase 3 and the natural next step. All Phase 1 & 2 dependencies are complete (the query returns all matches, drug mapping is loaded, and `assign_drug_indications()` exists). Now I need to wire them together in the pipeline.
+
+The current indication processing block (lines 361-518) uses the old approach:
+- Line 424-428: `dict(zip(...))` which only keeps the LAST match per patient
+- Lines 430-452: Manual indication_df building per UPID (no drug awareness)
+
+I need to replace this with the new drug-aware approach:
+1. Load drug mapping via `load_drug_indication_mapping()`
+2. Pass `earliest_hcd_date` to `get_patient_indication_groups()`
+3. Call `assign_drug_indications()` to get (modified_df, indication_df)
+4. Use modified_df for pathway processing
+
+Let me first mark Task 3.1 as in-progress, then look at the `assign_drug_indications` function signature to ensure I wire it correctly.
+Reading the relevant function signatures from diagnosis_lookup.py.
+Good. I now have a clear picture of the function signatures:
+
+- `load_drug_indication_mapping(csv_path=None)` ÔåÆ `(fragment_to_search_terms, search_term_to_fragments)`
+- `assign_drug_indications(df, gp_matches_df, search_term_to_fragments)` ÔåÆ `(modified_df, indication_df)`
+  - `indication_df` is already indexed by modified UPID with a `'Directory'` column ÔÇö exactly what `process_indication_pathway_for_date_filter` expects
+
+Now I'll update `refresh_pathways.py`. The key changes to the `elif current_chart_type == "indication":` block (lines 361-518):
+
+1. Import `assign_drug_indications` and `load_drug_indication_mapping` at the top
+2. Load drug mapping
+3. Pass `earliest_hcd_date` to `get_patient_indication_groups()`
+4. Call `assign_drug_indications()` instead of the manual dict(zip) approach
+5. Use modified_df for pathway processing (instead of original df)
+6. indication_df is already in the right format ÔÇö no need for the manual building code
+
+Let me first update the imports, then replace the indication processing block.
+Now replace the indication processing block. The old code spans from the `elif current_chart_type == "indication":` block at line 361 to the end of the try/except at line 518. I need to replace the inner logic (lines 362-512) with the new drug-aware approach.
+
+Let me replace the entire indication block. The key section to replace is from `elif current_chart_type == "indication":` through the end of the inner try block.
+Now let me verify the file looks correct by reading the updated indication block.
+The code looks correct. Let me also verify the imports at the top are clean.
+Good, imports look clean. Now let me run the validation checks.
+All validation checks pass:
+- `py_compile` ÔÇö no syntax errors
+- Individual imports ÔÇö `assign_drug_indications`, `get_patient_indication_groups`, `load_drug_indication_mapping` all import successfully
+- Full module import ÔÇö `cli.refresh_pathways` imports without error
+
+Now let me update IMPLEMENTATION_PLAN.md to mark Task 3.1 subtasks as complete, then update progress.txt and commit.
+Now update progress.txt with the iteration log.
+Now let me commit the changes.
+I'll only stage the files I actually changed in this iteration: `cli/refresh_pathways.py`, `IMPLEMENTATION_PLAN.md`, and `progress.txt`.
+Good ÔÇö 3 files, net reduction of 7 lines in refresh_pathways.py (cleaner code), plus progress notes.
+Now update the commit hash in progress.txt.
+**Task 3.1 complete.** Here's what was done:
+
+**Changes to `cli/refresh_pathways.py`:**
+- Added imports for `assign_drug_indications` and `load_drug_indication_mapping`
+- Replaced the old indication processing block (~90 lines ÔåÆ ~60 lines) with drug-aware matching:
+  1. Loads drug mapping from DimSearchTerm.csv
+  2. Computes `earliest_hcd_date` from HCD data to restrict GP code window
+  3. Gets ALL GP matches per patient (with code_frequency) via updated query
+  4. Calls `assign_drug_indications()` to cross-reference drugs against GP diagnoses
+  5. Passes `modified_df` (with indication-aware UPIDs like `RMV12345|rheumatoid arthritis`) to pathway processing
+  6. Uses `indication_df` directly ÔÇö already in the correct format (indexed by modified UPID, `Directory` column)
+
+**Validation:** `py_compile` passed, all imports verified, full module import OK.
+
+**Commits:** `920570b` (code) + `73088b0` (progress docs)
+
+**Next task:** 3.2 ÔÇö Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v` to test the integrated pipeline with live Snowflake data.
+**Task 3.1 complete.** Here's what was done:
+
+**Changes to `cli/refresh_pathways.py`:**
+- Added imports for `assign_drug_indications` and `load_drug_indication_mapping`
+- Replaced the old indication processing block (~90 lines ÔåÆ ~60 lines) with drug-aware matching:
+  1. Loads drug mapping from DimSearchTerm.csv
+  2. Computes `earliest_hcd_date` from HCD data to restrict GP code window
+  3. Gets ALL GP matches per patient (with code_frequency) via updated query
+  4. Calls `assign_drug_indications()` to cross-reference drugs against GP diagnoses
+  5. Passes `modified_df` (with indication-aware UPIDs like `RMV12345|rheumatoid arthritis`) to pathway processing
+  6. Uses `indication_df` directly ÔÇö already in the correct format (indexed by modified UPID, `Directory` column)
+
+**Validation:** `py_compile` passed, all imports verified, full module import OK.
+
+**Commits:** `920570b` (code) + `73088b0` (progress docs)
+
+**Next task:** 3.2 ÔÇö Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v` to test the integrated pipeline with live Snowflake data.
+
