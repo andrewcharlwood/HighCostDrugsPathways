@@ -779,5 +779,55 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - `load_initial_data()` returns `last_updated` as an ISO datetime string and `total_records` (which is 0 from pathway_refresh_log)
 - Consider using `datetime` to compute relative time from `last_updated`, or just show the date
 - After 5.3, only 5.4 (Remove Reflex + final validation) remains
+### Blocked items (iter 14):
+- None
+
+## Iteration 15 — 2026-02-06
+### Task: Phase 5 — Task 5.3 (Data freshness indicator)
+### Why this task:
+- Task 5.2 complete. Task 5.3 is the next incomplete task in Phase 5.
+- Iteration 14 explicitly recommended this task.
+- The header already had placeholder spans for record count and last updated — this task makes them useful.
+### Status: COMPLETE
+### What was done:
+- Added `_format_relative_time(iso_timestamp)` helper to `dash_app/callbacks/filters.py`:
+  - Parses ISO timestamp and returns relative time: "just now", "15m ago", "3h ago", "yesterday", "4d ago", "1w ago", or "23 Dec 2025" for older dates
+  - Handles empty strings, invalid dates gracefully
+- Added `total_patients` field to `load_initial_data()` in `src/data_processing/pathway_queries.py`:
+  - Queries root node (level 0) value from default filter (all_6mo, directory) as patient count
+  - Only runs when `total_records` is 0 (source_row_count empty in refresh log — known issue)
+  - Returns 11,118 patients for current data
+- Updated `load_reference_data` callback to use both improvements:
+  - Record text: "11,118 patients" (comma-formatted, falls back to "Data loaded" if no data)
+  - Updated text: "14h ago" (relative time from last_updated ISO timestamp)
+  - Matches design reference in 01_nhs_classic.html: green dot + "{N} records" + "Last updated: 2h ago"
+### Validation results:
+- Tier 1 (Code): All imports pass, app starts, 7 callbacks registered
+- Tier 1 (App starts): `from dash_app.app import app` — OK
+- Tier 3 (Functional):
+  - Relative time formatting: tested 10 cases (just now, minutes, hours, yesterday, days, weeks, months, empty, invalid, actual value) — all correct
+  - Record text: "11,118 patients" — correct
+  - Updated text: "14h ago" — correct (refresh was at 2026-02-06T00:08:55)
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added: total_patients query from root node
+- `dash_app/callbacks/filters.py` — Added: _format_relative_time helper, updated load_reference_data
+- `IMPLEMENTATION_PLAN.md` — Task 5.3 marked [x]
+### Committed: e877268 "feat: add data freshness indicator with relative time and patient count (Task 5.3)"
+### Patterns discovered:
+- `total_records` from `pathway_refresh_log.source_row_count` is always 0 for this project. The `total_patients` field from the root node's `value` is a better alternative for the header display.
+- `datetime.fromisoformat()` handles the SQLite timestamp format (`2026-02-06T00:08:55.812828`) natively in Python 3.10+.
+- The relative time helper is a standalone function (not inside `register_filter_callbacks`) for testability.
+### Next iteration should:
+- Start Task 5.4 — Remove Reflex + final validation
+- This is the FINAL task. Sub-items:
+  1. Remove `reflex` from `pyproject.toml` dependencies
+  2. Move `pathways_app/` to `archive/` (don't delete — keep for reference)
+  3. Delete `pathways_app/styles.py` and any Reflex-specific files
+  4. Update `CLAUDE.md` to document the Dash app structure, new run command (`python run_dash.py`), callback architecture
+  5. Run `python run_dash.py` — verify app starts cleanly
+  6. Verify no Reflex imports in `dash_app/`
+  7. Run `uv sync` after removing reflex dependency
+- IMPORTANT: Read the completion criteria at bottom of IMPLEMENTATION_PLAN.md — all must be satisfied
+- After 5.4, check if ALL tasks are [x] and output the COMPLETE signal
 ### Blocked items:
 - None
