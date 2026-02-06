@@ -179,7 +179,7 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Changing date filter updates chart-data store with new pathway nodes ✓
 
 ### 3.3 KPI update callback
-- [ ] Create `dash_app/callbacks/kpi.py`:
+- [x] Create `dash_app/callbacks/kpi.py`:
   - `update_kpis` callback: Input=`chart-data` store, Output=KPI card values (4 outputs)
   - Extracts `unique_patients`, `total_drugs`, `total_cost` from chart-data
   - Formats numbers: patients with commas, cost as "£XXX.XM", drugs as plain number
