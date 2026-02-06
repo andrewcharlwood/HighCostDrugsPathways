@@ -359,7 +359,7 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: App starts, tab bar renders with all 8 tabs, icicle tab still works, other tabs show placeholder "Coming soon" messages ✓
 
 ### 9.2 Query functions for all chart types
-- [ ] Add to `src/data_processing/pathway_queries.py`:
+- [x] Add to `src/data_processing/pathway_queries.py`:
   - `get_drug_market_share(db_path, date_filter_id, chart_type, directory=None, trust=None)` — Level 3 nodes grouped by directory, returning drug, value, colour
   - `get_pathway_costs(db_path, date_filter_id, chart_type, directory=None)` — Level 4+ nodes with cost_pp_pa, parsed pathway labels, patient counts
   - `get_cost_waterfall(db_path, date_filter_id, chart_type, trust=None)` — Level 2 nodes with cost_pp_pa per directorate/indication
@@ -367,8 +367,8 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
   - `get_dosing_intervals(db_path, date_filter_id, chart_type, drug=None)` — Level 3 nodes for a specific drug, parsed average_spacing by trust/directory
   - `get_drug_directory_matrix(db_path, date_filter_id, chart_type)` — Level 3 nodes pivoted as directory × drug with value/cost metrics
   - `get_treatment_durations(db_path, date_filter_id, chart_type, directory=None)` — Level 3 nodes with avg_days by drug within a directorate
-- [ ] Add thin wrappers in `dash_app/data/queries.py` for each new function (resolve DB_PATH and delegate)
-- **Checkpoint**: All 7 query functions return correct data via manual Python tests (`python -c "..."`)
+- [x] Add thin wrappers in `dash_app/data/queries.py` for each new function (resolve DB_PATH and delegate)
+- **Checkpoint**: All 7 query functions return correct data via manual Python tests (`python -c "..."`) ✓
 
 ### 9.3 First-Line Market Share chart (Tab 2)
 - [ ] Create `dash_app/callbacks/market_share.py`:

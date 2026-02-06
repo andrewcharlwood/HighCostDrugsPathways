@@ -11,6 +11,13 @@ from typing import Optional
 from data_processing.pathway_queries import (
     load_initial_data as _load_initial_data,
     load_pathway_nodes as _load_pathway_nodes,
+    get_drug_market_share as _get_drug_market_share,
+    get_pathway_costs as _get_pathway_costs,
+    get_cost_waterfall as _get_cost_waterfall,
+    get_drug_transitions as _get_drug_transitions,
+    get_dosing_intervals as _get_dosing_intervals,
+    get_drug_directory_matrix as _get_drug_directory_matrix,
+    get_treatment_durations as _get_treatment_durations,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -37,3 +44,74 @@ def load_pathway_data(
         selected_directorates=selected_directorates,
         selected_trusts=selected_trusts,
     )
+
+
+# --- Analytics chart query wrappers (Phase 9) ---
+
+
+def get_drug_market_share(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Level 3 drug nodes grouped by directory with patient counts."""
+    return _get_drug_market_share(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_pathway_costs(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Level 4+ pathway nodes with annualized cost."""
+    return _get_pathway_costs(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_cost_waterfall(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Level 2 directorate nodes with cost per patient."""
+    return _get_cost_waterfall(DB_PATH, date_filter_id, chart_type, trust)
+
+
+def get_drug_transitions(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> dict:
+    """Drug transition data for Sankey diagram."""
+    return _get_drug_transitions(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_dosing_intervals(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    drug: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Dosing interval data parsed from average_spacing."""
+    return _get_dosing_intervals(DB_PATH, date_filter_id, chart_type, drug, trust)
+
+
+def get_drug_directory_matrix(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    trust: Optional[str] = None,
+) -> dict:
+    """Directory × drug matrix with patient counts and costs."""
+    return _get_drug_directory_matrix(DB_PATH, date_filter_id, chart_type, trust)
+
+
+def get_treatment_durations(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Treatment duration data (avg_days) by drug."""
+    return _get_treatment_durations(DB_PATH, date_filter_id, chart_type, directory, trust)
