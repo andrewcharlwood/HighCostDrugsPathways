@@ -728,3 +728,56 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Consider: `dcc.Loading(type="circle", color="#005EB8")` wrapping the `dcc.Graph` for a loading spinner during SQLite queries
 ### Blocked items:
 - None
+
+## Iteration 14 — 2026-02-06
+### Task: Phase 5 — Task 5.2 (Loading/error/empty states + dynamic hierarchy label)
+### Why this task:
+- Task 5.1 complete. Task 5.2 is the next incomplete task in Phase 5.
+- Iteration 13 explicitly recommended this task.
+- Adds UX polish: loading spinner during data fetch, empty state when filters match nothing, error handling for database failures.
+### Status: COMPLETE
+### What was done:
+- Added `dcc.Loading(type="circle", color="#005EB8")` wrapper around `dcc.Graph` in `chart_card.py`:
+  - Wraps a `html.Div(id="chart-container")` containing the `dcc.Graph(id="pathway-chart")`
+  - NHS blue spinner appears while chart data is loading
+- Added `_empty_figure(message)` helper in `dash_app/callbacks/chart.py`:
+  - Returns a blank Plotly figure with a centered annotation message
+  - Uses `#768692` (NHS mid-grey) for text color, Source Sans 3 font
+  - Used for both empty state and error state
+- Modified `update_chart` callback to handle three states:
+  1. **Error**: `chart_data.get("error")` → shows error message in empty figure
+  2. **Empty**: `not chart_data.get("nodes")` → shows "No matching pathways found. Try adjusting your filters."
+  3. **Normal**: renders icicle chart as before
+  - Subtitle is always computed (even for empty/error states) to keep the hierarchy label consistent
+- Added error handling to `load_pathway_data` callback:
+  - `try/except Exception` wraps the query call
+  - On failure, logs the exception and returns `{"nodes": [], "error": "Database query failed. Check logs for details."}`
+  - Downstream callbacks (KPIs, chart) gracefully handle empty data
+- Dynamic chart subtitle was already implemented in Task 3.4 — marked as done in IMPLEMENTATION_PLAN.md
+### Validation results:
+- Tier 1 (Code): All imports pass — chart.py, chart_card.py, app.py
+- Tier 1 (App starts): `from dash_app.app import app` — OK, 7 callbacks registered
+- Tier 2 (Layout): dcc.Loading found in chart card: type=circle, color=#005EB8, wrapping chart-container → pathway-chart
+- Tier 3 (Functional):
+  - Empty figure renders annotation: "No matching pathways found.\nTry adjusting your filters."
+  - Error figure renders annotation: "Database query failed. Check logs for details."
+  - KPIs show em-dash for all values when data is empty (0 patients, 0 drugs, £0)
+### Files changed:
+- `dash_app/components/chart_card.py` — Updated: added dcc.Loading wrapper around dcc.Graph
+- `dash_app/callbacks/chart.py` — Updated: added _empty_figure helper, error handling in load_pathway_data, empty/error states in update_chart
+- `IMPLEMENTATION_PLAN.md` — Task 5.2 marked [x]
+### Committed: 5593d08 "feat: add loading spinner, empty state, and error handling to chart area (Task 5.2)"
+### Patterns discovered:
+- `_empty_figure()` uses Plotly annotations on a blank figure (no traces) for empty/error states. This is cleaner than returning an empty `go.Figure()` (which shows grid lines) because `xaxis.visible=False, yaxis.visible=False` hides all axes.
+- `dcc.Loading` wraps children — when any Output inside changes, the spinner appears. Wrapping `dcc.Graph` directly in `dcc.Loading` is sufficient since `pathway-chart.figure` is the Output that triggers loading state.
+- The `update_chart` callback now computes subtitle BEFORE checking for empty/error data. This ensures the hierarchy label stays consistent even when showing empty state (previously `no_update` was returned for both figure and subtitle, which could leave a stale subtitle).
+### Next iteration should:
+- Start Task 5.3 — Data freshness indicator
+- The header already has `id="header-record-count"` and `id="header-last-updated"` spans (created in Task 2.1)
+- The `load_reference_data` callback in `dash_app/callbacks/filters.py` already populates these on page load
+- Check what the current values show — may just need formatting improvements (relative time like "2h ago")
+- `load_initial_data()` returns `last_updated` as an ISO datetime string and `total_records` (which is 0 from pathway_refresh_log)
+- Consider using `datetime` to compute relative time from `last_updated`, or just show the date
+- After 5.3, only 5.4 (Remove Reflex + final validation) remains
+### Blocked items:
+- None
