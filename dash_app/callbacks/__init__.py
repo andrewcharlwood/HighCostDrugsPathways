@@ -4,5 +4,7 @@
 def register_callbacks(app):
     """Register all Dash callbacks with the app instance."""
     from dash_app.callbacks.filters import register_filter_callbacks
+    from dash_app.callbacks.chart import register_chart_callbacks
 
     register_filter_callbacks(app)
+    register_chart_callbacks(app)

@@ -172,11 +172,11 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Page loads reference data, filter dropdowns update app-state store (verify via browser dev tools → dcc.Store)
 
 ### 3.2 Pathway data loading callback
-- [ ] Create `dash_app/callbacks/chart.py` (or add to filters.py):
+- [x] Create `dash_app/callbacks/chart.py` (or add to filters.py):
   - `load_pathway_data` callback: Input=`app-state` store, Output=`chart-data` store
   - Calls `queries.load_pathway_data(filter_id, chart_type, selected_drugs, selected_directorates)`
   - Runs on page load AND whenever `app-state` changes
-- **Checkpoint**: Changing date filter updates chart-data store with new pathway nodes
+- **Checkpoint**: Changing date filter updates chart-data store with new pathway nodes ✓
 
 ### 3.3 KPI update callback
 - [ ] Create `dash_app/callbacks/kpi.py`:
