@@ -371,13 +371,13 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: All 7 query functions return correct data via manual Python tests (`python -c "..."`) ✓
 
 ### 9.3 First-Line Market Share chart (Tab 2)
-- [ ] Create `dash_app/callbacks/market_share.py`:
-  - Build horizontal grouped bar chart from `get_drug_market_share()` data
-  - One cluster per directorate/indication (top N), bars within = drugs, length = % of patients
-  - Sorted by total patients desc, NHS blue palette
-  - Responds to all existing filters
-- [ ] Create figure function in `src/visualization/` (e.g., `create_market_share_figure(data)`)
-- [ ] Wire into tab switching in `update_chart` callback
+- [x] Create market share chart rendering:
+  - Build horizontal stacked bar chart from `get_drug_market_share()` data
+  - One cluster per directorate/indication (sorted by total patients desc), bars = drugs, length = % of patients
+  - NHS colour palette, stacked bars with hover showing patients, share, cost, cost_pp_pa
+  - Responds to all existing filters (date, chart type, trust, directorate)
+- [x] Create figure function in `src/visualization/plotly_generator.py` — `create_market_share_figure(data, title)`
+- [x] Wire into tab switching in `update_chart` callback via `_render_market_share()` helper
 - **Checkpoint**: Market Share tab renders real data, responds to filters, icicle still works
 
 ### 9.4 Pathway Cost Effectiveness chart (Tab 3)

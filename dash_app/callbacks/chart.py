@@ -82,6 +82,32 @@ def _generate_chart_title(app_state):
     return " | ".join(parts) if parts else "All Patients"
 
 
+def _render_market_share(app_state, title):
+    """Build the market share figure from current filter state."""
+    from dash_app.data.queries import get_drug_market_share
+    from visualization.plotly_generator import create_market_share_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    # Market share query supports single directory/trust filter
+    selected_dirs = (app_state or {}).get("selected_directorates") or []
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    directory = selected_dirs[0] if len(selected_dirs) == 1 else None
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_drug_market_share(filter_id, chart_type, directory, trust)
+    except Exception:
+        log.exception("Failed to load market share data")
+        return _empty_figure("Failed to load market share data.")
+
+    if not data:
+        return _empty_figure("No market share data available.\nTry adjusting your filters.")
+
+    return create_market_share_figure(data, title)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -188,11 +214,16 @@ def register_chart_callbacks(app):
             ), subtitle
 
         # Lazy rendering — only compute the active tab's chart
+        title = _generate_chart_title(app_state) if app_state else ""
+
         if active_tab == "icicle":
             from visualization.plotly_generator import create_icicle_from_nodes
 
-            title = _generate_chart_title(app_state) if app_state else ""
             fig = create_icicle_from_nodes(chart_data["nodes"], title)
+
+        elif active_tab == "market-share":
+            fig = _render_market_share(app_state, title)
+
         else:
             # Placeholder for charts not yet implemented
             tab_label = dict(TAB_DEFINITIONS).get(active_tab, active_tab)

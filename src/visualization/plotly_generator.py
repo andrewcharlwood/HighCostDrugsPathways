@@ -244,6 +244,143 @@ def create_icicle_from_nodes(nodes: list[dict], title: str = "") -> go.Figure:
     return fig
 
 
+def create_market_share_figure(data: list[dict], title: str = "") -> go.Figure:
+    """
+    Create horizontal grouped bar chart showing first-line drug market share by directorate.
+
+    Args:
+        data: List of dicts from get_drug_market_share() with keys:
+              directory, drug, patients, proportion, cost, cost_pp_pa
+              Sorted by directory total patients desc, drugs desc within.
+        title: Chart title suffix (filter description)
+
+    Returns:
+        Plotly Figure with horizontal bars grouped by directorate.
+    """
+    if not data:
+        return go.Figure()
+
+    # NHS blue palette for different drugs
+    nhs_colours = [
+        "#003087", "#005EB8", "#0072CE", "#1E88E5", "#41B6E6",
+        "#4FC3F7", "#768692", "#AE2573", "#006747", "#ED8B00",
+        "#8A1538", "#330072", "#009639", "#DA291C", "#00A499",
+    ]
+
+    # Collect unique directorates (in order — already sorted by total patients desc)
+    seen_dirs = []
+    for d in data:
+        if d["directory"] not in seen_dirs:
+            seen_dirs.append(d["directory"])
+
+    # Collect unique drugs across all directorates (preserve first-encountered order)
+    seen_drugs = []
+    for d in data:
+        if d["drug"] not in seen_drugs:
+            seen_drugs.append(d["drug"])
+
+    # Build one trace per drug
+    drug_colour_map = {drug: nhs_colours[i % len(nhs_colours)] for i, drug in enumerate(seen_drugs)}
+
+    # Build a lookup: (directory, drug) -> row
+    lookup = {(d["directory"], d["drug"]): d for d in data}
+
+    # Reverse directory order so highest total is at the top of horizontal chart
+    display_dirs = list(reversed(seen_dirs))
+
+    traces = []
+    for drug in seen_drugs:
+        y_vals = []
+        x_vals = []
+        hover_texts = []
+        for directory in display_dirs:
+            row = lookup.get((directory, drug))
+            if row:
+                y_vals.append(directory)
+                x_vals.append(row["proportion"] * 100)
+                hover_texts.append(
+                    f"<b>{drug}</b><br>"
+                    f"{directory}<br>"
+                    f"Patients: {row['patients']:,}<br>"
+                    f"Share: {row['proportion']:.1%}<br>"
+                    f"Cost: £{row['cost']:,.0f}<br>"
+                    f"Cost p.p.p.a: £{row['cost_pp_pa']:,.0f}"
+                )
+            else:
+                y_vals.append(directory)
+                x_vals.append(0)
+                hover_texts.append("")
+
+        traces.append(go.Bar(
+            name=drug,
+            y=y_vals,
+            x=x_vals,
+            orientation="h",
+            marker_color=drug_colour_map[drug],
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
+        ))
+
+    display_title = f"First-Line Drug Market Share — {title}" if title else "First-Line Drug Market Share"
+
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+        barmode="stack",
+        title=dict(
+            text=display_title,
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=18,
+                color="#1E293B",
+            ),
+            x=0.5,
+            xanchor="center",
+        ),
+        xaxis=dict(
+            title="% of patients",
+            ticksuffix="%",
+            range=[0, 105],
+            gridcolor="#E2E8F0",
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title="",
+            automargin=True,
+        ),
+        legend=dict(
+            title="Drug",
+            orientation="h",
+            yanchor="top",
+            y=-0.15,
+            xanchor="center",
+            x=0.5,
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=11,
+            ),
+        ),
+        margin=dict(t=50, l=8, r=24, b=100),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        autosize=True,
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            bordercolor="#CBD5E1",
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=13,
+                color="#1E293B",
+            ),
+        ),
+        font=dict(
+            family="Source Sans 3, system-ui, sans-serif",
+        ),
+        height=max(400, len(seen_dirs) * 60 + 200),
+    )
+
+    return fig
+
+
 def save_figure_html(
     fig: go.Figure, save_dir: str, title: str, open_browser: bool = False
 ) -> str:
