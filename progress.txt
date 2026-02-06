@@ -2306,3 +2306,65 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - The query wrappers are ready: `get_trust_market_share`, `get_trust_cost_waterfall`, `get_trust_dosing`, `get_trust_heatmap`, `get_trust_durations`, and existing `get_pathway_costs`
 ### Blocked items:
 - None
+
+## Iteration 40 — 2026-02-06
+### Task: 10.8 — Trust Comparison 6-chart dashboard
+### Why this task:
+- Task 10.7 (TC landing page + directorate selector) was completed in iteration 39
+- Progress.txt from iteration 39 explicitly recommended Task 10.8 as next
+- This is the core data visualization task for Trust Comparison — replacing 6 placeholder charts with real implementations
+### Status: COMPLETE
+### What was done:
+- **Added 3 new visualization functions** to `src/visualization/plotly_generator.py`:
+  1. `create_trust_market_share_figure(data, title)` — horizontal stacked bars grouped by trust (drugs as segments), short trust names for readability
+  2. `create_trust_heatmap_figure(data, title, metric)` — trust × drug matrix with NHS blue colorscale, shortened trust names on y-axis
+  3. `create_trust_duration_figure(data, title)` — grouped horizontal bars with one trace per trust, drugs on y-axis
+- **Replaced 6 placeholder callbacks** in `dash_app/callbacks/trust_comparison.py`:
+  1. **Market Share**: `get_trust_market_share` → `create_trust_market_share_figure` (new function)
+  2. **Cost Waterfall**: `get_trust_cost_waterfall` → mapped `trust_name→directory` key → reused `create_cost_waterfall_figure`
+  3. **Dosing**: `get_trust_dosing` + directory field injection → reused `create_dosing_figure(group_by="trust")`
+  4. **Heatmap**: `get_trust_heatmap` → `create_trust_heatmap_figure` (new function)
+  5. **Duration**: `get_trust_durations` → `create_trust_duration_figure` (new function)
+  6. **Cost Effectiveness**: existing `get_pathway_costs(directory=selected)` + `calculate_retention_rate` → reused `create_cost_effectiveness_figure`
+- Added helper functions: `_tc_empty()` for empty state messages, `_tc_title()` for chart title generation
+- All 6 callbacks respond to `selected_comparison_directorate`, `date_filter_id`, and `chart_type` from app-state
+- All use `prevent_initial_call=True` to avoid rendering when no directorate selected
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional — directory mode, RHEUMATOLOGY):
+  - Market Share: 42 rows, 17 traces (drug traces across 6 trusts)
+  - Cost Waterfall: 6 trusts, 1 trace (bars)
+  - Dosing: 40 entries, 1 trace (grouped by trust)
+  - Heatmap: 6 trusts × 17 drugs
+  - Duration: 40 entries, 6 traces (one per trust)
+  - Cost Effectiveness: 38 pathways, 39 traces (sticks + dots)
+- Tier 3 (Functional — indication mode, asthma):
+  - Market Share: 3 rows, 2 traces
+  - Cost Waterfall: 2 trusts
+  - Dosing: 3 entries
+  - Heatmap: 2 trusts × 2 drugs
+  - Duration: 3 entries, 2 traces
+  - Cost Effectiveness: 0 pathways (expected — no multi-drug pathways for asthma)
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added 3 trust-comparison figure functions (~306 new lines)
+- `dash_app/callbacks/trust_comparison.py` — Replaced 6 placeholders with real chart callbacks
+- `IMPLEMENTATION_PLAN.md` — Task 10.8 marked [x]
+### Committed: ea6b906 "feat: Trust Comparison 6-chart dashboard with real data (Task 10.8)"
+### Patterns discovered:
+- Reusing existing visualization functions by mapping data keys (e.g., `trust_name` → `directory`) is cleaner than creating entirely new functions for identical chart types. Cost Waterfall and Dosing both reused existing functions.
+- The `_dosing_by_trust` helper in `create_dosing_figure` expects a `directory` key even when data is already scoped to one directory. Adding the field in the callback is the simplest fix.
+- Trust names are long ("CAMBRIDGE UNIVERSITY HOSPITALS NHS FOUNDATION TRUST") — `short_trust()` helper strips common suffixes for chart readability.
+- Cost Effectiveness for indication mode with narrow indications (like "asthma") may return 0 pathways at level 4+ since patients are on single drugs. The empty state handler covers this gracefully.
+### Next iteration should:
+- Start Task 10.9 — Patient Pathways filter relocation
+- Key sub-steps:
+  1. Drug/trust/directorate filter buttons (with count badges) should only be visible on Patient Pathways view
+  2. They should be hidden when on Trust Comparison view
+  3. The filter bar currently lives inside `dash_app/components/filter_bar.py` and is placed inside the patient-pathways-view container in `app.py` — check if it's already correctly scoped
+  4. If filter_bar is already ONLY in patient-pathways-view, this may be largely done. Verify the filter modals still work and "Clear All Filters" still works
+  5. Read `dash_app/app.py` to see current layout structure — is filter_bar inside patient-pathways-view or outside?
+  6. Read `docs/PHASE10_DESIGN.md` Section 5 for the design spec on pathway filter placement
+- If filter_bar is already in the right place, this task may just need verification and minor CSS adjustments per the design spec
+### Blocked items:
+- None
