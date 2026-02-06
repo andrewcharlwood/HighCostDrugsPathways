@@ -449,6 +449,135 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 
 ---
 
+## Phase 10: Two-View Architecture + Header Redesign
+
+### Context
+Phase 9 delivered 8 chart tabs in a single view. User feedback: comparing drugs across directorates is "apples and oranges" — e.g., Remicade (ophthalmology) vs Adalimumab (multi-directorate) isn't useful. The new architecture splits charts into two views with distinct perspectives:
+- **Patient Pathways**: Pathway-focused analysis (Icicle + Sankey) with drug/trust/directorate filters
+- **Trust Comparison**: Per-directorate analysis comparing drugs across trusts (6 charts for a selected directorate)
+
+Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-header added.
+
+### 10.1 Design consultation via frontend-design skill
+- [x] Use the `/frontend-design` skill to design the following layouts:
+  1. **Header redesign**: Fraction KPIs (X/X patients, X/X drugs, £X/£X cost) integrated into the header bar. Data freshness info stays right. Title stays left.
+  2. **Global filter sub-header**: Date filter dropdowns (Initiated, Last Seen) + chart type toggle pills (By Directory / By Indication). Styled as a prominent, permanent fixture directly below the main blue header — visually distinct (semi-light blue or similar). Constant across both views.
+  3. **Trust Comparison landing page**: ~14 directorate buttons (or ~32 indication buttons when "By Indication" active). Clickable cards/buttons that lead to the 6-chart dashboard for that directorate.
+  4. **Trust Comparison 6-chart dashboard**: Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness — all for one selected directorate, comparing drugs across trusts. Layout optimized for 6 charts on one screen.
+  5. **Patient Pathways filter placement**: Drug/trust/directorate filter buttons (only visible on Patient Pathways, not Trust Comparison). Design appropriate placement — could be inline with content, or in a secondary bar.
+- [x] Capture design decisions (component structure, CSS classes, layout approach) for subsequent tasks
+- **Checkpoint**: Design mockups/specifications ready for all 5 areas above
+
+### 10.2 State management + sidebar restructure
+- [ ] Add `active_view` to `app-state`: `"patient-pathways"` (default) or `"trust-comparison"`
+- [ ] Add `selected_comparison_directorate` to `app-state`: `null` (landing page) or directorate name
+- [ ] Update `dash_app/components/sidebar.py`:
+  - Rename "Pathway Overview" → "Patient Pathways"
+  - Add "Trust Comparison" nav item below it
+  - Active state tracks `active_view`
+- [ ] Add callback: sidebar clicks → update `active_view` in app-state
+- [ ] Main content area switches between Patient Pathways view and Trust Comparison view based on `active_view`
+- [ ] Date filter + chart type toggle remain in global sub-header (visible in both views)
+- **Checkpoint**: Sidebar switches between two views, active state highlights correctly, app starts without errors
+
+### 10.3 Header redesign — remove KPI row, add fraction KPIs
+- [ ] Remove `dash_app/components/kpi_row.py` (or gut it)
+- [ ] Remove KPI row from `app.py` layout
+- [ ] Update `dash_app/components/header.py`:
+  - Add fraction KPI display: "X / X patients", "X / X drugs", "£X / £X cost"
+  - Numerator = filtered values (from chart-data store), denominator = global totals (from reference-data store)
+  - Position: right side of header, alongside existing data freshness indicator
+  - Remove indication match rate KPI entirely
+- [ ] Update header callbacks to receive both filtered and total values
+- [ ] Update CSS in `dash_app/assets/nhs.css` for new header layout
+- [ ] Apply design from 10.1
+- **Checkpoint**: Header shows fraction KPIs, KPI row is gone, header looks clean with design from 10.1
+
+### 10.4 Global filter sub-header bar
+- [ ] Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component (or restyle existing filter_bar)
+- [ ] Style as a prominent bar directly below the main header — visually distinct per design from 10.1
+- [ ] Remove drug/trust/directorate filter buttons from this bar (they move to Patient Pathways view only — see 10.7)
+- [ ] Ensure sub-header is constant across both views (Patient Pathways and Trust Comparison)
+- [ ] Date filter and chart type toggle changes update `app-state` globally (triggering updates in whichever view is active)
+- [ ] Update CSS per design from 10.1
+- **Checkpoint**: Global sub-header renders below main header, date/chart-type controls work, visible in both views
+
+### 10.5 Patient Pathways view — reduce to Icicle + Sankey
+- [ ] Create a Patient Pathways view component (or update chart_card.py) with only 2 tabs: Icicle, Sankey
+- [ ] Remove Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness from this view's tab bar
+- [ ] Existing filter → chart-data → chart callback pipeline stays for these 2 tabs
+- [ ] This view is shown when `active_view == "patient-pathways"`
+- **Checkpoint**: Patient Pathways shows only Icicle + Sankey tabs, both still work with all existing filters
+
+### 10.6 Trust Comparison query functions
+- [ ] Add new/modified query functions to `src/data_processing/pathway_queries.py` for per-trust-within-directorate perspective:
+  - `get_trust_market_share(db_path, filter_id, chart_type, directory)` — drugs by trust within a single directorate (stacked bars per trust instead of per directorate)
+  - `get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)` — one bar per trust showing cost_pp within that directorate
+  - `get_trust_dosing(db_path, filter_id, chart_type, directory)` — drug dosing intervals broken down by trust within a directorate
+  - `get_trust_heatmap(db_path, filter_id, chart_type, directory)` — trust × drug matrix for one directorate (rows=trusts, cols=drugs)
+  - `get_trust_durations(db_path, filter_id, chart_type, directory)` — drug durations by trust within a directorate
+  - `get_directorate_pathway_costs(db_path, filter_id, chart_type, directory)` — pathway costs filtered to one directorate (same as existing `get_pathway_costs` with directory param, but verify it works correctly)
+- [ ] Add thin wrappers in `dash_app/data/queries.py`
+- [ ] Verify all queries return correct data for both "directory" and "indication" chart types
+- **Checkpoint**: All 6 query functions return correct per-trust data for sample directorates
+
+### 10.7 Trust Comparison landing page + directorate selector
+- [ ] Create Trust Comparison view component with two states:
+  - **Landing**: Grid of directorate/indication buttons (source: reference-data store)
+  - **Dashboard**: 6-chart layout for selected directorate (see 10.8)
+- [ ] Directorate buttons: ~14 for "By Directory" mode, ~32 for "By Indication" mode (from chart type toggle)
+- [ ] Clicking a button sets `selected_comparison_directorate` in app-state, switching to dashboard view
+- [ ] Back button to return to landing page (clears `selected_comparison_directorate`)
+- [ ] Apply layout design from 10.1
+- [ ] This view is shown when `active_view == "trust-comparison"`
+- **Checkpoint**: Landing page shows directorate buttons, clicking one transitions to dashboard state, back button works
+
+### 10.8 Trust Comparison 6-chart dashboard
+- [ ] Build 6-chart dashboard layout per design from 10.1
+- [ ] All 6 charts scoped to the selected directorate:
+  1. **Market Share**: Drug breakdown per trust (using `get_trust_market_share`)
+  2. **Cost Waterfall**: Per-trust cost within directorate (using `get_trust_cost_waterfall`)
+  3. **Dosing**: Drug dosing intervals by trust (using `get_trust_dosing`)
+  4. **Heatmap**: Trust × drug matrix (using `get_trust_heatmap`)
+  5. **Duration**: Drug durations by trust (using `get_trust_durations`)
+  6. **Cost Effectiveness**: Pathway costs within directorate, NOT split by trust (using `get_directorate_pathway_costs`)
+- [ ] Create new visualization functions in `src/visualization/plotly_generator.py` where existing ones don't fit the trust-comparison perspective (may need `create_trust_market_share_figure`, `create_trust_heatmap_figure`, etc., or parameterize existing functions)
+- [ ] All 6 charts respond to date filter and chart type toggle (global filters)
+- [ ] Dashboard title shows selected directorate name
+- [ ] Use `dcc.Loading` wrappers for each chart
+- **Checkpoint**: All 6 charts render for a selected directorate, comparing drugs across trusts. Charts update when date filter or chart type changes.
+
+### 10.9 Patient Pathways filter relocation
+- [ ] Drug/trust/directorate filter buttons (with count badges) only visible when on Patient Pathways view
+- [ ] Hidden when on Trust Comparison view
+- [ ] Placement per design from 10.1 (could be below the global sub-header, or inline with Patient Pathways content)
+- [ ] Filter modals still work as before (drug modal, trust modal, directorate modal)
+- [ ] "Clear All Filters" still works
+- **Checkpoint**: Filters visible on Patient Pathways, hidden on Trust Comparison, all filter functionality preserved
+
+### 10.10 CSS updates + polish
+- [ ] Global filter sub-header styling per design from 10.1
+- [ ] Trust Comparison landing page styling (directorate buttons grid)
+- [ ] Trust Comparison dashboard grid styling (6-chart layout)
+- [ ] Header fraction KPI styling
+- [ ] Remove or repurpose `.kpi-row` / `.kpi-card` CSS
+- [ ] Ensure responsive behavior
+- [ ] Update `01_nhs_classic.html` if it serves as an ongoing design reference (or note that Phase 10 diverges)
+- **Checkpoint**: All new components styled consistently with NHS design system
+
+### 10.11 Final integration + documentation
+- [ ] Verify all views work: Patient Pathways (Icicle + Sankey), Trust Comparison (landing + 6-chart dashboard)
+- [ ] Verify global filters (date, chart type) affect both views
+- [ ] Verify Patient Pathways filters (drug, trust, directorate) only affect Patient Pathways
+- [ ] Verify Trust Comparison directorate selector works for all directorates and indications
+- [ ] Verify no regressions in Icicle and Sankey charts
+- [ ] Test with both "directory" and "indication" chart types
+- [ ] Update CLAUDE.md with new architecture (two views, state management, callback chains)
+- [ ] `python run_dash.py` starts cleanly
+- **Checkpoint**: Full application works end-to-end, documentation updated ✓
+
+---
+
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
@@ -480,6 +609,20 @@ All tasks marked `[x]` AND:
 - [x] Treatment Duration shows avg_days bars
 - [x] Icicle chart has no regressions
 - [x] `python run_dash.py` starts cleanly with all tabs
+
+### Phase 10 Completion Criteria
+- [ ] Sidebar has "Patient Pathways" + "Trust Comparison" navigation items
+- [ ] Patient Pathways view shows Icicle + Sankey tabs only
+- [ ] Trust Comparison landing page shows directorate/indication buttons
+- [ ] Trust Comparison dashboard renders 6 charts for selected directorate (Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness)
+- [ ] All 6 Trust Comparison charts show per-trust breakdown within selected directorate (except Cost Effectiveness which is directorate-scoped, no trust split)
+- [ ] KPI row removed — fraction KPIs (X/X patients, drugs, cost) in header
+- [ ] Global filter sub-header (date + chart type) is prominent and constant across both views
+- [ ] Drug/trust/directorate filters only visible on Patient Pathways
+- [ ] Chart type toggle affects Trust Comparison (indication mode shows indication buttons)
+- [ ] Date filter changes update both views
+- [ ] Icicle + Sankey have no regressions
+- [ ] `python run_dash.py` starts cleanly
 
 ---
 

@@ -1844,3 +1844,116 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - The completion signal should be output if all tasks in IMPLEMENTATION_PLAN.md are marked [x].
 ### Blocked items:
 - None
+
+## Manual Intervention — 2026-02-06
+### Reason: Major UI restructure — split 8-tab single view into two-view architecture (Patient Pathways + Trust Comparison)
+### Changes made:
+- IMPLEMENTATION_PLAN.md — Added Phase 10 (Tasks 10.1–10.11) for two-view architecture + header redesign
+- IMPLEMENTATION_PLAN.md — Added Phase 10 Completion Criteria
+- guardrails.md — Added guardrails for two-view architecture, trust comparison queries, and frontend-design skill usage
+- progress.txt — This manual intervention entry
+### Tasks reset: None (Phase 9 work is still valid as foundation)
+### Tasks added:
+- 10.1: Design consultation via /frontend-design skill (header, sub-header, landing page, dashboard, filter placement)
+- 10.2: State management + sidebar restructure (active_view, selected_comparison_directorate)
+- 10.3: Header redesign — remove KPI row, add fraction KPIs
+- 10.4: Global filter sub-header bar (date + chart type, prominent, constant across views)
+- 10.5: Patient Pathways view — reduce to Icicle + Sankey only
+- 10.6: Trust Comparison query functions (6 per-trust-within-directorate queries)
+- 10.7: Trust Comparison landing page + directorate selector
+- 10.8: Trust Comparison 6-chart dashboard
+- 10.9: Patient Pathways filter relocation (drug/trust/directorate only on Patient Pathways)
+- 10.10: CSS updates + polish
+- 10.11: Final integration + documentation
+### Context for next iteration:
+- Phase 10 is entirely NEW work. No Phase 9 tasks were reset. The existing 8 chart implementations (query functions + visualization functions) are reusable foundations.
+- Task 10.1 MUST come first — use the `/frontend-design` skill (not the frontend-developer agent) to design all layouts before building them.
+- The key conceptual shift: Phase 9 charts compared all drugs across all directorates. Phase 10 Trust Comparison charts compare drugs WITHIN a single directorate ACROSS trusts.
+- Existing query functions (get_drug_market_share, get_cost_waterfall, etc.) may need NEW variants or parameters for the trust-comparison perspective. The existing functions aggregate across trusts; the new ones must break down BY trust.
+- Date filter + chart type toggle are GLOBAL (shared across both views). Drug/trust/directorate filters are PATIENT PATHWAYS ONLY.
+- Trust Comparison has its own filter: a directorate selector (landing page buttons). When chart type is "By Indication", the buttons show indications instead of directorates.
+- Cost Effectiveness moves to Trust Comparison but is NOT split by trust — it just filters pathways to the selected directorate.
+- KPI row is removed. 3 KPIs move to header as fractions: "X / X patients", "X / X drugs", "£X / £X cost" where numerator = filtered, denominator = global total.
+- The global filter sub-header (date + chart type) should be styled as a prominent, permanent fixture below the main header.
+### New guardrails added:
+- Two-view architecture: Patient Pathways vs Trust Comparison state isolation
+- Trust Comparison queries: per-trust-within-directorate perspective
+- Frontend-design skill: use /frontend-design skill, not frontend-developer agent
+
+## Iteration 33 — 2026-02-06
+### Task: Phase 10 — Task 10.1 (Design consultation via frontend-design skill)
+### Why this task:
+- First task in Phase 10, explicitly required to come before all other Phase 10 tasks
+- Guardrails mandate using /frontend-design skill for design work
+- All subsequent Phase 10 tasks depend on design decisions made here
+### Status: COMPLETE
+### What was done:
+- Read all current components (header.py, filter_bar.py, sidebar.py, kpi_row.py, chart_card.py, app.py, nhs.css) to understand existing layout
+- Used /frontend-design skill to design all 5 layout areas
+- Created comprehensive design specification document: `docs/PHASE10_DESIGN.md`
+- Design decisions for each area:
+
+**1. Header Redesign:**
+- Remove breadcrumb (redundant — sidebar shows location)
+- Add 3 inline fraction KPIs in center: `X / X patients`, `X / X drugs`, `£X / £X cost`
+- Numerator = filtered (bold white), denominator = muted, label = uppercase tiny
+- New CSS classes: `.top-header__kpis`, `.header-kpi`, `.header-kpi__num/sep/den/label`
+- 6 new callback output IDs: `kpi-filtered-patients/drugs/cost`, `kpi-total-patients/drugs/cost`
+
+**2. Global Filter Sub-Header:**
+- Fixed 44px bar below header, right of sidebar (`left: var(--sidebar-w)`)
+- Background: `#E8F0FE` (light blue tint) with `#C5D4E8` bottom border
+- Contains ONLY: chart type toggle pills + date filter dropdowns
+- New CSS classes: `.sub-header`, `.sub-header__group/label/divider`
+- `.main` margin-top increases from 56px to 100px (56 + 44)
+
+**3. Trust Comparison Landing Page:**
+- Responsive grid of directorate cards (3-col for ~14 directorates, 4-col for ~32 indications)
+- Each card: directorate name + patient count + drug count, blue left border on hover
+- Pattern-matching IDs: `{"type": "tc-selector", "index": "CARDIOLOGY"}`
+- New CSS classes: `.tc-landing`, `.tc-card`, `.tc-card__name/stats/stat/dot`
+
+**4. Trust Comparison 6-Chart Dashboard:**
+- 2×3 grid of chart cells, each with title bar + dcc.Graph (320px height)
+- Back button + directorate name title at top
+- 6 graph IDs: `tc-chart-market-share`, `tc-chart-cost-waterfall`, `tc-chart-dosing`, `tc-chart-heatmap`, `tc-chart-duration`, `tc-chart-cost-effectiveness`
+- New CSS classes: `.tc-dashboard`, `.tc-dashboard__grid`, `.tc-chart-cell`
+
+**5. Patient Pathways Filter Placement:**
+- Secondary filter strip below sub-header, ONLY visible on Patient Pathways view
+- Not fixed — scrolls with content (rendered inside view container)
+- Blue bottom border (2px) connects it visually to chart content below
+- New CSS class: `.pathway-filters`, `.pathway-filters__buttons`
+- Reuses existing `.filter-btn` and `.filter-btn__badge` classes
+
+**Layout summary:**
+- Header 56px → Sub-header 44px → Content at 100px from top
+- Sidebar unchanged at 240px
+- Two views: Patient Pathways (filter strip + chart card with Icicle + Sankey) and Trust Comparison (landing/dashboard)
+- View switching via sidebar nav items with IDs `nav-patient-pathways`, `nav-trust-comparison`
+
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, no code changes (design doc only)
+- Tier 2 (Design): Comprehensive spec document with exact CSS classes, HTML structure, callback IDs
+### Files changed:
+- `docs/PHASE10_DESIGN.md` — New: comprehensive design specification for all 5 areas
+- `IMPLEMENTATION_PLAN.md` — Task 10.1 marked [x]
+### Committed: 89f5b09 "docs: design specification for Phase 10 two-view architecture (Task 10.1)"
+### Patterns discovered:
+- The sub-header at 44px + header at 56px = 100px total fixed height. Using CSS variables (`--header-total-h: 100px`) makes this maintainable.
+- Trust Comparison landing cards should show patient/drug counts to help users choose which directorate to explore — pure directorate names are insufficient context.
+- The pathway filters strip (view-specific) should NOT be fixed-position — it scrolls with content, unlike the global sub-header which is fixed.
+- For ~32 indications, 4-column grid prevents excessive vertical scrolling. For ~14 directorates, 3 columns provides better card sizing.
+### Next iteration should:
+- Start Task 10.2 — State management + sidebar restructure
+- Key sub-steps:
+  1. Add `active_view` and `selected_comparison_directorate` to app-state store defaults
+  2. Update sidebar.py: rename "Pathway Overview" → "Patient Pathways", add "Trust Comparison" nav item with IDs from design doc
+  3. Add "compare" icon to _ICONS dict in sidebar.py
+  4. Add sidebar click callback → update `active_view` in app-state
+  5. Add view switching callback: show/hide patient-pathways-view vs trust-comparison-view based on active_view
+  6. Restructure app.py layout with view-container pattern from design doc
+- Read `docs/PHASE10_DESIGN.md` "Page Structure Summary" section for exact layout assembly
+- IMPORTANT: The sub-header component doesn't exist yet (that's Task 10.4). For 10.2, just restructure the state + sidebar + view switching. The existing filter_bar stays temporarily until 10.4 refactors it.
+### Blocked items:
+- None
