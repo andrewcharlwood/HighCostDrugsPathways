@@ -1233,3 +1233,111 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - ALL TASKS COMPLETE. No next iteration needed.
 ### Blocked items:
 - None
+
+---
+
+## Manual Intervention — 2026-02-06
+### Reason: Add 7 new analytics chart tabs (Phase 9)
+### Changes made:
+- IMPLEMENTATION_PLAN.md: Added Phase 9 with tasks 9.1–9.10 (10 tasks covering infrastructure, queries, 7 charts, and polish)
+- progress.txt: Added this intervention entry with context for next iteration
+- guardrails.md: Added tab architecture guardrails (lazy rendering, single dcc.Graph, active_tab in app-state)
+- RALPH_PROMPT.md: Updated focus description to reference Phase 9 analytics charts
+### Tasks reset: none (all previous work valid — this is purely additive)
+### Tasks added:
+- 9.1: Parsing utilities + tab infrastructure (tabs in chart_card.py, remove sidebar chart views)
+- 9.2: Query functions for all 7 chart types (in src/data_processing/pathway_queries.py)
+- 9.3: First-Line Market Share — horizontal grouped bar chart
+- 9.4: Pathway Cost Effectiveness — lollipop/dot plot with retention annotations
+- 9.5: Cost Waterfall — Plotly waterfall chart by directorate
+- 9.6: Drug Switching Sankey — Sankey diagram of treatment line transitions
+- 9.7: Dosing Interval Comparison — grouped bars from parsed average_spacing
+- 9.8: Directorate × Drug Heatmap — matrix chart with count/cost toggle
+- 9.9: Treatment Duration — horizontal bars of avg_days by drug
+- 9.10: Final integration, polish, documentation
+### Context for next iteration:
+- Previous 22 iterations completed the full Dash migration (Phases 0–8). The app runs at http://localhost:8050 with icicle chart, filters, KPIs.
+- Phase 9 adds 7 new chart tabs alongside the existing icicle chart.
+- **Architecture**: Tab bar goes INSIDE `chart_card.py` (replacing the sidebar chart view items). Use `dmc.Tabs` or `dcc.Tabs`. Store `active_tab` in `app-state`.
+- **Sidebar changes**: Remove "Chart Views" section from sidebar.py. Keep "Overview" section.
+- **Lazy rendering**: Only compute the active tab's chart. Check `active_tab` in the chart callback and dispatch to the correct figure builder.
+- **Shared code**: New query functions in `src/data_processing/pathway_queries.py`. New figure functions in `src/visualization/`. Thin wrappers in `dash_app/data/queries.py`.
+- **Parsing**: `ids` column at level 4+ has format `"TRUST - DIRECTORY - DRUG_A - DRUG_A|DRUG_B"`. Split by ` - `, take level 3+ segments, split by `|` for drug sequence.
+- **average_spacing**: HTML string like `"given X times with Y weekly interval"` — needs regex parsing.
+- **Existing chart callback**: `dash_app/callbacks/chart.py:update_chart()` currently renders icicle only. Needs conditional dispatch based on `active_tab`.
+- **Start with Task 9.1** (parsing utilities + tab infrastructure) — it's the foundation for all other tasks.
+### New guardrails added:
+- Tab architecture: lazy rendering, single dcc.Graph, active_tab in app-state
+- Chart figure functions: shared in src/visualization/, not duplicated in dash_app/
+- Parsing utilities: shared in src/data_processing/, tested independently
+
+## Iteration 23 — 2026-02-06
+### Task: Phase 9 — Task 9.1 (Parsing utilities + tab infrastructure)
+### Why this task:
+- First task in Phase 9, foundation for all other analytics chart tasks
+- Progress.txt explicitly recommends starting here
+- No dependencies — pure infrastructure
+### Status: COMPLETE
+### What was done:
+- **Created `src/data_processing/parsing.py`** with 3 shared parsing functions:
+  1. `parse_average_spacing(html)` — regex extracts drug_name, dose_count, weekly_interval, total_weeks from HTML strings. Returns list of dicts (supports multi-drug entries). Tested with real data.
+  2. `parse_pathway_drugs(ids, level)` — splits `ids` column by ` - ` and returns drug names from index 3 onwards. Returns empty list for level < 3.
+  3. `calculate_retention_rate(nodes)` — for each level 4+ pathway, calculates what % of patients do NOT escalate to the next treatment line. Tested with real RHEUMATOLOGY data (e.g., ADALIMUMAB→ETANERCEPT: 82.6% retained).
+- **Updated `dash_app/components/chart_card.py`**:
+  - Added `TAB_DEFINITIONS` list of 8 (id, label) tuples exported for use by callbacks
+  - Tab bar uses plain `html.Button` elements with existing `.chart-tab` / `.chart-tab--active` CSS classes
+  - Single `dcc.Graph` shared across all tabs (lazy rendering)
+- **Updated `dash_app/components/sidebar.py`**:
+  - Removed "Chart Views" section (Icicle/Sankey/Timeline items) — chart selection is now in the tab bar
+  - Only "Overview" section with "Pathway Overview" remains
+  - Removed unused icon definitions (icicle, sankey, timeline SVGs)
+- **Updated `dash_app/callbacks/chart.py`**:
+  - Added `switch_tab` callback: 8 tab button Inputs → `active-tab` store + 8 CSS class Outputs
+  - Modified `update_chart` to read `active-tab` store and dispatch: icicle renders via `create_icicle_from_nodes()`; other tabs show "coming soon" placeholder
+  - `_empty_figure()` and `_generate_chart_title()` preserved unchanged
+- **Updated `dash_app/app.py`**:
+  - Added `dcc.Store(id="active-tab", storage_type="memory", data="icicle")` — separate store for tab state, avoids `allow_duplicate` conflicts with `app-state`
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - 8 tab IDs present: tab-icicle, tab-market-share, tab-cost-effectiveness, tab-cost-waterfall, tab-sankey, tab-dosing, tab-heatmap, tab-duration
+  - active-tab store present with default "icicle"
+  - Sidebar: "Chart Views" section removed, only "Overview" remains
+  - 11 callbacks registered (was 10, +1 for switch_tab)
+- Tier 3 (Functional):
+  - Icicle chart still renders: 293 nodes, 11,118 patients, correct figure
+  - Parsing utilities: all 3 functions tested with real SQLite data
+  - Tab label lookup works for all 8 tabs
+  - Placeholder figures render with correct "coming soon" message
+### Files changed:
+- `src/data_processing/parsing.py` — NEW: 3 shared parsing functions
+- `dash_app/components/chart_card.py` — Updated: 8-tab bar with TAB_DEFINITIONS
+- `dash_app/components/sidebar.py` — Updated: removed Chart Views section
+- `dash_app/callbacks/chart.py` — Updated: switch_tab callback + tab-based dispatch
+- `dash_app/app.py` — Updated: added active-tab dcc.Store
+- `IMPLEMENTATION_PLAN.md` — Task 9.1 marked [x]
+### Committed: fe2d048 "feat: add parsing utilities and 8-tab chart infrastructure (Task 9.1)"
+### Patterns discovered:
+- `active_tab` stored in a SEPARATE `dcc.Store(id="active-tab")` rather than inside `app-state`. This avoids `allow_duplicate=True` (since `app-state` is already Output of `update_app_state` in filters.py). Tab switching doesn't trigger pathway data reload — only visual switching.
+- Tab buttons use plain `html.Button` with existing `.chart-tab` CSS classes from nhs.css. This matches the design reference exactly, unlike DMC Tabs or dcc.Tabs which would need CSS overrides.
+- `TAB_DEFINITIONS` exported from `chart_card.py` as a module-level constant, imported by `chart.py` for callback Input/Output construction. Keeps tab names defined in one place.
+- `switch_tab` callback uses `*tab_outputs` and `*tab_inputs` unpacking to dynamically wire all 8 tabs. Adding a new tab only requires adding to `TAB_DEFINITIONS`.
+- `parse_average_spacing` returns a LIST of dicts (not a single dict) because level 4+ nodes can have multi-drug entries in the average_spacing HTML.
+### Next iteration should:
+- Start Task 9.2 — Query functions for all 7 chart types
+- Add 7 new query functions to `src/data_processing/pathway_queries.py`:
+  - `get_drug_market_share()` — Level 3 nodes grouped by directory
+  - `get_pathway_costs()` — Level 4+ nodes with cost_pp_pa
+  - `get_cost_waterfall()` — Level 2 nodes with cost_pp_pa
+  - `get_drug_transitions()` — Level 3+ for Sankey transitions
+  - `get_dosing_intervals()` — Level 3 nodes with parsed average_spacing
+  - `get_drug_directory_matrix()` — Level 3 pivoted as directory × drug
+  - `get_treatment_durations()` — Level 3 with avg_days
+- Add thin wrappers in `dash_app/data/queries.py`
+- Follow same pattern as existing `load_pathway_nodes()`: accept db_path, use sqlite3.Row, parameterized queries, return JSON-serializable data
+- Read `src/data_processing/pathway_queries.py` first to understand existing patterns
+- Read `AdditionalAnalytics.md` for each chart's data requirements
+- Test each query with `python -c "..."` against real data
+### Blocked items:
+- None
