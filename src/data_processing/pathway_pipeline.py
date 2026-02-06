@@ -24,7 +24,7 @@ import pandas as pd
 from core import PathConfig, default_paths
 from core.logging_config import get_logger
 from analysis.pathway_analyzer import generate_icicle_chart, generate_icicle_chart_indication
-from tools.data import patient_id, drug_names, department_identification
+from data_processing.transforms import patient_id, drug_names, department_identification
 
 logger = get_logger(__name__)
 

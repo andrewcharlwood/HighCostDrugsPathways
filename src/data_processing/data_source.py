@@ -498,7 +498,7 @@ class DataSourceManager:
 
             # Apply local transformations to match expected format
             # (patient_id, drug_names, department_identification)
-            from tools.data import patient_id, drug_names, department_identification
+            from data_processing.transforms import patient_id, drug_names, department_identification
             from core import default_paths
 
             df = patient_id(df)

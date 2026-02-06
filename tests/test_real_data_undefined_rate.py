@@ -8,14 +8,9 @@ directory vs. successfully assigned directories.
 
 import json
 import pandas as pd
-import sys
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from tools.data import patient_id, drug_names, department_identification
+from data_processing.transforms import patient_id, drug_names, department_identification
 from core import default_paths
 
 

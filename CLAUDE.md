@@ -18,9 +18,10 @@ NHS High-Cost Drug Patient Pathway Analysis Tool - a web-based application that 
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
-# OR with uv
 uv sync
+
+# One-time dev setup: adds src/ to Python path via .pth file
+uv run python setup_dev.py
 
 # Initialize/migrate the database (creates pathway tables)
 python -m data_processing.migrate
@@ -75,52 +76,52 @@ The refresh command:
 
 ```
 .
-├── core/                    # Core configuration and models
-│   ├── config.py           # PathConfig dataclass for file paths
-│   ├── models.py           # AnalysisFilters dataclass
-│   └── logging_config.py   # Structured logging setup
+├── src/                         # All application library code
+│   ├── core/                    # Foundation: paths, models, logging
+│   │   ├── config.py           # PathConfig dataclass for file paths
+│   │   ├── models.py           # AnalysisFilters dataclass
+│   │   └── logging_config.py   # Structured logging setup
+│   │
+│   ├── config/                  # Service configuration
+│   │   ├── __init__.py         # SnowflakeConfig + loader
+│   │   └── snowflake.toml      # Connection settings (co-located with loader)
+│   │
+│   ├── data_processing/         # Data layer
+│   │   ├── database.py         # SQLite connection management
+│   │   ├── schema.py           # Database schema (reference + pathway tables)
+│   │   ├── pathway_pipeline.py # Pipeline: Snowflake → SQLite
+│   │   ├── transforms.py       # Data transformations (UPID, drug names, directory)
+│   │   ├── loader.py           # FileDataLoader for CSV/Parquet files
+│   │   ├── reference_data.py   # Reference data migration
+│   │   ├── snowflake_connector.py  # Snowflake integration
+│   │   ├── cache.py            # Query result caching
+│   │   ├── data_source.py      # Data source fallback chain
+│   │   └── diagnosis_lookup.py # GP diagnosis lookup (SNOMED clusters)
+│   │
+│   ├── analysis/                # Analysis pipeline
+│   │   ├── pathway_analyzer.py # prepare_data, calculate_statistics, build_hierarchy
+│   │   └── statistics.py       # Statistical calculation functions
+│   │
+│   ├── visualization/           # Chart generation
+│   │   └── plotly_generator.py # create_icicle_figure, save_figure_html
+│   │
+│   └── cli/                     # CLI tools
+│       └── refresh_pathways.py # Data refresh command
 │
-├── cli/                     # Command-line interface tools
-│   ├── __init__.py
-│   └── refresh_pathways.py # CLI to refresh pre-computed pathway data
+├── pathways_app/                # Reflex web app (stays at root — framework requirement)
+│   ├── pathways_app.py         # AppState + page components
+│   └── components/             # Layout and navigation components
 │
-├── data_processing/         # Data layer
-│   ├── database.py         # SQLite connection management
-│   ├── schema.py           # Database schema (reference + pathway tables)
-│   ├── pathway_pipeline.py # Pathway processing pipeline (Snowflake → SQLite)
-│   ├── loader.py           # FileDataLoader for CSV/Parquet files
-│   ├── reference_data.py   # Reference data migration
-│   ├── snowflake_connector.py  # Snowflake integration
-│   ├── cache.py            # Query result caching
-│   ├── data_source.py      # Data source fallback chain (Snowflake/file)
-│   └── diagnosis_lookup.py # GP diagnosis lookup and drug-indication mapping
-│
-├── analysis/                # Analysis pipeline
-│   ├── pathway_analyzer.py # prepare_data, calculate_statistics, build_hierarchy
-│   └── statistics.py       # Statistical calculation functions
-│
-├── visualization/           # Chart generation
-│   └── plotly_generator.py # create_icicle_figure, save_figure_html
-│
-├── pathways_app/           # Reflex web application
-│   ├── pathways_app.py     # State class and page components
-│   └── components/         # Layout and navigation components
-│
-├── tools/                   # Legacy modules
-│   ├── dashboard_gui.py    # Original analysis engine (being refactored)
-│   └── data.py             # Data transformations (UPID, drug names, directory)
-│
-├── config/                  # Configuration files
-│   └── snowflake.toml      # Snowflake connection settings
-│
-├── data/                    # Reference data and database
-│   ├── pathways.db         # SQLite database (includes pathway_nodes)
-│   └── *.csv               # Reference data files
-│
-└── tests/                   # Test suite
-    ├── conftest.py         # Pytest fixtures
-    └── test_*.py           # Test modules
+├── tests/                       # Test suite (113 tests)
+├── data/                        # Reference data + SQLite DB
+├── docs/                        # Documentation
+├── assets/                      # Static assets (logo, favicon)
+├── archive/                     # Historical/deprecated
+└── logs/                        # Runtime logs
 ```
+
+**Path resolution**: `src/` is added to `sys.path` via a `.pth` file (created by `setup_dev.py`).
+All imports use package names directly: `from core import ...`, `from data_processing import ...`, etc.
 
 ### Pathway Data Architecture
 
@@ -252,16 +253,12 @@ The `AppState` class manages all application state:
 - Switching reloads pathway data from SQLite filtered by `chart_type`
 - Note: Directory filter only applies to directory charts (indication charts store Search_Terms in the directory column)
 
-### Legacy Modules (`tools/`)
+### Data Transformations (`data_processing/transforms.py`)
 
-Still used during transition:
-
-- **tools/data.py** - Data transformation functions:
-  - `patient_id()` - Creates UPID = Provider Code (first 3 chars) + PersonKey
-  - `drug_names()` - Standardizes via drugnames.csv lookup
-  - `department_identification()` - 5-level fallback chain for directory assignment
-
-- **tools/dashboard_gui.py** - Original analysis engine (being replaced by `analysis/` module)
+Core data transformation functions used by the pipeline:
+- `patient_id()` - Creates UPID = Provider Code (first 3 chars) + PersonKey
+- `drug_names()` - Standardizes via drugnames.csv lookup
+- `department_identification()` - 5-level fallback chain for directory assignment
 
 ### Data Flow
 
@@ -274,7 +271,7 @@ Still used during transition:
            │
            ▼ (fetch_and_transform_data)
     ┌──────────────────────────────────────────┐
-    │ Data Transformations (tools/data.py)     │
+    │ Data Transformations (data_processing/transforms.py)     │
     │   → patient_id() creates UPID            │
     │   → drug_names() standardizes names      │
     │   → department_identification() → Dir    │
@@ -461,7 +458,7 @@ Test coverage includes:
 
 ## Configuration
 
-### Snowflake Connection (`config/snowflake.toml`)
+### Snowflake Connection (`src/config/snowflake.toml`)
 
 ```toml
 [snowflake]
@@ -475,7 +472,7 @@ authenticator = "externalbrowser"  # Required for NHS SSO
 ### Logging
 
 Logs are written to `logs/` directory with structured format.
-Configure via `core/logging_config.py`.
+Configure via `src/core/logging_config.py`.
 
 ## Breaking Changes from Original App
 
@@ -519,13 +516,13 @@ The pre-computed pathway architecture introduces these changes:
 
 ### Adding New Analysis Features
 
-1. Add statistical functions to `analysis/statistics.py`
-2. Integrate into pipeline in `analysis/pathway_analyzer.py`
-3. Update visualization in `visualization/plotly_generator.py`
+1. Add statistical functions to `src/analysis/statistics.py`
+2. Integrate into pipeline in `src/analysis/pathway_analyzer.py`
+3. Update visualization in `src/visualization/plotly_generator.py`
 
 ### Adding New Reference Data
 
 1. Add CSV file to `data/` directory
-2. Define schema in `data_processing/schema.py`
-3. Create migration function in `data_processing/reference_data.py`
-4. Add path to `PathConfig` in `core/config.py`
+2. Define schema in `src/data_processing/schema.py`
+3. Create migration function in `src/data_processing/reference_data.py`
+4. Add path to `PathConfig` in `src/core/config.py`

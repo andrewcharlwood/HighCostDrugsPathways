@@ -15,7 +15,10 @@ Usage:
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
-import tomllib  # Python 3.11+ built-in TOML parser
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 
 @dataclass

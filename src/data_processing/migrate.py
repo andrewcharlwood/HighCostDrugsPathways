@@ -26,6 +26,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Ensure src/ is on sys.path when run as `python -m data_processing.migrate`
+_src_dir = str(Path(__file__).resolve().parent.parent)
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 from core.logging_config import setup_logging, get_logger
 from data_processing.database import DatabaseManager, DatabaseConfig
 from core import PathConfig, default_paths

@@ -168,7 +168,7 @@ class FileDataLoader(DataLoader):
         dashboard_gui.main() function.
         """
         import time
-        from tools import data
+        from data_processing import transforms as data
 
         start_time = time.time()
 

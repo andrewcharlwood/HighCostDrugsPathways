@@ -28,6 +28,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+# Ensure src/ is on sys.path when run as `python -m cli.refresh_pathways`
+_src_dir = str(Path(__file__).resolve().parent.parent)
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 from core import PathConfig, default_paths
 from core.logging_config import get_logger, setup_logging
 from data_processing.database import DatabaseManager, DatabaseConfig

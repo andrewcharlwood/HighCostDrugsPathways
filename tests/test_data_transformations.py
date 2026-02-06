@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from core.config import PathConfig
-from tools.data import patient_id, drug_names, department_identification
+from data_processing.transforms import patient_id, drug_names, department_identification
 
 
 # ============================================================================
