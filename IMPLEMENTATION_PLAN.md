@@ -295,29 +295,29 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Sidebar shows chart view options, no placeholder items, app runs without errors.
 
 ### 7.4 Replace dmc.Drawer with dmc.Modal for filter selection
-- [ ] **Problem**: The single dmc.Drawer with drugs + trusts + directorates requires excessive scrolling and is confusing (multiple sidebar buttons all open the same drawer)
-- [ ] **Solution**: Replace `dmc.Drawer` with `dmc.Modal` dialogs. Create separate modals:
+- [x] **Problem**: The single dmc.Drawer with drugs + trusts + directorates requires excessive scrolling and is confusing (multiple sidebar buttons all open the same drawer)
+- [x] **Solution**: Replace `dmc.Drawer` with `dmc.Modal` dialogs. Create separate modals:
   - Drug Selection modal (contains the All Drugs ChipGroup)
   - Trust Selection modal (contains the Trust ChipGroup)
   - Directorate Browser modal (contains the nested directorate accordion with indication sub-items and drug fragment badges)
-- [ ] Each modal is opened by its corresponding button in the filter bar (see 7.5)
-- [ ] Modals should be appropriately sized (`size="lg"` or `size="xl"`) and use `dmc.Modal` with `centered=True`
-- [ ] Preserve all existing selection logic: ChipGroup values, fragment matching, clear button
-- [ ] Consider having a shared "Clear All Filters" mechanism accessible from each modal or from the filter bar
-- [ ] Delete `dash_app/components/drawer.py` after modals are working, or refactor it into a `modals.py`
-- [ ] **Use the frontend-developer agent** to determine optimal modal layout, sizing, and UX patterns. The agent should review the data shapes (42 drugs, 7 trusts, 19 directorates × 163 indications) and recommend the best modal organization.
+- [x] Each modal is opened by its corresponding button in the filter bar (see 7.5)
+- [x] Modals should be appropriately sized (`size="lg"` or `size="xl"`) and use `dmc.Modal` with `centered=True`
+- [x] Preserve all existing selection logic: ChipGroup values, fragment matching, clear button
+- [x] Consider having a shared "Clear All Filters" mechanism accessible from each modal or from the filter bar
+- [x] Delete `dash_app/components/drawer.py` after modals are working, or refactor it into a `modals.py`
+- [x] **Use the frontend-developer agent** to determine optimal modal layout, sizing, and UX patterns. The agent should review the data shapes (42 drugs, 7 trusts, 19 directorates × 163 indications) and recommend the best modal organization.
 - **Checkpoint**: Each filter has its own modal, selection works, no excessive scrolling, chart updates correctly.
 
 ### 7.5 Move filter triggers to the top filter bar
-- [ ] **Problem**: Filter buttons are in the sidebar, which should be for navigation/views, not filters. Filters should be in the persistent top filter bar.
-- [ ] **Add** to the filter bar (alongside existing chart-type toggle and date dropdowns):
+- [x] **Problem**: Filter buttons are in the sidebar, which should be for navigation/views, not filters. Filters should be in the persistent top filter bar.
+- [x] **Add** to the filter bar (alongside existing chart-type toggle and date dropdowns):
   - "Drugs" button that opens the Drug Selection modal (show count badge when drugs are selected, e.g. "Drugs (3)")
   - "Trusts" button that opens the Trust Selection modal (show count badge)
   - "Directorates" button that opens the Directorate Browser modal (show count badge)
   - "Clear All" button to reset all filter selections
-- [ ] The filter bar should remain static across all chart views (icicle, sankey, timeline) — it's the global filter control
-- [ ] Update callback wiring: filter bar buttons → open corresponding modal; modal selections → app-state → chart-data → chart
-- [ ] Remove drawer-related sidebar callbacks (`open_drawer` in `dash_app/callbacks/drawer.py`)
+- [x] The filter bar should remain static across all chart views (icicle, sankey, timeline) — it's the global filter control
+- [x] Update callback wiring: filter bar buttons → open corresponding modal; modal selections → app-state → chart-data → chart
+- [x] Remove drawer-related sidebar callbacks (`open_drawer` in `dash_app/callbacks/drawer.py`)
 - **Checkpoint**: Filter bar has drug/trust/directorate buttons with count badges, each opens correct modal, filter bar is visible across all views.
 
 ---
@@ -329,7 +329,7 @@ All tasks marked `[x]` AND:
 - [x] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
 - [x] Icicle chart renders with real SQLite data (pathway_nodes)
 - [x] Date filters + chart type toggle update chart correctly
-- [ ] Filter modals open correctly for drugs, trusts, and directorates
+- [x] Filter modals open correctly for drugs, trusts, and directorates
 - [x] Selecting a drug filters the chart correctly (no "multiple implied roots" error)
 - [x] "All Drugs" card allows selecting any drug across all contexts
 - [x] "Clear Filters" resets all selections
@@ -337,7 +337,7 @@ All tasks marked `[x]` AND:
 - [x] No Reflex imports in `dash_app/`
 - [x] No duplicate component ID errors on first load
 - [x] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
-- [ ] Filter bar has drug/trust/directorate trigger buttons with selection count badges
+- [x] Filter bar has drug/trust/directorate trigger buttons with selection count badges
 
 ---
 

@@ -259,30 +259,55 @@ body {
 .chart-tab:hover:not(.chart-tab--active) { color: var(--nhs-dark-grey); }
 .chart-tab:focus-visible { box-shadow: inset 0 0 0 3px var(--nhs-yellow); }
 
-/* ── Drug Browser Drawer ── */
-.drawer-section {
-    padding: 4px 0;
+/* ── Filter Bar Buttons ── */
+.filter-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    font-size: 14px; font-weight: 600;
+    font-family: inherit;
+    color: var(--nhs-dark-grey);
+    background: var(--nhs-white);
+    border: 1px solid var(--nhs-pale-grey);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
 }
-.drawer-section-title {
-    margin-bottom: 4px;
+.filter-btn:hover { background: #F0F4F5; border-color: var(--nhs-blue); }
+.filter-btn:focus-visible { box-shadow: 0 0 0 3px var(--nhs-yellow); z-index: 1; }
+.filter-btn--clear {
+    color: var(--nhs-mid-grey);
+    border-color: transparent;
+    background: transparent;
+    font-weight: 400;
 }
-.drawer-chips-wrap {
-    margin-top: 8px;
+.filter-btn--clear:hover { color: var(--nhs-red); background: transparent; }
+.filter-btn__badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px;
+    padding: 0 6px;
+    font-size: 11px; font-weight: 700;
+    color: var(--nhs-white);
+    background: var(--nhs-blue);
+    border-radius: 10px;
+    line-height: 1;
 }
-.drawer-chips-wrap .mantine-Chip-label {
+.filter-btn__badge--hidden { display: none; }
+
+/* ── Filter Modals ── */
+.modal-chips-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.modal-chips-scroll .mantine-Chip-label {
     font-family: 'Source Sans 3', Arial, sans-serif;
 }
-.drawer-drug-badge {
+.modal-drug-badge {
     cursor: pointer;
     transition: background 0.15s;
 }
-.drawer-drug-badge:hover {
+.modal-drug-badge:hover {
     filter: brightness(0.9);
 }
-.drawer-directorate-accordion {
-    margin-top: 8px;
-}
-.drawer-clear-btn {
+.modal-directorate-accordion {
     margin-top: 8px;
 }
 

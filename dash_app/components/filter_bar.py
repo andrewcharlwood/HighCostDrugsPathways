@@ -1,16 +1,12 @@
-"""Filter bar component — chart type toggle + date filter dropdowns."""
+"""Filter bar component — chart type toggle, date filters, and modal trigger buttons."""
 from dash import html, dcc
 
 
 def make_filter_bar():
-    """Return a filter bar matching 01_nhs_classic.html structure.
+    """Return a filter bar with chart type toggle, date dropdowns, and filter buttons.
 
-    Contains:
-    - Chart type toggle pills (By Directory / By Indication)
-    - Initiated dropdown (All years, Last 2 years, Last 1 year)
-    - Last seen dropdown (Last 6 months, Last 12 months)
-
-    Drug/directorate filters are in the drawer (Phase 4), not here.
+    Filter buttons open modals for drug, trust, and directorate selection.
+    Each button shows a selection count badge (updated via callbacks).
     """
     return html.Section(
         className="filter-bar",
@@ -84,6 +80,48 @@ def make_filter_bar():
                         className="filter-dropdown",
                     ),
                 ],
+            ),
+            # Divider before filter buttons
+            html.Div(className="filter-bar__divider"),
+            # Filter trigger buttons
+            html.Div(
+                className="filter-bar__group",
+                children=[
+                    html.Button(
+                        children=[
+                            "Drugs",
+                            html.Span(id="drug-count-badge", className="filter-btn__badge filter-btn__badge--hidden"),
+                        ],
+                        id="open-drug-modal",
+                        className="filter-btn",
+                        n_clicks=0,
+                    ),
+                    html.Button(
+                        children=[
+                            "Trusts",
+                            html.Span(id="trust-count-badge", className="filter-btn__badge filter-btn__badge--hidden"),
+                        ],
+                        id="open-trust-modal",
+                        className="filter-btn",
+                        n_clicks=0,
+                    ),
+                    html.Button(
+                        children=[
+                            "Directorates",
+                            html.Span(id="directorate-count-badge", className="filter-btn__badge filter-btn__badge--hidden"),
+                        ],
+                        id="open-directorate-modal",
+                        className="filter-btn",
+                        n_clicks=0,
+                    ),
+                ],
+            ),
+            # Clear all filters
+            html.Button(
+                "Clear All",
+                id="clear-all-filters",
+                className="filter-btn filter-btn--clear",
+                n_clicks=0,
             ),
         ],
     )
