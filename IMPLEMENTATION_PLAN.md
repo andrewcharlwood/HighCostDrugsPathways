@@ -381,16 +381,16 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Market Share tab renders real data, responds to filters, icicle still works
 
 ### 9.4 Pathway Cost Effectiveness chart (Tab 3)
-- [ ] Create `dash_app/callbacks/pathway_costs.py`:
+- [x] Create `dash_app/callbacks/pathway_costs.py`:
   - Build horizontal lollipop chart from `get_pathway_costs()` data
   - Y-axis = pathway label (e.g., "Adalimumab → Secukinumab → Rituximab"), X-axis = £ per patient per annum
   - Dot size = patient count, colour gradient: green (cheap) → amber → red (expensive)
   - Uses `parse_pathway_drugs()` to extract pathway labels
-- [ ] Add retention rate annotations using `calculate_retention_rate()`
+- [x] Add retention rate annotations using `calculate_retention_rate()`
   - Show as secondary annotation: "Drug B retains 72% of patients"
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
-- **Checkpoint**: Cost Effectiveness tab renders with lollipop dots and retention annotations
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
+- **Checkpoint**: Cost Effectiveness tab renders with lollipop dots and retention annotations ✓
 
 ### 9.5 Cost Waterfall chart (Tab 4)
 - [ ] Create `dash_app/callbacks/cost_waterfall.py`:

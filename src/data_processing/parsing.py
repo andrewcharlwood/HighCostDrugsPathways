@@ -64,6 +64,11 @@ def parse_pathway_drugs(ids, level):
     return segments[3:]
 
 
+def _get_patients(node):
+    """Get patient count from a node dict (supports both 'value' and 'patients' keys)."""
+    return node.get("value") or node.get("patients") or 0
+
+
 def calculate_retention_rate(nodes):
     """Calculate pathway retention rates from node data.
 
@@ -71,8 +76,8 @@ def calculate_retention_rate(nodes):
     to an N+1 drug pathway. This identifies effective treatment sequences.
 
     Args:
-        nodes: List of dicts with 'ids', 'level', 'value' keys.
-               Should contain level 3+ nodes from a single directorate.
+        nodes: List of dicts with 'ids', 'level', and 'value' or 'patients' keys.
+               Should contain level 4+ nodes (pathway level).
 
     Returns:
         Dict mapping pathway ids to retention info:
@@ -92,14 +97,14 @@ def calculate_retention_rate(nodes):
             continue
 
         node_ids = node.get("ids", "")
-        total_patients = node.get("value", 0)
+        total_patients = _get_patients(node)
         if not total_patients:
             continue
 
         # Find child pathways (nodes whose ids start with this node's ids + " - ")
         child_prefix = node_ids + " - "
         child_patients = sum(
-            n.get("value", 0)
+            _get_patients(n)
             for n in nodes
             if n.get("ids", "").startswith(child_prefix) and n.get("level", 0) == level + 1
         )

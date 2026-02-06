@@ -381,6 +381,184 @@ def create_market_share_figure(data: list[dict], title: str = "") -> go.Figure:
     return fig
 
 
+def create_cost_effectiveness_figure(
+    data: list[dict],
+    retention: dict,
+    title: str = "",
+) -> go.Figure:
+    """
+    Create horizontal lollipop chart showing pathway cost per patient per annum.
+
+    Args:
+        data: List of dicts from get_pathway_costs() with keys:
+              ids, pathway_label, cost_pp_pa, patients, cost, avg_days,
+              directory, trust_name, drug_sequence, level.
+              Sorted by cost_pp_pa desc.
+        retention: Dict from calculate_retention_rate() mapping ids to retention
+                   info: {retained_patients, total_patients, retention_rate, drug_sequence}.
+        title: Chart title suffix (filter description).
+
+    Returns:
+        Plotly Figure with horizontal lollipop dots and retention annotations.
+    """
+    if not data:
+        return go.Figure()
+
+    # Filter to pathways with positive cost
+    filtered = [d for d in data if d["cost_pp_pa"] > 0]
+    if not filtered:
+        return go.Figure()
+
+    # Cap to top 40 pathways by cost to keep chart readable
+    filtered = filtered[:40]
+
+    # Reverse for horizontal chart (highest cost at top)
+    filtered = list(reversed(filtered))
+
+    pathway_labels = [d["pathway_label"] for d in filtered]
+    costs = [d["cost_pp_pa"] for d in filtered]
+    patients = [d["patients"] for d in filtered]
+
+    # Colour gradient: green (cheap) → amber → red (expensive)
+    max_cost = max(costs) if costs else 1
+    min_cost = min(costs) if costs else 0
+    cost_range = max_cost - min_cost if max_cost != min_cost else 1
+
+    colours = []
+    for c in costs:
+        ratio = (c - min_cost) / cost_range
+        if ratio < 0.33:
+            colours.append("#009639")  # NHS green
+        elif ratio < 0.66:
+            colours.append("#ED8B00")  # NHS warm yellow
+        else:
+            colours.append("#DA291C")  # NHS red
+
+    # Dot size scaled by patient count (min 8, max 30)
+    max_pts = max(patients) if patients else 1
+    min_pts = min(patients) if patients else 1
+    pts_range = max_pts - min_pts if max_pts != min_pts else 1
+    sizes = [8 + (p - min_pts) / pts_range * 22 for p in patients]
+
+    # Build hover text with retention info
+    hover_texts = []
+    for d in filtered:
+        retention_info = retention.get(d["ids"], {})
+        retention_rate = retention_info.get("retention_rate")
+        drugs_in_seq = len(d["drug_sequence"])
+
+        hover = (
+            f"<b>{d['pathway_label']}</b><br>"
+            f"Cost p.p.p.a.: £{d['cost_pp_pa']:,.0f}<br>"
+            f"Patients: {d['patients']:,}<br>"
+            f"Total cost: £{d['cost']:,.0f}<br>"
+            f"Avg duration: {d['avg_days']:,.0f} days<br>"
+            f"Directorate: {d['directory']}<br>"
+            f"Treatment lines: {drugs_in_seq}"
+        )
+        if retention_rate is not None:
+            hover += f"<br>Retention: {retention_rate:.0f}% (no further switch)"
+        hover_texts.append(hover)
+
+    # Lollipop sticks (horizontal lines from 0 to cost)
+    stick_traces = []
+    for i, (label, cost) in enumerate(zip(pathway_labels, costs)):
+        stick_traces.append(
+            go.Scatter(
+                x=[0, cost],
+                y=[label, label],
+                mode="lines",
+                line=dict(color="#CBD5E1", width=1.5),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+
+    # Lollipop dots
+    dot_trace = go.Scatter(
+        x=costs,
+        y=pathway_labels,
+        mode="markers",
+        marker=dict(
+            size=sizes,
+            color=colours,
+            line=dict(color="#FFFFFF", width=1),
+        ),
+        hovertemplate="%{customdata}<extra></extra>",
+        customdata=hover_texts,
+        showlegend=False,
+    )
+
+    display_title = (
+        f"Pathway Cost Effectiveness — {title}" if title
+        else "Pathway Cost Effectiveness (£ per patient per annum)"
+    )
+
+    fig = go.Figure(data=stick_traces + [dot_trace])
+
+    # Add retention annotations for pathways with notable retention
+    annotation_count = 0
+    for d in filtered:
+        ret = retention.get(d["ids"], {})
+        rate = ret.get("retention_rate")
+        if rate is not None and rate < 90 and d["patients"] >= 10 and annotation_count < 8:
+            fig.add_annotation(
+                x=d["cost_pp_pa"],
+                y=d["pathway_label"],
+                text=f"{rate:.0f}% retain",
+                showarrow=False,
+                xanchor="left",
+                xshift=10,
+                font=dict(size=10, color="#768692", family="Source Sans 3"),
+            )
+            annotation_count += 1
+
+    fig.update_layout(
+        title=dict(
+            text=display_title,
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=18,
+                color="#1E293B",
+            ),
+            x=0.5,
+            xanchor="center",
+        ),
+        xaxis=dict(
+            title="£ per patient per annum",
+            tickprefix="£",
+            tickformat=",",
+            gridcolor="#E2E8F0",
+            zeroline=True,
+            zerolinecolor="#CBD5E1",
+        ),
+        yaxis=dict(
+            title="",
+            automargin=True,
+            tickfont=dict(size=11),
+        ),
+        margin=dict(t=50, l=8, r=24, b=40),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        autosize=True,
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            bordercolor="#CBD5E1",
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=13,
+                color="#1E293B",
+            ),
+        ),
+        font=dict(
+            family="Source Sans 3, system-ui, sans-serif",
+        ),
+        height=max(450, len(filtered) * 28 + 150),
+    )
+
+    return fig
+
+
 def save_figure_html(
     fig: go.Figure, save_dir: str, title: str, open_browser: bool = False
 ) -> str:
