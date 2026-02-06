@@ -347,3 +347,50 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Read pathways_app/pathways_app.py lines 407-488 to understand the reference data structure
 ### Blocked items:
 - None
+
+## Iteration 7 — 2026-02-06
+### Task: Phase 3 — Task 3.1 (Reference data loading + filter state management)
+### Why this task:
+- Phases 0-2 complete. Phase 3 is next in dependency order.
+- Previous iteration (6) explicitly recommended this as the next task.
+- All subsequent callbacks (3.2 chart data, 3.3 KPIs, 3.4 icicle chart) depend on filter state management from 3.1.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/callbacks/filters.py` with two callbacks:
+  1. `load_reference_data`: fires on page load via `dcc.Location` pathname Input, calls `queries.load_initial_data()`, populates `reference-data` store + header record count ("Data loaded" or "N records") + header last updated (date string)
+  2. `update_app_state`: fires on chart-type toggle clicks (n_clicks) + date dropdown changes (value), uses `ctx.triggered_id` to determine chart type, computes `date_filter_id` from `{initiated}_{last_seen}`, updates `app-state` store, toggles `toggle-pill--active` CSS class on pills
+- Created `dash_app/callbacks/__init__.py` with `register_callbacks(app)` function that imports and registers all callback modules
+- Wired `register_callbacks(app)` in `app.py` after layout definition
+- Added `dcc.Location(id="url", refresh=False)` to layout for page-load trigger
+- Initially used `app-state` as Input for `load_reference_data` but changed to `dcc.Location` to avoid re-firing on every filter change (would cause circular updates)
+### Validation results:
+- Tier 1 (Code): All imports pass — `filters.py`, `callbacks/__init__.py`, `app.py` all OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Both callbacks registered in `app.callback_map`: reference-data.data, app-state.data
+  - Reference data loads correctly: 42 drugs, 14 directorates, 32 indications, last updated 2026-02-06
+  - Date filter ID computation: all 6 combinations verified correct
+  - Toggle pill class toggling: active = "toggle-pill toggle-pill--active", inactive = "toggle-pill"
+### Files changed:
+- `dash_app/callbacks/filters.py` — NEW: load_reference_data + update_app_state callbacks
+- `dash_app/callbacks/__init__.py` — Updated: register_callbacks(app) with filter callback registration
+- `dash_app/app.py` — Updated: added dcc.Location, import + call register_callbacks(app)
+- `IMPLEMENTATION_PLAN.md` — Task 3.1 items marked [x]
+### Committed: eda35c7 "feat: add reference data loading and filter state callbacks (Task 3.1)"
+### Patterns discovered:
+- Dash 4.0.0 uses `ctx.triggered_id` (direct string) rather than the older `callback_context.triggered[0]["prop_id"]` parsing pattern. Simpler and more reliable.
+- Using `app-state` as Input for reference data loading creates circular updates: `update_app_state` writes app-state → `load_reference_data` fires → queries DB unnecessarily. Use `dcc.Location(id="url")` pathname as the page-load trigger instead.
+- `dcc.Location(refresh=False)` fires once on page load with `pathname="/"` — perfect for initialization callbacks.
+- `total_records` from `pathway_refresh_log.source_row_count` is still 0 (known since iteration 2). The header shows "Data loaded" as fallback text instead of "0 records".
+### Next iteration should:
+- Start Task 3.2 — Pathway data loading callback
+- Create the callback in `dash_app/callbacks/chart.py`:
+  - Input: `app-state` store (fires when filters change)
+  - Output: `chart-data` store
+  - Calls `queries.load_pathway_data(filter_id, chart_type, selected_drugs, selected_directorates)`
+  - Must handle initial page load (when app-state has default values) AND subsequent filter changes
+- Register in `dash_app/callbacks/__init__.py` alongside filter callbacks
+- Verify: changing date filter dropdown → app-state updates → chart-data store gets new pathway nodes
+- This is the bridge between filter state and chart rendering — 3.3 (KPIs) and 3.4 (icicle chart) both depend on chart-data being populated
+### Blocked items:
+- None
