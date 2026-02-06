@@ -192,7 +192,7 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
   - Task 2.2 (tiebreaker logic) can be done within 2.1 or as a follow-up
 - The final Phase 1 subtask (1.1 verify with live Snowflake) will be tested during Phase 3/4 integration
 ### Blocked items:
-- Task 1.1 final subtask "Verify: Query returns more rows" requires live Snowflake — deferred to Phase 3/4
+- Task 1.1 final subtask "Verify: Query returns more rows" requires live Snowflake — verified in Iteration 7 (537,794 rows)
 
 ## Iteration 4 — 2026-02-05
 ### Task: 2.1 + 2.2 — Create assign_drug_indications() with tiebreaker logic
@@ -357,5 +357,45 @@ This project extends the indication-based pathway charts (Phase 1-5 complete) wi
 - After 4.1, Tasks 4.2 and 4.3 can be done together:
   - 4.2: Validate indication chart correctness (spot-check drug grouping)
   - 4.3: Validate Reflex UI compiles and chart type toggle works
+### Blocked items:
+- None
+
+## Iteration 7 — 2026-02-06
+### Task: 4.1 + 4.2 + 4.3 — Full refresh, validation, and Reflex compile
+### Why this task:
+- All Phase 1-3 complete; Phase 4 is the final validation step
+- Task 4.1 (full refresh) must run before 4.2/4.3 which validate the results
+- Combined all three since they're sequential validation steps, not independent development work
+### Status: COMPLETE
+### What was done:
+- **Task 4.1**: Ran `python -m cli.refresh_pathways --chart-type all` — full refresh completed in 738.4 seconds
+  - Directory charts: 1,101 nodes (293-329 per date filter)
+  - Indication charts: 1,846 nodes (181-484 per date filter)
+  - Total: 2,947 nodes inserted (cleared 3,633 old nodes first)
+  - GP lookup: 36,628 patients, 33,642 matched (91.8%), 8 batches in ~30s
+  - Drug-indication matching: 50,797 UPID-Drug pairs → 25,059 matched (49.3%), 15,238 tiebreakers, 25,738 fallback
+  - Modified UPIDs: 42,072 (up from 36,628 original patients)
+- **Task 4.2**: Validated indication chart correctness via SQLite queries:
+  - RA drugs under RA: ADALIMUMAB (578 patients), RITUXIMAB (55), BARICITINIB (23), CERTOLIZUMAB PEGOL (22), TOCILIZUMAB (22)
+  - Asthma drugs under asthma: DUPILUMAB (58), OMALIZUMAB (9)
+  - Fallback nodes present: RHEUMATOLOGY (no GP dx) (725), OPHTHALMOLOGY (no GP dx) (410), etc.
+  - Top indications clinically realistic: macular degeneration (906), rheumatoid arthritis (736), diabetes (512), crohn's disease (412)
+  - Hierarchy levels correct: 0=Root (6), 1=Trust (38), 2=Indication (558), 3=Drug (1,009), 4+=Pathway (235)
+  - Directory charts unchanged: 1,101 nodes with expected distribution
+- **Task 4.3**: Ran `python -m reflex compile` — compiled successfully in 16.6 seconds
+### Validation results:
+- Tier 1 (Code): N/A (no code changes this iteration)
+- Tier 2 (Data): Full refresh produced correct data — both chart types populated, indication drugs match expected clinical groupings, fallbacks work, directory charts unaffected
+- Tier 3 (Functional): Reflex compiles without errors
+### Files changed:
+- IMPLEMENTATION_PLAN.md (marked all Phase 4 tasks [x], marked completion criteria [x])
+- data/pathways.db (refreshed with 2,947 pathway nodes)
+### Committed: [see below]
+### Patterns discovered:
+- GP lookup queries fast with 5000-patient batches: 8 batches × ~4s each = ~30s total
+- Total pipeline time ~12 minutes: Snowflake fetch 7s → transforms ~6 min → GP lookup ~30s → pathway processing ~5 min → insertion <1s
+- Top GP indications before drug matching: sepsis (32,382), drug misuse (31,536), influenza (28,550) — high-frequency GP codes that don't match HCD drugs, filtered out by drug-indication intersection as intended
+### Next iteration should:
+- ALL TASKS ARE COMPLETE. Output the completion signal.
 ### Blocked items:
 - None
