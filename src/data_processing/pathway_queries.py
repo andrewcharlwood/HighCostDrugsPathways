@@ -170,7 +170,7 @@ def load_pathway_nodes(
         if selected_directorates:
             placeholders = ",".join("?" * len(selected_directorates))
             where_clauses.append(
-                f"(directory IN ({placeholders}) OR directory IS NULL)"
+                f"(level < 2 OR directory IN ({placeholders}) OR directory IS NULL OR directory = '')"
             )
             params.extend(selected_directorates)
 
@@ -180,7 +180,7 @@ def load_pathway_nodes(
                 drug_conditions.append("drug_sequence LIKE ?")
                 params.append(f"%{drug}%")
             where_clauses.append(
-                f"({' OR '.join(drug_conditions)} OR drug_sequence IS NULL)"
+                f"(level < 3 OR {' OR '.join(drug_conditions)})"
             )
 
         if selected_trusts:

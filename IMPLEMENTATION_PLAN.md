@@ -278,11 +278,11 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: `python run_dash.py` starts, first page load has no DuplicateIdError, drawer still works.
 
 ### 7.2 Fix drug filter breaking the icicle chart ("multiple implied roots")
-- [ ] **Bug**: Selecting a drug from the All Drugs chip list makes the chart go blank. Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of trace 0. These roots include: N&WICS - NORFOLK AND NORWICH... - RHEUMATOLOGY, ...RHEUMATOLOGY - RITUXIMAB, ...RHEUMATOLOGY - ADALIMUMAB - RITUXIMAB`
-- [ ] **Root cause**: The drug filter in `pathway_queries.py:load_pathway_nodes()` uses `drug_sequence LIKE %DRUG%` which returns drug-level and pathway-level nodes, but may miss or disconnect ancestor nodes (root, trust, directory). The icicle chart requires an unbroken parent→child chain from a single root. When ancestors are missing, Plotly sees multiple disconnected subtrees as "implied roots".
-- [ ] **Fix**: The query must ALWAYS include all ancestor nodes (levels 0, 1, 2) regardless of drug filter. Only filter level 3+ nodes by drug. Restructure the WHERE clause so: levels 0-2 are always included for the selected date_filter_id+chart_type, and the drug LIKE filter only applies to level >= 3 nodes. Something like: `WHERE date_filter_id = ? AND chart_type = ? AND (level < 3 OR (drug_sequence LIKE ? OR drug_sequence IS NULL))`.
-- [ ] **Note**: The same issue may apply to trust/directorate filters — check those too. Ancestor nodes must always be present.
-- [ ] Verify: select a single drug → chart renders correctly with trust→directory→drug→pathway hierarchy intact. Select multiple drugs → works. Clear → full chart returns.
+- [x] **Bug**: Selecting a drug from the All Drugs chip list makes the chart go blank. Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of trace 0. These roots include: N&WICS - NORFOLK AND NORWICH... - RHEUMATOLOGY, ...RHEUMATOLOGY - RITUXIMAB, ...RHEUMATOLOGY - ADALIMUMAB - RITUXIMAB`
+- [x] **Root cause**: The drug filter in `pathway_queries.py:load_pathway_nodes()` uses `drug_sequence LIKE %DRUG%` which returns drug-level and pathway-level nodes, but drops ancestor nodes (root, trust, directory levels 0-2) that have `drug_sequence = ''` (empty string, not NULL). The `OR drug_sequence IS NULL` check doesn't match empty strings. Same bug existed for directorate filter (`directory = ''` at levels 0-1).
+- [x] **Fix**: Restructured WHERE clauses to use level-based gating: drug filter now uses `(level < 3 OR drug_sequence LIKE ...)` so levels 0-2 are always included. Directorate filter now uses `(level < 2 OR directory IN (...) OR directory IS NULL OR directory = '')` so levels 0-1 are always included. Trust filter was already correct (had `OR trust_name = ''`).
+- [x] **Note**: Trust filter was OK. Drug and directorate filters both had the bug. Both fixed.
+- [x] Verify: select a single drug → chart renders correctly with trust→directory→drug→pathway hierarchy intact. Select multiple drugs → works. Clear → full chart returns.
 - **Checkpoint**: Drug selection filters chart without "multiple implied roots" error.
 
 ### 7.3 Restructure sidebar: move chart views to sidebar, remove placeholder items
@@ -330,7 +330,7 @@ All tasks marked `[x]` AND:
 - [x] Icicle chart renders with real SQLite data (pathway_nodes)
 - [x] Date filters + chart type toggle update chart correctly
 - [ ] Filter modals open correctly for drugs, trusts, and directorates
-- [ ] Selecting a drug filters the chart correctly (no "multiple implied roots" error)
+- [x] Selecting a drug filters the chart correctly (no "multiple implied roots" error)
 - [x] "All Drugs" card allows selecting any drug across all contexts
 - [x] "Clear Filters" resets all selections
 - [x] KPIs update dynamically (patients, drugs, cost)
