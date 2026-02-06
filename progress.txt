@@ -2307,6 +2307,61 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 ### Blocked items:
 - None
 
+## Iteration 41 — 2026-02-06
+### Task: 10.9 — Patient Pathways filter relocation
+### Why this task:
+- Task 10.8 (TC 6-chart dashboard) was completed in iteration 40
+- Progress.txt from iteration 40 explicitly recommended Task 10.9 as next
+- This task ensures drug/trust/directorate filter buttons are only visible on Patient Pathways, hidden on Trust Comparison
+### Status: COMPLETE
+### What was done:
+- **Verified filter bar placement**: `make_filter_bar()` was already inside `patient-pathways-view` div in `app.py` (line 54). When the navigation callback hides `patient-pathways-view` via `display: none`, the filter buttons are automatically hidden on Trust Comparison. No structural relocation needed.
+- **Updated `dash_app/components/filter_bar.py`**:
+  - Changed wrapper from `html.Section(className="filter-bar")` to `html.Div(className="pathway-filters", id="pathway-filters")`
+  - Changed inner group from `filter-bar__group` to `pathway-filters__buttons`
+  - Matches design spec from `docs/PHASE10_DESIGN.md` Section 5 exactly
+  - Updated module docstring to clarify view-specific scope
+- **Updated `dash_app/assets/nhs.css`**:
+  - Replaced `.filter-bar`, `.filter-bar__group`, `.filter-bar__divider`, `.filter-bar__label` classes with `.pathway-filters` and `.pathway-filters__buttons`
+  - New styling: white background, 1px border with `2px solid var(--nhs-blue)` bottom border, 8px padding, `justify-content: space-between`
+  - Blue bottom border visually connects the filter strip to the chart content below (per design spec)
+- **Verified no remaining references** to old `.filter-bar` class in any code or CSS
+- All component IDs unchanged: `open-drug-modal`, `open-trust-modal`, `open-directorate-modal`, `clear-all-filters`, `drug-count-badge`, `trust-count-badge`, `directorate-count-badge`
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - `pathway-filters` inside `patient-pathways-view` — confirmed
+  - `trust-comparison-view` has NO filter components — confirmed
+  - All 8 key IDs present in layout: pathway-filters, open-drug-modal, open-trust-modal, open-directorate-modal, clear-all-filters, drug-count-badge, trust-count-badge, directorate-count-badge
+- Tier 3 (Functional):
+  - Modal open callbacks still wired: open-drug-modal → drug-modal.opened, etc.
+  - Count badge callback still wired: all-drugs-chips + trust-chips → badge children/className
+  - View switching: patient-pathways-view shown/hidden via switch_view callback — filter bar hidden when Trust Comparison active
+### Files changed:
+- `dash_app/components/filter_bar.py` — Updated CSS classes from .filter-bar to .pathway-filters per design spec
+- `dash_app/assets/nhs.css` — Replaced .filter-bar CSS with .pathway-filters CSS (blue bottom border, space-between layout)
+- `IMPLEMENTATION_PLAN.md` — Task 10.9 marked [x]
+### Committed: f1eecf8 "feat: scope pathway filters to Patient Pathways view with design-spec CSS (Task 10.9)"
+### Patterns discovered:
+- The filter bar was already correctly placed inside `patient-pathways-view` since Task 10.2 restructured the layout. The view switching callback hides the entire view div, so all children (including the filter bar) are automatically hidden. No conditional visibility logic needed.
+- Renaming CSS classes (filter-bar → pathway-filters) without changing component IDs means zero callback changes. Dash callbacks reference components by ID, not by CSS class.
+### Next iteration should:
+- Start Task 10.10 — CSS updates + polish
+- Key sub-steps:
+  1. Review all Phase 10 CSS to ensure consistency with design spec
+  2. Check sub-header styling (already done in 10.4 but verify against design spec)
+  3. Trust Comparison landing page styling (already done in 10.7 but verify)
+  4. Trust Comparison dashboard grid styling (already done in 10.8 but verify)
+  5. Header fraction KPI styling (already done in 10.3 but verify)
+  6. Remove or repurpose `.kpi-row` / `.kpi-card` CSS that is no longer used
+  7. Ensure responsive behavior for both views
+  8. Consider whether `01_nhs_classic.html` needs updating or noting that Phase 10 diverges
+- Much of this CSS work was already done in previous tasks (10.3, 10.4, 10.7, 10.8). The main remaining items are cleanup (removing dead CSS) and ensuring responsive behavior.
+- Read `dash_app/assets/nhs.css` fully to identify dead CSS classes
+### Blocked items:
+- None
+
 ## Iteration 40 — 2026-02-06
 ### Task: 10.8 — Trust Comparison 6-chart dashboard
 ### Why this task:
