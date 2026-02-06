@@ -210,6 +210,29 @@ def _render_dosing(app_state, title):
     return create_dosing_figure(data, title, group_by)
 
 
+def _render_heatmap(app_state, title):
+    """Build the directorate × drug heatmap from current filter state."""
+    from dash_app.data.queries import get_drug_directory_matrix
+    from visualization.plotly_generator import create_heatmap_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_drug_directory_matrix(filter_id, chart_type, trust)
+    except Exception:
+        log.exception("Failed to load heatmap data")
+        return _empty_figure("Failed to load heatmap data.")
+
+    if not data.get("directories") or not data.get("drugs"):
+        return _empty_figure("No heatmap data available.\nTry adjusting your filters.")
+
+    return create_heatmap_figure(data, title, metric="patients")
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -337,6 +360,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "dosing":
             fig = _render_dosing(app_state, title)
+
+        elif active_tab == "heatmap":
+            fig = _render_heatmap(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented

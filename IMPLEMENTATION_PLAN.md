@@ -421,14 +421,14 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Dosing tab renders real data with parsed interval numbers ✓
 
 ### 9.8 Directorate × Drug Heatmap chart (Tab 7)
-- [ ] Create `dash_app/callbacks/heatmap.py`:
+- [x] Create `dash_app/callbacks/heatmap.py`:
   - Build Plotly heatmap from `get_drug_directory_matrix()` data
   - Rows = directorates (sorted by total patients), columns = drugs (sorted by frequency)
   - Cell colour = patient count or cost, hover shows details
   - Toggle between patient count / cost / cost_pp_pa colouring (additional control in tab)
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
-- **Checkpoint**: Heatmap tab renders matrix with correct colour mapping
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
+- **Checkpoint**: Heatmap tab renders matrix with correct colour mapping ✓
 
 ### 9.9 Treatment Duration chart (Tab 8)
 - [ ] Create `dash_app/callbacks/duration.py`:
