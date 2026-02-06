@@ -2134,3 +2134,58 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Important: the removed tabs' callback logic should NOT be deleted — it will be reused in Task 10.8 (Trust Comparison 6-chart dashboard). Just remove them from the Patient Pathways tab bar. The chart callback may need a guard to only render icicle/sankey when active_view is patient-pathways.
 ### Blocked items:
 - None
+
+## Iteration 37 — 2026-02-06
+### Task: Phase 10 — Task 10.5 (Patient Pathways view — reduce to Icicle + Sankey)
+### Why this task:
+- Task 10.4 (global filter sub-header) complete in iteration 36
+- Progress.txt from iteration 36 explicitly recommended Task 10.5 as next
+- Logical prerequisite: before building Trust Comparison (10.7/10.8), the Patient Pathways view needs its tab set trimmed
+### Status: COMPLETE
+### What was done:
+- **Updated `dash_app/components/chart_card.py`**:
+  - Reduced `TAB_DEFINITIONS` from 8 tabs to 2: Icicle + Sankey
+  - Added `ALL_TAB_DEFINITIONS` list preserving all 8 tab definitions for Trust Comparison reuse (Task 10.8)
+  - `make_chart_card()` now renders only 2 tab buttons
+- **Updated `dash_app/callbacks/chart.py`**:
+  - `_TAB_IDS` now derives from the reduced `TAB_DEFINITIONS` (2 tabs)
+  - `switch_tab` callback only registers Inputs/Outputs for `tab-icicle` and `tab-sankey`
+  - All 8 `_render_*` helper functions preserved intact for Trust Comparison reuse
+  - Added module-level docstring explaining the preservation strategy
+  - `update_chart` dispatch still has all 8 branches (graceful fallback for any unexpected tab value)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - Only 2 tab buttons found in layout: `tab-icicle`, `tab-sankey`
+  - All 6 removed tab IDs confirmed absent: tab-market-share, tab-cost-effectiveness, tab-cost-waterfall, tab-dosing, tab-heatmap, tab-duration
+  - All critical IDs present: pathway-chart, chart-data, app-state, reference-data, active-tab, chart-subtitle
+- Tier 3 (Functional):
+  - 12 callbacks registered (same count as before — no regression)
+  - switch_tab callback outputs to tab-icicle.className and tab-sankey.className only
+### Files changed:
+- `dash_app/components/chart_card.py` — Reduced TAB_DEFINITIONS to 2 tabs, added ALL_TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — Updated _TAB_IDS, added docstring about render helper preservation
+- `IMPLEMENTATION_PLAN.md` — Task 10.5 marked [x]
+### Committed: 979b797 "feat: reduce Patient Pathways to Icicle + Sankey tabs only (Task 10.5)"
+### Patterns discovered:
+- Since `_TAB_IDS` is derived from `TAB_DEFINITIONS` at import time, reducing the source list automatically cascades to the callback registration. No manual callback editing needed.
+- Keeping `ALL_TAB_DEFINITIONS` in chart_card.py means Task 10.8 can import it to build the Trust Comparison tab bar without recreating the list.
+- The `_render_*` helpers are pure functions (input → figure) with no dependency on the tab infrastructure. They just need `app_state` and a title. This makes them trivially reusable from any callback.
+### Next iteration should:
+- Start Task 10.6 — Trust Comparison query functions
+- Key sub-steps:
+  1. Read existing query functions in `src/data_processing/pathway_queries.py` to understand patterns
+  2. Create 5 NEW trust-comparison query functions (NOT modify existing ones):
+     - `get_trust_market_share(db_path, filter_id, chart_type, directory)` — drugs by trust within a single directorate
+     - `get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)` — one bar per trust showing cost_pp
+     - `get_trust_dosing(db_path, filter_id, chart_type, directory)` — drug dosing by trust within directorate
+     - `get_trust_heatmap(db_path, filter_id, chart_type, directory)` — trust × drug matrix for one directorate
+     - `get_trust_durations(db_path, filter_id, chart_type, directory)` — drug durations by trust
+  3. Verify `get_pathway_costs(directory=X)` already works correctly for directorate-scoped Cost Effectiveness (6th chart uses existing function)
+  4. Add thin wrappers in `dash_app/data/queries.py`
+  5. Test all queries with `python -c "..."` using sample directorates
+- Important: Per guardrails, Trust Comparison queries must break down BY trust, not aggregate across trusts. Existing Phase 9 functions aggregate across trusts. Create NEW functions, don't modify existing ones.
+- Refer to `AdditionalAnalytics.md` for chart specifications and data requirements
+### Blocked items:
+- None
