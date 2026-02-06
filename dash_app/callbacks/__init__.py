@@ -8,9 +8,11 @@ def register_callbacks(app):
     from dash_app.callbacks.kpi import register_kpi_callbacks
     from dash_app.callbacks.modals import register_modal_callbacks
     from dash_app.callbacks.navigation import register_navigation_callbacks
+    from dash_app.callbacks.trust_comparison import register_trust_comparison_callbacks
 
     register_filter_callbacks(app)
     register_chart_callbacks(app)
     register_kpi_callbacks(app)
     register_modal_callbacks(app)
     register_navigation_callbacks(app)
+    register_trust_comparison_callbacks(app)

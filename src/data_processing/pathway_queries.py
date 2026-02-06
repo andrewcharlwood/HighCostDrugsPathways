@@ -1064,3 +1064,62 @@ def get_trust_durations(
         return []
     finally:
         conn.close()
+
+
+# --- Directorate/indication summary for Trust Comparison landing page ---
+
+
+def get_directorate_summary(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+) -> list[dict]:
+    """Get per-directorate (or per-indication) summary stats for landing page cards.
+
+    Returns a list of dicts sorted by patient count descending:
+        [{"name": "RHEUMATOLOGY", "patients": 847, "drugs": 12}, ...]
+
+    Level 2 nodes provide patient counts; level 3 node count gives drug count.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        # Get patient counts from level 2 nodes
+        level2_query = """
+            SELECT labels AS name, SUM(value) AS patients
+            FROM pathway_nodes
+            WHERE date_filter_id = ? AND chart_type = ? AND level = 2
+                AND labels IS NOT NULL AND labels != ''
+            GROUP BY labels
+        """
+        level2_rows = conn.execute(level2_query, (date_filter_id, chart_type)).fetchall()
+
+        # Get drug counts from level 3 nodes grouped by directory
+        level3_query = """
+            SELECT directory, COUNT(DISTINCT labels) AS drug_count
+            FROM pathway_nodes
+            WHERE date_filter_id = ? AND chart_type = ? AND level = 3
+                AND directory IS NOT NULL AND directory != ''
+            GROUP BY directory
+        """
+        level3_rows = conn.execute(level3_query, (date_filter_id, chart_type)).fetchall()
+        drug_counts = {r["directory"]: r["drug_count"] for r in level3_rows}
+
+        result = []
+        for r in level2_rows:
+            name = r["name"]
+            patients = r["patients"] or 0
+            if patients == 0:
+                continue
+            result.append({
+                "name": name,
+                "patients": patients,
+                "drugs": drug_counts.get(name, 0),
+            })
+
+        result.sort(key=lambda x: x["patients"], reverse=True)
+        return result
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()

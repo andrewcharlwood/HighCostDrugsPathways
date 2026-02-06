@@ -9,6 +9,7 @@ from dash_app.components.filter_bar import make_filter_bar
 from dash_app.components.chart_card import make_chart_card
 from dash_app.components.footer import make_footer
 from dash_app.components.modals import make_modals
+from dash_app.components.trust_comparison import make_tc_landing, make_tc_dashboard
 
 app = Dash(
     __name__,
@@ -59,33 +60,8 @@ app.layout = dmc.MantineProvider(
                             id="trust-comparison-view",
                             style={"display": "none"},
                             children=[
-                                html.Div(
-                                    className="tc-landing",
-                                    id="trust-comparison-landing",
-                                    children=[
-                                        html.Div(
-                                            className="tc-landing__header",
-                                            children=[
-                                                html.H2(
-                                                    "Trust Comparison",
-                                                    className="tc-landing__title",
-                                                ),
-                                                html.P(
-                                                    "Select a directorate to compare drug usage across trusts.",
-                                                    className="tc-landing__desc",
-                                                    id="tc-landing-desc",
-                                                ),
-                                            ],
-                                        ),
-                                        html.Div(
-                                            className="tc-landing__grid",
-                                            id="tc-landing-grid",
-                                            children=[
-                                                # Populated by callback in later task
-                                            ],
-                                        ),
-                                    ],
-                                ),
+                                make_tc_landing(),
+                                make_tc_dashboard(),
                             ],
                         ),
                     ],

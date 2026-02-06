@@ -23,6 +23,7 @@ from data_processing.pathway_queries import (
     get_trust_dosing as _get_trust_dosing,
     get_trust_heatmap as _get_trust_heatmap,
     get_trust_durations as _get_trust_durations,
+    get_directorate_summary as _get_directorate_summary,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -168,3 +169,14 @@ def get_trust_durations(
 ) -> list[dict]:
     """Drug durations by trust within a single directorate."""
     return _get_trust_durations(DB_PATH, date_filter_id, chart_type, directory)
+
+
+# --- Directorate summary for Trust Comparison landing page ---
+
+
+def get_directorate_summary(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+) -> list[dict]:
+    """Per-directorate summary (name, patient count, drug count) for landing cards."""
+    return _get_directorate_summary(DB_PATH, date_filter_id, chart_type)

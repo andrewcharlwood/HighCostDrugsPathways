@@ -522,14 +522,14 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: All 6 query functions return correct per-trust data for sample directorates
 
 ### 10.7 Trust Comparison landing page + directorate selector
-- [ ] Create Trust Comparison view component with two states:
+- [x] Create Trust Comparison view component with two states:
   - **Landing**: Grid of directorate/indication buttons (source: reference-data store)
   - **Dashboard**: 6-chart layout for selected directorate (see 10.8)
-- [ ] Directorate buttons: ~14 for "By Directory" mode, ~32 for "By Indication" mode (from chart type toggle)
-- [ ] Clicking a button sets `selected_comparison_directorate` in app-state, switching to dashboard view
-- [ ] Back button to return to landing page (clears `selected_comparison_directorate`)
-- [ ] Apply layout design from 10.1
-- [ ] This view is shown when `active_view == "trust-comparison"`
+- [x] Directorate buttons: ~14 for "By Directory" mode, ~32 for "By Indication" mode (from chart type toggle)
+- [x] Clicking a button sets `selected_comparison_directorate` in app-state, switching to dashboard view
+- [x] Back button to return to landing page (clears `selected_comparison_directorate`)
+- [x] Apply layout design from 10.1
+- [x] This view is shown when `active_view == "trust-comparison"`
 - **Checkpoint**: Landing page shows directorate buttons, clicking one transitions to dashboard state, back button works
 
 ### 10.8 Trust Comparison 6-chart dashboard

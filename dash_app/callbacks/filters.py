@@ -1,6 +1,6 @@
 """Callbacks for reference data loading and filter state management."""
 from datetime import datetime
-from dash import Input, Output, State, callback, ctx, no_update
+from dash import Input, Output, State, callback, ctx, no_update, ALL
 
 
 def _format_relative_time(iso_timestamp: str) -> str:
@@ -75,13 +75,16 @@ def register_filter_callbacks(app):
         Input("trust-chips", "value"),
         Input("nav-patient-pathways", "n_clicks"),
         Input("nav-trust-comparison", "n_clicks"),
+        Input({"type": "tc-selector", "index": ALL}, "n_clicks"),
+        Input("tc-back-btn", "n_clicks"),
         State("app-state", "data"),
     )
     def update_app_state(
         _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs,
-        selected_trusts, _nav_pp_clicks, _nav_tc_clicks, current_state
+        selected_trusts, _nav_pp_clicks, _nav_tc_clicks,
+        _tc_selector_clicks, _tc_back_clicks, current_state
     ):
-        """Update app-state when chart type toggle, date filters, drug/trust chips, or sidebar nav change."""
+        """Update app-state when any filter, nav, or TC selector changes."""
         if not current_state:
             current_state = {
                 "chart_type": "directory",
@@ -99,6 +102,7 @@ def register_filter_callbacks(app):
 
         # Determine chart type from toggle pills
         chart_type = current_state.get("chart_type", "directory")
+        prev_chart_type = chart_type
         if triggered_id == "chart-type-directory":
             chart_type = "directory"
         elif triggered_id == "chart-type-indication":
@@ -110,6 +114,21 @@ def register_filter_callbacks(app):
             active_view = "patient-pathways"
         elif triggered_id == "nav-trust-comparison":
             active_view = "trust-comparison"
+
+        # Trust Comparison directorate selection
+        selected_comparison_directorate = current_state.get("selected_comparison_directorate")
+
+        # Handle TC card click (pattern-matching ID)
+        if isinstance(triggered_id, dict) and triggered_id.get("type") == "tc-selector":
+            selected_comparison_directorate = triggered_id["index"]
+
+        # Handle TC back button
+        if triggered_id == "tc-back-btn":
+            selected_comparison_directorate = None
+
+        # If chart type changed while a directorate is selected, return to landing
+        if chart_type != prev_chart_type and selected_comparison_directorate is not None:
+            selected_comparison_directorate = None
 
         # Compute date_filter_id from dropdown values
         date_filter_id = f"{initiated}_{last_seen}"
@@ -124,6 +143,7 @@ def register_filter_callbacks(app):
             "selected_drugs": selected_drugs or [],
             "selected_trusts": selected_trusts or [],
             "active_view": active_view,
+            "selected_comparison_directorate": selected_comparison_directorate,
         }
 
         # Toggle pill CSS classes
