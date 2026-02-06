@@ -107,12 +107,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"` returns valid data
 
 ### 1.2 Build directorate card tree from DimSearchTerm.csv
-- [ ] Create `dash_app/data/card_browser.py` with:
+- [x] Create `dash_app/data/card_browser.py` with:
   - `build_directorate_tree()` → dict structured as `{PrimaryDirectorate: {Search_Term: [drug_fragment, ...]}}`
   - Loads `data/DimSearchTerm.csv`, groups by PrimaryDirectorate → Search_Term → split CleanedDrugName by pipe
   - Applies SEARCH_TERM_MERGE_MAP from `data_processing.diagnosis_lookup` (merge asthma variants)
   - `get_all_drugs()` → sorted flat list of all unique drug labels from `pathway_nodes` level 3
-- **Checkpoint**: `python -c "from dash_app.data.card_browser import build_directorate_tree; import json; print(json.dumps(build_directorate_tree(), indent=2))"` returns valid tree
+- **Checkpoint**: `python -c "from dash_app.data.card_browser import build_directorate_tree; import json; print(json.dumps(build_directorate_tree(), indent=2))"` returns valid tree ✓
 
 ---
 

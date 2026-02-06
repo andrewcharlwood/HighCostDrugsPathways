@@ -132,7 +132,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - `src/data_processing/pathway_queries.py` — NEW: shared query functions
 - `dash_app/data/queries.py` — NEW: thin Dash wrapper with DB_PATH resolution
 - `IMPLEMENTATION_PLAN.md` — Task 1.1 marked [x]
-### Committed: (pending)
+### Committed: b71748f "feat: add shared pathway query functions for Dash data access (Task 1.1)"
 ### Patterns discovered:
 - `src/` is on sys.path only when using `uv run` (via .pth file created by setup_dev.py). Running `python` directly won't find `data_processing` module. Always use `uv run python` for testing.
 - `total_records` from `pathway_refresh_log` returns 0 — the refresh log's `source_row_count` field appears empty despite `completed_at` having a value. This is cosmetic — the KPI can use `unique_patients` from chart-data instead.
@@ -143,5 +143,46 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Read `data/DimSearchTerm.csv` to understand the data format
 - Import SEARCH_TERM_MERGE_MAP from `data_processing.diagnosis_lookup` for asthma normalization
 - Remember: drug fragments in CleanedDrugName are UPPERCASE substrings, not exact matches
+### Blocked items:
+- None
+
+## Iteration 3 — 2026-02-06
+### Task: Phase 1 — Task 1.2 (Build directorate card tree from DimSearchTerm.csv)
+### Why this task:
+- Phase 1 data access layer needs both query functions (done in 1.1) AND the card browser data (this task)
+- Progress.txt from iteration 2 explicitly recommended this task
+- The drawer component (Phase 4) depends on this data structure
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/data/card_browser.py` with two functions:
+  - `build_directorate_tree()` — reads DimSearchTerm.csv, applies SEARCH_TERM_MERGE_MAP, returns nested dict: {PrimaryDirectorate: {Search_Term: [drug_fragment, ...]}}
+  - `get_all_drugs()` — delegates to `load_initial_data()` from queries.py (no SQL duplication)
+- SEARCH_TERM_MERGE_MAP correctly imported from `data_processing.diagnosis_lookup`
+- Asthma variants ("allergic asthma", "severe persistent allergic asthma") merge into single "asthma" entry with combined/deduplicated drug fragments
+- Tree uses sets during construction to deduplicate drug fragments from merged terms, then converts to sorted lists
+### Validation results:
+- Tier 1 (Code): `from dash_app.data.card_browser import build_directorate_tree` — OK
+- Tier 1 (App starts): `from dash_app.app import app` — OK, layout type is MantineProvider
+- Tier 3 (Functional):
+  - `build_directorate_tree()`: 19 directorates, correctly nested dict
+  - CARDIOLOGY has 10 indications, CLINICAL HAEMATOLOGY has many more
+  - Asthma merge verified: only "asthma" present (not "allergic asthma" or "severe persistent allergic asthma"), OMALIZUMAB included in merged drug list
+  - `get_all_drugs()`: 42 drugs from pathway_nodes level 3
+### Files changed:
+- `dash_app/data/card_browser.py` — NEW: directorate tree builder + drug list accessor
+- `IMPLEMENTATION_PLAN.md` — Task 1.2 marked [x]
+### Committed: [pending]
+### Patterns discovered:
+- `get_all_drugs()` uses a lazy import (`from dash_app.data.queries import load_initial_data`) to avoid circular imports since both modules are in `dash_app/data/`
+- Drug fragments in DimSearchTerm.csv are already UPPERCASE in the CSV, but `.upper()` is applied defensively
+- "diabetes" appears twice in DimSearchTerm.csv (DIABETIC MEDICINE and OPHTHALMOLOGY) — this is handled naturally by the directorate grouping (same search_term under two different directorates)
+### Next iteration should:
+- Start Phase 2: Task 2.1 — Header + sidebar components
+- Read `01_nhs_classic.html` to get the exact HTML structure, CSS classes, and SVG icons
+- Create `dash_app/components/header.py` with `make_header()` function
+- Create `dash_app/components/sidebar.py` with `make_sidebar()` function
+- Use CSS classes from nhs.css (`.top-header`, `.sidebar`, etc.) — NOT inline styles
+- Header needs placeholder `html.Span` with IDs for callback updates: `id="header-record-count"`, `id="header-last-updated"`
+- Sidebar needs click targets for drawer open (Drug Selection, Indications items)
 ### Blocked items:
 - None
