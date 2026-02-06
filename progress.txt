@@ -1661,7 +1661,7 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - `src/visualization/plotly_generator.py` — Added: `create_dosing_figure()`, `_dosing_by_drug()`, `_dosing_by_trust()` (~180 lines)
 - `dash_app/callbacks/chart.py` — Added: `_render_dosing()` helper + dispatch branch
 - `IMPLEMENTATION_PLAN.md` — Task 9.7 marked [x]
-### Committed: [pending]
+### Committed: 02fe4b4 "feat: add Dosing Interval Comparison chart (Task 9.7)"
 ### Patterns discovered:
 - Dosing chart benefits from two distinct modes: overview (all drugs, weighted averages) and comparison (single drug, per-trust). The `group_by` parameter makes this clean without separate figure functions.
 - Trust names are very long (e.g., "NORFOLK AND NORWICH UNIVERSITY HOSPITALS NHS FOUNDATION TRUST") — stripping " NHS FOUNDATION TRUST" and " HOSPITALS" suffixes greatly improves y-axis readability.
