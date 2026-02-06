@@ -831,3 +831,65 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - After 5.4, check if ALL tasks are [x] and output the COMPLETE signal
 ### Blocked items:
 - None
+
+## Iteration 16 — 2026-02-06
+### Task: Phase 5 — Task 5.4 (Remove Reflex + final validation)
+### Why this task:
+- Tasks 5.1-5.3 complete. Task 5.4 is the FINAL task in the entire implementation plan.
+- Iteration 15 explicitly recommended this task.
+- This removes the Reflex dependency, archives the old app, updates documentation, and validates everything.
+### Status: COMPLETE
+### What was done:
+- Removed `reflex>=0.6.0` from `pyproject.toml` dependencies
+- Ran `uv sync` — removed ~30 Reflex-related packages (reflex, starlette, uvicorn, sqlalchemy, etc.)
+- Moved `pathways_app/` to `archive/pathways_app/` via `git mv` (preserves git history)
+- Moved `rxconfig.py` to `archive/rxconfig.py` via `git mv`
+- Verified zero Reflex imports in `dash_app/` (grep returned no matches)
+- Updated `CLAUDE.md` comprehensively:
+  - "Reflex framework" → "Dash (Plotly) + Dash Mantine Components"
+  - Run command: `reflex run` → `python run_dash.py`, port 3000 → 8050
+  - Package structure: `pathways_app/` section replaced with full `dash_app/` tree
+  - New sections: Shared Data Queries (pathway_queries.py), Dash Application state/callbacks/components
+  - Data flow diagram: Reflex AppState → Dash callback chain
+  - Updated all "Reflex" references to "Dash" throughout
+  - Visualization module: documented `create_icicle_from_nodes()` alongside existing function
+- Ran comprehensive validation — all 10 completion criteria PASS:
+  1. App starts cleanly at localhost:8050
+  2. Layout matches design (MantineProvider → stores + header + sidebar + drawer + main)
+  3. Icicle chart renders 293 nodes with NHS blue gradient and 10-field customdata
+  4. Callback chain fires correctly through all 7 callbacks
+  5. Drawer contains 19 directorates, 163 indications, drug fragment badges
+  6. Drug selection filters chart (ADALIMUMAB: 293 → 70 nodes)
+  7. ChipGroup with 42 drugs, multiple=True
+  8. Clear button resets drug and trust chips → full chart reload
+  9. KPIs update: 11,118 patients, 39 drugs, £130.6M
+  10. Zero Reflex imports in dash_app/
+### Validation results:
+- Tier 1 (Code): All imports pass, app starts, 7 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional): All 10 completion criteria pass (validated by subagent)
+### Files changed:
+- `pyproject.toml` — Removed: reflex dependency
+- `uv.lock` — Updated: removed Reflex packages
+- `pathways_app/` → `archive/pathways_app/` — Archived via git mv
+- `rxconfig.py` → `archive/rxconfig.py` — Archived via git mv
+- `CLAUDE.md` — Rewritten: Reflex → Dash documentation
+- `IMPLEMENTATION_PLAN.md` — Task 5.4 marked [x], all completion criteria marked [x]
+### Committed: fe8642d "feat: remove Reflex, archive old app, update docs for Dash migration (Task 5.4)"
+### Patterns discovered:
+- `uv sync` after removing a large dependency (reflex) cleanly removes all transitive dependencies (~30 packages). No manual cleanup needed.
+- `git mv` preserves rename history — `git log --follow archive/pathways_app/pathways_app.py` shows the full commit history.
+- `.web/` (Reflex's generated frontend) is gitignored so doesn't need archiving. Can be manually deleted.
+### Next iteration should:
+- ALL TASKS COMPLETE. No next iteration needed.
+### Blocked items (iter 16):
+- None
+
+## MIGRATION COMPLETE
+All 20 tasks across 5 phases complete. 16 iterations total.
+- Phase 0: Scaffolding (2 tasks) — iteration 1
+- Phase 1: Data Access (2 tasks) — iterations 2-3
+- Phase 2: Static Layout (3 tasks) — iterations 4-6
+- Phase 3: Core Callbacks (4 tasks) — iterations 7-10
+- Phase 4: Drawer (2 tasks) — iterations 11-12
+- Phase 5: Polish & Cleanup (4 tasks) — iterations 13-16
