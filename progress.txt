@@ -1957,3 +1957,46 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - IMPORTANT: The sub-header component doesn't exist yet (that's Task 10.4). For 10.2, just restructure the state + sidebar + view switching. The existing filter_bar stays temporarily until 10.4 refactors it.
 ### Blocked items:
 - None
+
+## Iteration 34 — 2026-02-06
+### Task: 10.2 — State management + sidebar restructure
+### Why this task:
+- Explicit recommendation from iteration 33 (10.1 design spec complete)
+- Foundation for all Phase 10 tasks — active_view state and view switching must exist before header redesign, sub-header, or Trust Comparison views can be built
+### Status: COMPLETE
+### What was done:
+- Added `active_view` ("patient-pathways" default) and `selected_comparison_directorate` (null) to app-state defaults in both app.py and the fallback in filters.py callback
+- Updated sidebar.py: renamed section from "Overview" to "Analysis", nav items "Patient Pathways" (id=nav-patient-pathways) and "Trust Comparison" (id=nav-trust-comparison) with bar-chart compare icon
+- Added sidebar nav clicks as Inputs to existing `update_app_state` callback in filters.py — sets active_view based on triggered_id
+- Created `dash_app/callbacks/navigation.py` with `switch_view` callback: reads app-state.active_view, outputs show/hide styles for patient-pathways-view and trust-comparison-view divs, plus sidebar active CSS classes
+- Registered navigation callbacks in callbacks/__init__.py
+- Restructured app.py layout: main content now has a view-container div with two child view divs (patient-pathways-view and trust-comparison-view). Trust Comparison view starts hidden, contains a placeholder tc-landing structure matching the design doc
+- Existing KPI row, filter bar, and chart card remain inside patient-pathways-view (no changes to those components)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK. `python run_dash.py` starts on port 8050 — OK.
+- Tier 2 (Layout): Sidebar renders with 2 nav items. View container has 2 view divs. Trust Comparison hidden by default.
+- Tier 3 (Functional): 12 callbacks registered total. Navigation callback correctly outputs to 4 IDs (2 view styles + 2 sidebar classNames). App-state callback has sidebar nav as Inputs. No duplicate output conflicts.
+### Files changed:
+- `dash_app/app.py` — Restructured layout with view-container pattern, added active_view + selected_comparison_directorate to app-state defaults
+- `dash_app/components/sidebar.py` — Two nav items with IDs, "compare" icon, renamed section
+- `dash_app/callbacks/filters.py` — Added nav-patient-pathways and nav-trust-comparison as Inputs, active_view logic
+- `dash_app/callbacks/navigation.py` — New: switch_view callback for view visibility + sidebar active state
+- `dash_app/callbacks/__init__.py` — Register navigation callbacks
+- `IMPLEMENTATION_PLAN.md` — Task 10.2 marked [x]
+### Committed: 7d51efc "feat: add two-view architecture with sidebar navigation (Task 10.2)"
+### Patterns discovered:
+- Sidebar nav clicks must go through the EXISTING update_app_state callback (which already owns app-state Output). Can't have a second callback writing to the same Output. Added nav clicks as additional Inputs to the same callback.
+- The view switching callback is separate and reads FROM app-state — this is fine because it only reads (Input), doesn't write to app-state.
+### Next iteration should:
+- Start Task 10.3 — Header redesign (remove KPI row, add fraction KPIs to header)
+- Key sub-steps:
+  1. Read `docs/PHASE10_DESIGN.md` Section 1 for exact HTML structure and CSS classes
+  2. Update header.py: remove breadcrumb, add 3 fraction KPI divs with IDs (kpi-filtered-patients, kpi-total-patients, etc.)
+  3. Remove kpi_row.py component (or gut it) and remove make_kpi_row() from the patient-pathways-view in app.py
+  4. Update kpi.py callback: change Outputs from old KPI card IDs to new header KPI IDs. Need both filtered values (from chart-data) and total values (from reference-data) as Inputs.
+  5. Add new CSS classes to nhs.css: .top-header__kpis, .header-kpi, .header-kpi__num/sep/den/label (from design doc)
+  6. Remove .top-header__breadcrumb usage from header.py
+- The existing `register_kpi_callbacks` in kpi.py will need to be refactored to output to the new header KPI element IDs
+- CSS for the Trust Comparison landing page will come in Task 10.10, don't worry about it now
+### Blocked items:
+- None
