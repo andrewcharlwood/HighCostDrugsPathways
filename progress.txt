@@ -1188,3 +1188,48 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Run final validation: `python run_dash.py`, verify all 13 completion criteria at bottom of IMPLEMENTATION_PLAN.md.
 ### Blocked items:
 - None
+
+## Iteration 22 — 2026-02-06
+### Task: Section 8 — Both tasks (prune empty ancestors + KPIs reflect filters)
+### Why this task:
+- All Phase 7 tasks complete. Section 8 had 2 remaining unchecked items.
+- Task 8.1 (hide empty directorates when filtering drugs) is a visible UX issue: filtering by Immunoglobulin showed 42 empty directorate boxes.
+- Task 8.2 (KPIs reflect filtered data) was partially working but KPIs showed unfiltered root node totals (11,118 patients / £130.5M) even when a single drug was selected.
+- Both tasks are in the same file (`pathway_queries.py`) so done together.
+### Status: COMPLETE
+### What was done:
+- **Empty ancestor pruning** (`_prune_empty_ancestors()`):
+  - Added after row fetch in `load_pathway_nodes()`, activated when drug or directorate filters are present
+  - Two-pass algorithm: first keeps root (L0), leaves (L3+), and nodes referenced as parents; second pass rechecks L1 nodes still have L2 children
+  - IMMUNOGLOBULIN filter: 54 nodes → 10 nodes (1 root, 1 trust, 4 directorates, 4 drugs)
+  - All filter combinations tested: single root, zero level 1-2 orphans, icicle charts render correctly
+  - Pre-existing level 3+ orphans (pathway sequences like INFLIXIMAB→ADALIMUMAB where parent drug doesn't match filter) are unrelated to this change and don't affect chart rendering
+- **Filtered KPI values**:
+  - When any entity filter (drug, directorate, trust) is active, `unique_patients` and `total_cost` are summed from level-3 drug nodes instead of using root node's pre-computed totals
+  - IMMUNOGLOBULIN: 78 patients, £3.8M (was 11,118 / £130.5M)
+  - ADALIMUMAB: 3,236 patients, £29.2M
+  - NNUH trust: 5,887 patients, £74.5M
+  - No filter: unchanged (11,118 / £130.6M — uses root node as before)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 10 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - 8 filter combinations tested: no filter, IMMUNOGLOBULIN, ADALIMUMAB, multi-drug, directorate, trust, drug+trust, indication+drug
+  - All produce valid icicle hierarchy (single root, zero level 1-2 orphans)
+  - All icicle charts render via create_icicle_from_nodes()
+  - KPI values reflect filtered data in all cases
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added: _prune_empty_ancestors(), filtered KPI summation
+- `IMPLEMENTATION_PLAN.md` — Section 8 tasks marked [x]
+### Committed: de08d4b "fix: prune empty ancestor nodes and update KPIs for filtered views (Section 8)"
+### Patterns discovered:
+- `_prune_empty_ancestors` uses a two-pass approach: first pass identifies nodes referenced as parents, second pass verifies L1 nodes still have L2 children after the first prune. This handles cascading (trust with no kept directorates → trust removed).
+- Level 3+ orphans in drug-filtered results are expected: pathway sequences like INFLIXIMAB→ADALIMUMAB have a parent drug node (INFLIXIMAB) that doesn't match the ADALIMUMAB filter. Plotly silently drops these orphaned leaf nodes, which is correct behavior for displaying filtered pathways.
+- KPI summation at level 3 (drug nodes) is the right level because drug nodes represent the total patients/cost for that drug under a directorate. Summing level 4+ (pathway nodes) would double-count.
+### All tasks COMPLETE:
+- ALL tasks in IMPLEMENTATION_PLAN.md are now marked [x], including Section 8
+- ALL completion criteria are satisfied
+### Next iteration should:
+- ALL TASKS COMPLETE. No next iteration needed.
+### Blocked items:
+- None
