@@ -1738,3 +1738,63 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Data returns: list of dicts with `drug`, `directory`, `trust_name`, `avg_days`, `patients`, `cost_pp_pa`
 ### Blocked items:
 - None
+
+## Iteration 31 — 2026-02-06
+### Task: Phase 9 — Task 9.9 (Treatment Duration chart — Tab 8)
+### Why this task:
+- Tasks 9.1–9.8 complete. Task 9.9 is the last chart to implement before final integration (9.10).
+- Progress.txt from iteration 30 explicitly recommended this task.
+- Uses existing `get_treatment_durations()` query which returns avg_days per drug.
+### Status: COMPLETE
+### What was done:
+- **Created `create_duration_figure(data, title, show_directory)` in `src/visualization/plotly_generator.py`** (~120 lines):
+  - Horizontal bar chart: Y-axis = drug names, X-axis = average duration in days
+  - Colour gradient by patient count: light NHS blue (#41B6E6) → dark NHS blue (#003087)
+  - When `show_directory=False` (default), aggregates same drug across directorates (weighted avg by patients)
+  - When `show_directory=True` (indication mode without directory filter), shows directory in label
+  - Caps at 40 entries for readability (keeps highest patient count entries, then re-sorts by avg_days)
+  - Rich hover: drug name, days + years, patient count
+  - Patient count annotations (n=X) at bar end
+  - Dynamic height: 40 + n_bars * 28 pixels (minimum 400)
+  - NHS styling: Source Sans 3, transparent bg, left margin 200 for drug labels
+- **Added `_render_duration(app_state, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params: date_filter_id, chart_type, single directory, single trust
+  - Calls `get_treatment_durations()` wrapper then `create_duration_figure()`
+  - Sets `show_directory=True` for indication mode without a directory filter
+  - Handles empty data and exceptions gracefully
+- **Wired into `update_chart` dispatch**: `active_tab == "duration"` → `_render_duration()`
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory mode (no filter): 36 bars (aggregated across directorates)
+  - Directory mode + RHEUMATOLOGY filter: 16 bars
+  - Directory mode + DERMATOLOGY filter: 11 bars
+  - Indication mode (no filter): 40 bars (capped from 108)
+  - Trust filter (NNUH): 28 bars
+  - Date filter (2yr_12mo): responds correctly
+  - Empty data: returns empty figure — handled correctly
+  - Icicle, market share, cost waterfall, Sankey, dosing, heatmap — no regressions
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: `create_duration_figure()` (~120 lines)
+- `dash_app/callbacks/chart.py` — Added: `_render_duration()` helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.9 marked [x]
+### Committed: 965fc8c "feat: add Treatment Duration bar chart (Task 9.9)"
+### Patterns discovered:
+- Aggregation across directorates is needed when no directory filter is applied — same drug can appear in multiple directorates with different avg_days. Weighted average by patient count is the correct aggregation.
+- Capping at 40 entries (by patient count, then re-sorted by avg_days) keeps charts readable while preserving clinically significant entries.
+- For indication mode, `show_directory=True` helps distinguish the same drug in different contexts (e.g., "USTEKINUMAB (psoriasis)" vs "USTEKINUMAB (Crohn's disease)").
+- Colour interpolation from light (#41B6E6) to dark (#003087) provides immediate visual cue: darker bars = more patients = more statistically reliable duration data.
+### Next iteration should:
+- Start Task 9.10 — Final integration + polish
+- All 8 chart tabs are now implemented (Tasks 9.1–9.9 complete)
+- Sub-steps for 9.10:
+  1. Verify all 8 tabs switch smoothly with no unnecessary recomputation
+  2. Verify each chart responds to filter changes (date, chart type, trust, directorate, drug)
+  3. Test with both "directory" and "indication" chart types
+  4. Verify icicle chart still works correctly (no regressions)
+  5. Update CLAUDE.md with new chart types, callback files, and query functions
+- Key checks: tab switching should dispatch only to the active tab's figure builder, no "coming soon" placeholders should remain
+- Review all Phase 9 completion criteria in IMPLEMENTATION_PLAN.md
+### Blocked items:
+- None
