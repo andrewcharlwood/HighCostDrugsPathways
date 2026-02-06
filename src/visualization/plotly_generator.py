@@ -834,6 +834,237 @@ def create_sankey_figure(
     return fig
 
 
+def create_dosing_figure(
+    data: list[dict],
+    title: str = "",
+    group_by: str = "drug",
+) -> go.Figure:
+    """Create dosing interval comparison chart.
+
+    Shows weekly dosing intervals as horizontal bars, grouped either by drug
+    (overview mode) or by trust (single-drug comparison mode).
+
+    Args:
+        data: List of dicts from get_dosing_intervals() with keys:
+              drug, trust_name, directory, weekly_interval, dose_count,
+              total_weeks, patients.
+        title: Chart title suffix (filter description).
+        group_by: "drug" for drug-level overview (default),
+                  "trust" for per-trust comparison of a single drug.
+
+    Returns:
+        Plotly Figure with horizontal grouped bar chart.
+    """
+    if not data:
+        return go.Figure()
+
+    nhs_colours = [
+        "#005EB8", "#003087", "#41B6E6", "#0066CC", "#1E88E5",
+        "#4FC3F7", "#009639", "#ED8B00", "#768692", "#AE2573",
+        "#8A1538", "#330072", "#DA291C", "#00A499", "#425563",
+    ]
+
+    if group_by == "trust":
+        # Single-drug mode: compare trusts, group bars by directory
+        fig = _dosing_by_trust(data, nhs_colours)
+        chart_title = f"Dosing Intervals by Trust"
+    else:
+        # Overview mode: weighted average per drug
+        fig = _dosing_by_drug(data, nhs_colours)
+        chart_title = "Dosing Interval Overview"
+
+    if title:
+        chart_title = f"{chart_title} — {title}"
+
+    n_rows = len(fig.data[0].y) if fig.data else 10
+    fig.update_layout(
+        title=dict(
+            text=chart_title,
+            font=dict(
+                family="Source Sans 3, system-ui, sans-serif",
+                size=18,
+                color="#003087",
+            ),
+            x=0.5,
+            xanchor="center",
+        ),
+        xaxis=dict(
+            title="Weekly Interval (weeks between doses)",
+            titlefont=dict(size=13, color="#425563"),
+            gridcolor="rgba(66,85,99,0.1)",
+            zeroline=True,
+            zerolinecolor="rgba(66,85,99,0.2)",
+        ),
+        yaxis=dict(
+            automargin=True,
+            tickfont=dict(size=11),
+        ),
+        font=dict(
+            family="Source Sans 3, system-ui, sans-serif",
+            size=12,
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=60, l=20, r=40, b=60),
+        height=max(450, n_rows * 40 + 150),
+        bargap=0.15,
+        bargroupgap=0.05,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.12,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11),
+        ),
+    )
+
+    return fig
+
+
+def _dosing_by_drug(data: list[dict], colours: list[str]) -> go.Figure:
+    """Build dosing overview: one row per drug, bars per trust, showing weekly_interval."""
+    # Aggregate: weighted average interval per drug, summing patients
+    drug_agg = {}
+    for d in data:
+        drug = d["drug"]
+        pts = d["patients"] or 0
+        if drug not in drug_agg:
+            drug_agg[drug] = {"weighted_sum": 0.0, "total_patients": 0,
+                              "dose_count_ws": 0.0, "total_weeks_ws": 0.0}
+        drug_agg[drug]["weighted_sum"] += d["weekly_interval"] * pts
+        drug_agg[drug]["total_patients"] += pts
+        drug_agg[drug]["dose_count_ws"] += d["dose_count"] * pts
+        drug_agg[drug]["total_weeks_ws"] += d["total_weeks"] * pts
+
+    # Build sorted list (by total patients desc)
+    drugs_sorted = sorted(
+        drug_agg.items(),
+        key=lambda x: x[1]["total_patients"],
+    )
+
+    drug_names = [d[0] for d in drugs_sorted]
+    intervals = []
+    patients_list = []
+    hover_texts = []
+
+    for drug, agg in drugs_sorted:
+        tp = agg["total_patients"]
+        avg_interval = agg["weighted_sum"] / tp if tp > 0 else 0
+        avg_doses = agg["dose_count_ws"] / tp if tp > 0 else 0
+        avg_weeks = agg["total_weeks_ws"] / tp if tp > 0 else 0
+        intervals.append(round(avg_interval, 1))
+        patients_list.append(tp)
+        hover_texts.append(
+            f"<b>{drug}</b><br>"
+            f"Avg interval: {avg_interval:.1f} weeks<br>"
+            f"Avg doses: {avg_doses:.1f}<br>"
+            f"Avg treatment: {avg_weeks:.0f} weeks<br>"
+            f"Patients: {tp:,}"
+        )
+
+    # Colour bars by interval: lower = more frequent dosing = NHS blue, higher = lighter
+    max_interval = max(intervals) if intervals else 1
+    bar_colours = []
+    for iv in intervals:
+        ratio = iv / max_interval if max_interval > 0 else 0
+        # Interpolate NHS blue (#005EB8) to light blue (#41B6E6)
+        r = int(0x00 + (0x41 - 0x00) * ratio)
+        g = int(0x5E + (0xB6 - 0x5E) * ratio)
+        b = int(0xB8 + (0xE6 - 0xB8) * ratio)
+        bar_colours.append(f"rgb({r},{g},{b})")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=drug_names,
+        x=intervals,
+        orientation="h",
+        marker=dict(color=bar_colours, line=dict(color="#FFFFFF", width=0.5)),
+        text=[f"{iv}w" for iv in intervals],
+        textposition="outside",
+        textfont=dict(size=10, color="#425563"),
+        customdata=list(zip(hover_texts, patients_list)),
+        hovertemplate="%{customdata[0]}<extra></extra>",
+        name="Weighted Avg Interval",
+        showlegend=False,
+    ))
+
+    # Add patient count annotations on the right
+    for i, (drug, pts) in enumerate(zip(drug_names, patients_list)):
+        fig.add_annotation(
+            x=max(intervals) * 1.15 if intervals else 10,
+            y=drug,
+            text=f"n={pts:,}",
+            showarrow=False,
+            font=dict(size=9, color="#768692"),
+            xanchor="left",
+        )
+
+    return fig
+
+
+def _dosing_by_trust(data: list[dict], colours: list[str]) -> go.Figure:
+    """Build per-trust comparison: one row per trust, bars per directory, showing weekly_interval."""
+    from collections import defaultdict
+
+    # Group by trust × directory
+    trust_dir = defaultdict(list)
+    for d in data:
+        trust_dir[(d["trust_name"], d["directory"])].append(d)
+
+    # Get unique trusts and directories
+    trusts = sorted(set(d["trust_name"] for d in data))
+    directories = sorted(set(d["directory"] for d in data))
+
+    fig = go.Figure()
+
+    for i, directory in enumerate(directories):
+        y_labels = []
+        x_vals = []
+        hover_list = []
+
+        for trust in trusts:
+            entries = trust_dir.get((trust, directory))
+            if not entries:
+                continue
+            # Average if multiple entries per trust+directory (shouldn't happen at level 3)
+            avg_iv = sum(e["weekly_interval"] * (e["patients"] or 0) for e in entries)
+            total_pts = sum(e["patients"] or 0 for e in entries)
+            if total_pts == 0:
+                continue
+            avg_iv /= total_pts
+            avg_doses = sum(e["dose_count"] * (e["patients"] or 0) for e in entries) / total_pts
+            avg_weeks = sum(e["total_weeks"] * (e["patients"] or 0) for e in entries) / total_pts
+
+            # Shorten trust name for readability
+            short_trust = trust.replace(" NHS FOUNDATION TRUST", "").replace(" HOSPITALS", "")
+            y_labels.append(short_trust)
+            x_vals.append(round(avg_iv, 1))
+            hover_list.append(
+                f"<b>{short_trust}</b><br>"
+                f"Directorate: {directory}<br>"
+                f"Interval: {avg_iv:.1f} weeks<br>"
+                f"Avg doses: {avg_doses:.1f}<br>"
+                f"Treatment: {avg_weeks:.0f} weeks<br>"
+                f"Patients: {total_pts:,}"
+            )
+
+        if y_labels:
+            fig.add_trace(go.Bar(
+                y=y_labels,
+                x=x_vals,
+                orientation="h",
+                name=directory,
+                marker=dict(color=colours[i % len(colours)]),
+                customdata=hover_list,
+                hovertemplate="%{customdata}<extra></extra>",
+            ))
+
+    fig.update_layout(barmode="group")
+    return fig
+
+
 def save_figure_html(
     fig: go.Figure, save_dir: str, title: str, open_browser: bool = False
 ) -> str:

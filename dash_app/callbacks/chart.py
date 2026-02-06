@@ -183,6 +183,33 @@ def _render_sankey(app_state, title):
     return create_sankey_figure(data, title)
 
 
+def _render_dosing(app_state, title):
+    """Build the dosing interval figure from current filter state."""
+    from dash_app.data.queries import get_dosing_intervals
+    from visualization.plotly_generator import create_dosing_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_drugs = (app_state or {}).get("selected_drugs") or []
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    drug = selected_drugs[0] if len(selected_drugs) == 1 else None
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_dosing_intervals(filter_id, chart_type, drug, trust)
+    except Exception:
+        log.exception("Failed to load dosing interval data")
+        return _empty_figure("Failed to load dosing interval data.")
+
+    if not data:
+        return _empty_figure("No dosing interval data available.\nTry adjusting your filters.")
+
+    # Single drug selected → show per-trust comparison; otherwise overview
+    group_by = "trust" if drug else "drug"
+    return create_dosing_figure(data, title, group_by)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -307,6 +334,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "sankey":
             fig = _render_sankey(app_state, title)
+
+        elif active_tab == "dosing":
+            fig = _render_dosing(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented

@@ -412,13 +412,13 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Sankey tab renders real drug transition flows ✓
 
 ### 9.7 Dosing Interval Comparison chart (Tab 6)
-- [ ] Create `dash_app/callbacks/dosing.py`:
+- [x] Create `dash_app/callbacks/dosing.py`:
   - Build horizontal grouped bar chart from `get_dosing_intervals()` data
   - Uses `parse_average_spacing()` to extract weekly interval numbers
   - Y-axis = trust or directorate, X-axis = weekly interval
-- [ ] Create figure function in `src/visualization/`
-- [ ] Wire into tab switching
-- **Checkpoint**: Dosing tab renders real data with parsed interval numbers
+- [x] Create figure function in `src/visualization/`
+- [x] Wire into tab switching
+- **Checkpoint**: Dosing tab renders real data with parsed interval numbers ✓
 
 ### 9.8 Directorate × Drug Heatmap chart (Tab 7)
 - [ ] Create `dash_app/callbacks/heatmap.py`:
