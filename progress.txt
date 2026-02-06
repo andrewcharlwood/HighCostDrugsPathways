@@ -1510,6 +1510,62 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 ### Blocked items:
 - None
 
+## Iteration 28 — 2026-02-06
+### Task: Phase 9 — Task 9.6 (Drug Switching Sankey chart — Tab 5)
+### Why this task:
+- Tasks 9.1–9.5 complete. Task 9.6 is next in sequence.
+- Progress.txt from iteration 27 explicitly recommended this task.
+- Sankey is a well-defined chart type with pre-existing query function (`get_drug_transitions()`).
+### Status: COMPLETE
+### What was done:
+- **Created `create_sankey_figure(data, title)` in `src/visualization/plotly_generator.py`** (~130 lines):
+  - Plotly `go.Sankey` diagram: nodes = drugs with ordinal suffixes (e.g., "ADALIMUMAB (1st)"), links = patient transitions
+  - Nodes coloured by base drug name — same drug gets same colour across treatment lines (1st, 2nd, 3rd)
+  - Link colours use source node colour at 40% opacity for visual flow
+  - NHS colour palette (15 colours cycling), Source Sans 3 font
+  - Custom hover: node shows drug name + total patients, link shows source → target + patient count
+  - Dynamic height: scales with number of unique drug bases
+  - `arrangement="snap"` for clean node positioning
+- **Added `_render_sankey(app_state, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params (date_filter_id, chart_type, single directory/trust)
+  - Calls `get_drug_transitions()` wrapper then `create_sankey_figure()`
+  - Handles empty data and exceptions gracefully
+- **Wired into `update_chart` dispatch**: `active_tab == "sankey"` → `_render_sankey()`
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory chart: 49 nodes, 65 links — renders correctly
+  - Indication chart: 34 nodes, 35 links — renders correctly
+  - RHEUMATOLOGY filter: 24 nodes, 27 links — filters correctly
+  - NNUH trust filter: 38 nodes, 47 links — filters correctly
+  - Date filter (2yr_12mo): 13 nodes, 12 links — filters correctly
+  - Empty data: returns empty figure — handled correctly
+  - Icicle, market share, cost effectiveness, cost waterfall — no regressions
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: `create_sankey_figure()` (~130 lines)
+- `dash_app/callbacks/chart.py` — Added: `_render_sankey()` helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.6 marked [x]
+### Committed: 4ffcdf4 "feat: add Drug Switching Sankey diagram (Task 9.6)"
+### Patterns discovered:
+- Sankey node colouring by base drug name (stripping ordinal suffix) provides visual continuity — users can track the same drug across treatment lines by colour.
+- `hex_to_rgba()` helper for link transparency is a reusable pattern. Using 35% opacity keeps links readable without obscuring overlapping flows.
+- `arrangement="snap"` works better than "perpendicular" for this data shape — it allows Plotly to optimally position nodes vertically.
+- The `_render_sankey(app_state, title)` pattern matches `_render_market_share()` and `_render_cost_waterfall()` — all take app_state and title, query independently from SQLite.
+### Next iteration should:
+- Start Task 9.7 — Dosing Interval Comparison chart (Tab 6)
+- Sub-steps:
+  1. Create figure function in `src/visualization/plotly_generator.py` — `create_dosing_figure(data, title)`
+  2. Build horizontal grouped bar chart from `get_dosing_intervals()` data
+  3. Uses `parse_average_spacing()` to extract weekly interval numbers from HTML strings
+  4. Y-axis = trust or directorate, X-axis = weekly interval, grouped by drug
+  5. Wire into `update_chart` via `_render_dosing()` helper
+  6. Responds to drug filter, date filter, chart type toggle
+- Read `get_dosing_intervals()` in pathway_queries.py for exact data shape
+- Read `parse_average_spacing()` in `src/data_processing/parsing.py` for HTML parsing logic
+### Blocked items:
+- None
+
 ## Iteration 27 — 2026-02-06
 ### Task: Phase 9 — Task 9.5 (Cost Waterfall chart — Tab 4)
 ### Why this task:
