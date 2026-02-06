@@ -63,7 +63,7 @@ def _make_directorate_card(directorate: str, indications: dict[str, list[str]]) 
                             children=[
                                 dmc.Badge(
                                     frag,
-                                    id={"type": "drug-fragment", "index": f"{directorate}|{frag}"},
+                                    id={"type": "drug-fragment", "index": f"{directorate}|{search_term}|{frag}"},
                                     variant="light",
                                     size="sm",
                                     className="drawer-drug-badge",

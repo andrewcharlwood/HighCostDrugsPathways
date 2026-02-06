@@ -44,8 +44,8 @@ def register_drawer_callbacks(app):
             if not any(n for n in (fragment_clicks or []) if n):
                 return no_update, no_update
 
-            fragment_key = triggered["index"]  # e.g. "CARDIOLOGY|ABCIXIMAB"
-            fragment = fragment_key.split("|", 1)[-1] if "|" in fragment_key else fragment_key
+            fragment_key = triggered["index"]  # e.g. "CARDIOLOGY|acute coronary syndrome|RIVAROXABAN"
+            fragment = fragment_key.rsplit("|", 1)[-1] if "|" in fragment_key else fragment_key
 
             # Get all available drugs from reference data
             all_drugs = (ref_data or {}).get("available_drugs", [])

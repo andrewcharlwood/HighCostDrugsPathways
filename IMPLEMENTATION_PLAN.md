@@ -266,6 +266,62 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
 ---
 
+---
+
+## Phase 7: Bug Fixes & UI Restructure
+
+### 7.1 Fix duplicate component ID error on first load
+- [x] **Bug**: `DuplicateIdError` for `{"index":"CARDIOLOGY|RIVAROXABAN","type":"drug-fragment"}` on first page load (works on refresh)
+- [x] **Root cause**: Same drug fragment (e.g. RIVAROXABAN) appears under multiple indications within the same directorate in DimSearchTerm.csv. The `{"type": "drug-fragment", "index": f"{directorate}|{frag}"}` ID in `drawer.py:66` is keyed by directorate+fragment, NOT directorate+indication+fragment. So if CARDIOLOGY has RIVAROXABAN under both "acute coronary syndrome" and "atrial fibrillation", two badges get the same ID.
+- [x] **Fix**: Changed badge ID to include search_term: `f"{directorate}|{search_term}|{frag}"`. Updated callback to use `rsplit("|", 1)[-1]` to extract the fragment from the 3-part key.
+- [x] **Also investigate**: First-load-only failure was because Dash validates layout IDs on initial render but `suppress_callback_exceptions=True` only suppresses callback-related ID checks, not layout duplication checks. After refresh, session store may short-circuit the check.
+- **Checkpoint**: `python run_dash.py` starts, first page load has no DuplicateIdError, drawer still works.
+
+### 7.2 Fix drug filter breaking the icicle chart ("multiple implied roots")
+- [ ] **Bug**: Selecting a drug from the All Drugs chip list makes the chart go blank. Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of trace 0. These roots include: N&WICS - NORFOLK AND NORWICH... - RHEUMATOLOGY, ...RHEUMATOLOGY - RITUXIMAB, ...RHEUMATOLOGY - ADALIMUMAB - RITUXIMAB`
+- [ ] **Root cause**: The drug filter in `pathway_queries.py:load_pathway_nodes()` uses `drug_sequence LIKE %DRUG%` which returns drug-level and pathway-level nodes, but may miss or disconnect ancestor nodes (root, trust, directory). The icicle chart requires an unbroken parent→child chain from a single root. When ancestors are missing, Plotly sees multiple disconnected subtrees as "implied roots".
+- [ ] **Fix**: The query must ALWAYS include all ancestor nodes (levels 0, 1, 2) regardless of drug filter. Only filter level 3+ nodes by drug. Restructure the WHERE clause so: levels 0-2 are always included for the selected date_filter_id+chart_type, and the drug LIKE filter only applies to level >= 3 nodes. Something like: `WHERE date_filter_id = ? AND chart_type = ? AND (level < 3 OR (drug_sequence LIKE ? OR drug_sequence IS NULL))`.
+- [ ] **Note**: The same issue may apply to trust/directorate filters — check those too. Ancestor nodes must always be present.
+- [ ] Verify: select a single drug → chart renders correctly with trust→directory→drug→pathway hierarchy intact. Select multiple drugs → works. Clear → full chart returns.
+- **Checkpoint**: Drug selection filters chart without "multiple implied roots" error.
+
+### 7.3 Restructure sidebar: move chart views to sidebar, remove placeholder items
+- [ ] **Remove** from sidebar: "Cost Analysis" and "Export Data" items (no functionality behind them)
+- [ ] **Remove** from sidebar: "Drug Selection", "Trust Selection", "Directory Selection", "Indications" items (filters moving to top bar — see 7.5)
+- [ ] **Add** to sidebar: chart view buttons — "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled). These replace the tab row currently in chart_card.py.
+- [ ] **Keep**: "Pathway Overview" as the top active item
+- [ ] Update sidebar IDs and callback wiring. The chart type toggle pills (By Directory / By Indication) stay in the filter bar — they're data filters, not view selectors.
+- [ ] Remove the tab row from `chart_card.py` since chart view selection moves to sidebar
+- **Checkpoint**: Sidebar shows chart view options, no placeholder items, app runs without errors.
+
+### 7.4 Replace dmc.Drawer with dmc.Modal for filter selection
+- [ ] **Problem**: The single dmc.Drawer with drugs + trusts + directorates requires excessive scrolling and is confusing (multiple sidebar buttons all open the same drawer)
+- [ ] **Solution**: Replace `dmc.Drawer` with `dmc.Modal` dialogs. Create separate modals:
+  - Drug Selection modal (contains the All Drugs ChipGroup)
+  - Trust Selection modal (contains the Trust ChipGroup)
+  - Directorate Browser modal (contains the nested directorate accordion with indication sub-items and drug fragment badges)
+- [ ] Each modal is opened by its corresponding button in the filter bar (see 7.5)
+- [ ] Modals should be appropriately sized (`size="lg"` or `size="xl"`) and use `dmc.Modal` with `centered=True`
+- [ ] Preserve all existing selection logic: ChipGroup values, fragment matching, clear button
+- [ ] Consider having a shared "Clear All Filters" mechanism accessible from each modal or from the filter bar
+- [ ] Delete `dash_app/components/drawer.py` after modals are working, or refactor it into a `modals.py`
+- [ ] **Use the frontend-developer agent** to determine optimal modal layout, sizing, and UX patterns. The agent should review the data shapes (42 drugs, 7 trusts, 19 directorates × 163 indications) and recommend the best modal organization.
+- **Checkpoint**: Each filter has its own modal, selection works, no excessive scrolling, chart updates correctly.
+
+### 7.5 Move filter triggers to the top filter bar
+- [ ] **Problem**: Filter buttons are in the sidebar, which should be for navigation/views, not filters. Filters should be in the persistent top filter bar.
+- [ ] **Add** to the filter bar (alongside existing chart-type toggle and date dropdowns):
+  - "Drugs" button that opens the Drug Selection modal (show count badge when drugs are selected, e.g. "Drugs (3)")
+  - "Trusts" button that opens the Trust Selection modal (show count badge)
+  - "Directorates" button that opens the Directorate Browser modal (show count badge)
+  - "Clear All" button to reset all filter selections
+- [ ] The filter bar should remain static across all chart views (icicle, sankey, timeline) — it's the global filter control
+- [ ] Update callback wiring: filter bar buttons → open corresponding modal; modal selections → app-state → chart-data → chart
+- [ ] Remove drawer-related sidebar callbacks (`open_drawer` in `dash_app/callbacks/drawer.py`)
+- **Checkpoint**: Filter bar has drug/trust/directorate buttons with count badges, each opens correct modal, filter bar is visible across all views.
+
+---
+
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
@@ -273,12 +329,15 @@ All tasks marked `[x]` AND:
 - [x] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
 - [x] Icicle chart renders with real SQLite data (pathway_nodes)
 - [x] Date filters + chart type toggle update chart correctly
-- [x] dmc.Drawer opens, shows directorate cards with indications/drugs
-- [x] Selecting a drug from drawer filters the chart
+- [ ] Filter modals open correctly for drugs, trusts, and directorates
+- [ ] Selecting a drug filters the chart correctly (no "multiple implied roots" error)
 - [x] "All Drugs" card allows selecting any drug across all contexts
 - [x] "Clear Filters" resets all selections
 - [x] KPIs update dynamically (patients, drugs, cost)
 - [x] No Reflex imports in `dash_app/`
+- [ ] No duplicate component ID errors on first load
+- [ ] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
+- [ ] Filter bar has drug/trust/directorate trigger buttons with selection count badges
 
 ---
 
