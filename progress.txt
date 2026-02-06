@@ -2475,3 +2475,60 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - This is the FINAL task — if all checks pass, the project is complete
 ### Blocked items:
 - None
+
+## Iteration 43 — 2026-02-06
+### Task: 10.11 — Final integration + documentation
+### Why this task:
+- This is the ONLY remaining task — all others are marked [x]
+- Task 10.10 (CSS cleanup + polish) was completed in iteration 42
+- Progress.txt from iteration 42 explicitly recommended Task 10.11 as the FINAL task
+### Status: COMPLETE
+### What was done:
+- **Programmatic verification of Patient Pathways view**:
+  - Reference data loads: 42 drugs, 14 directorates, 32 indications, 7 trusts
+  - Directory mode (all_6mo): 293 nodes, 11,118 patients, 39 drugs, ~£130.6M
+  - Indication mode (all_6mo): 438 nodes, 11,252 patients
+  - Icicle figure renders: 1 trace, type=icicle
+  - Sankey figure renders: 2 drug transitions, 1 trace
+  - Drug filter (ADALIMUMAB): 91 nodes, levels [0,1,2,3,4,5] — hierarchy intact
+  - Trust filter (Cambridge): 15 nodes, levels [0,1,2,3,4] — hierarchy intact
+- **Programmatic verification of Trust Comparison view**:
+  - Trust Market Share (RHEUMATOLOGY): 42 rows, 6 trusts, 17 drugs
+  - Trust Cost Waterfall: 6 rows (one per trust)
+  - Trust Dosing: 40 rows
+  - Trust Heatmap: 6 trusts × 17 drugs
+  - Trust Durations: 40 rows
+  - Cost Effectiveness (RHEUMATOLOGY): 38 pathway rows
+  - Indication mode (asthma): 3 rows, 2 trusts, 2 drugs
+  - All 3 trust-specific figure builders render correctly
+- **Callback/layout verification**:
+  - 20 callbacks registered (correct)
+  - 2 sidebar nav items: Patient Pathways, Trust Comparison
+  - 2 chart tabs: Icicle, Sankey
+  - 4 dcc.Store components: app-state, chart-data, reference-data, active-tab
+  - All 6 date filter IDs return data (all_6mo through 2yr_12mo)
+- **Both chart types verified**: directory and indication modes work for both views
+- **CLAUDE.md updated** with two-view architecture:
+  - Package structure updated (removed kpi_row.py, drawer.py; added modals.py, sub_header.py, trust_comparison.py, navigation.py, trust_comparison callbacks)
+  - State management updated to 4 stores with active_view and selected_comparison_directorate
+  - Callback chain updated with two-view flow diagram
+  - Key components updated (header fraction KPIs, 2-item sidebar, sub-header, filter bar, modals, trust comparison)
+  - Output section updated to describe two-view architecture
+  - Added trust-comparison visualization and query functions
+- **All Phase 10 completion criteria marked [x]** in IMPLEMENTATION_PLAN.md
+- **All tasks in IMPLEMENTATION_PLAN.md are [x]** — no remaining [ ], [~], or [B] items
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional): All data queries verified programmatically for both views, both chart types, drug/trust filters
+### Files changed:
+- `CLAUDE.md` — Updated with two-view architecture
+- `IMPLEMENTATION_PLAN.md` — Task 10.11 and Phase 10 completion criteria marked [x]
+### Committed: [pending]
+### Patterns discovered:
+- Programmatic verification (running queries and figure builders via `python -c`) is more reliable than manual browser testing for an amnesiac loop
+- The final integration task is primarily verification + documentation — no code changes needed when previous iterations were thorough
+### Next iteration should:
+- N/A — ALL TASKS COMPLETE. The project is finished.
+### Blocked items:
+- None

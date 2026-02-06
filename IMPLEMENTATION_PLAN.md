@@ -566,14 +566,14 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: All new components styled consistently with NHS design system
 
 ### 10.11 Final integration + documentation
-- [ ] Verify all views work: Patient Pathways (Icicle + Sankey), Trust Comparison (landing + 6-chart dashboard)
-- [ ] Verify global filters (date, chart type) affect both views
-- [ ] Verify Patient Pathways filters (drug, trust, directorate) only affect Patient Pathways
-- [ ] Verify Trust Comparison directorate selector works for all directorates and indications
-- [ ] Verify no regressions in Icicle and Sankey charts
-- [ ] Test with both "directory" and "indication" chart types
-- [ ] Update CLAUDE.md with new architecture (two views, state management, callback chains)
-- [ ] `python run_dash.py` starts cleanly
+- [x] Verify all views work: Patient Pathways (Icicle + Sankey), Trust Comparison (landing + 6-chart dashboard)
+- [x] Verify global filters (date, chart type) affect both views
+- [x] Verify Patient Pathways filters (drug, trust, directorate) only affect Patient Pathways
+- [x] Verify Trust Comparison directorate selector works for all directorates and indications
+- [x] Verify no regressions in Icicle and Sankey charts
+- [x] Test with both "directory" and "indication" chart types
+- [x] Update CLAUDE.md with new architecture (two views, state management, callback chains)
+- [x] `python run_dash.py` starts cleanly
 - **Checkpoint**: Full application works end-to-end, documentation updated ✓
 
 ---
@@ -611,18 +611,18 @@ All tasks marked `[x]` AND:
 - [x] `python run_dash.py` starts cleanly with all tabs
 
 ### Phase 10 Completion Criteria
-- [ ] Sidebar has "Patient Pathways" + "Trust Comparison" navigation items
-- [ ] Patient Pathways view shows Icicle + Sankey tabs only
-- [ ] Trust Comparison landing page shows directorate/indication buttons
-- [ ] Trust Comparison dashboard renders 6 charts for selected directorate (Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness)
-- [ ] All 6 Trust Comparison charts show per-trust breakdown within selected directorate (except Cost Effectiveness which is directorate-scoped, no trust split)
-- [ ] KPI row removed — fraction KPIs (X/X patients, drugs, cost) in header
-- [ ] Global filter sub-header (date + chart type) is prominent and constant across both views
-- [ ] Drug/trust/directorate filters only visible on Patient Pathways
-- [ ] Chart type toggle affects Trust Comparison (indication mode shows indication buttons)
-- [ ] Date filter changes update both views
-- [ ] Icicle + Sankey have no regressions
-- [ ] `python run_dash.py` starts cleanly
+- [x] Sidebar has "Patient Pathways" + "Trust Comparison" navigation items
+- [x] Patient Pathways view shows Icicle + Sankey tabs only
+- [x] Trust Comparison landing page shows directorate/indication buttons
+- [x] Trust Comparison dashboard renders 6 charts for selected directorate (Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness)
+- [x] All 6 Trust Comparison charts show per-trust breakdown within selected directorate (except Cost Effectiveness which is directorate-scoped, no trust split)
+- [x] KPI row removed — fraction KPIs (X/X patients, drugs, cost) in header
+- [x] Global filter sub-header (date + chart type) is prominent and constant across both views
+- [x] Drug/trust/directorate filters only visible on Patient Pathways
+- [x] Chart type toggle affects Trust Comparison (indication mode shows indication buttons)
+- [x] Date filter changes update both views
+- [x] Icicle + Sankey have no regressions
+- [x] `python run_dash.py` starts cleanly
 
 ---
 

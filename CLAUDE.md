@@ -112,24 +112,27 @@ The refresh command:
 ├── dash_app/                    # Dash web application
 │   ├── app.py                  # Dash app, layout root, dcc.Store, register_callbacks
 │   ├── assets/
-│   │   └── nhs.css             # NHS design system CSS (from 01_nhs_classic.html)
+│   │   └── nhs.css             # NHS design system CSS
 │   ├── data/
 │   │   ├── queries.py          # Thin wrapper calling src/data_processing/pathway_queries.py
-│   │   └── card_browser.py     # DimSearchTerm.csv → directorate tree for drawer
+│   │   └── card_browser.py     # DimSearchTerm.csv → directorate tree for modals
 │   ├── components/
-│   │   ├── header.py           # Top header bar with data freshness indicator
-│   │   ├── sidebar.py          # Left navigation with drawer triggers
-│   │   ├── kpi_row.py          # 4 KPI cards (patients, drugs, cost, match rate)
-│   │   ├── filter_bar.py       # Chart type toggle pills + date filter dropdowns
-│   │   ├── chart_card.py       # Chart area with tabs + dcc.Graph + loading spinner
-│   │   ├── drawer.py           # dmc.Drawer with drug/trust chips + directorate cards
+│   │   ├── header.py           # Top header bar with fraction KPIs + data freshness
+│   │   ├── sidebar.py          # Left nav: Patient Pathways + Trust Comparison
+│   │   ├── sub_header.py       # Global filter bar (date dropdowns + chart type toggle)
+│   │   ├── filter_bar.py       # Patient Pathways filter buttons (drugs, trusts, directorates)
+│   │   ├── chart_card.py       # Chart area with Icicle/Sankey tabs + dcc.Graph
+│   │   ├── modals.py           # dmc.Modal dialogs for drug/trust/directorate selection
+│   │   ├── trust_comparison.py # Trust Comparison landing page + 6-chart dashboard
 │   │   └── footer.py           # Page footer
 │   ├── callbacks/
 │   │   ├── __init__.py         # register_callbacks(app)
 │   │   ├── filters.py          # Reference data loading + filter state management
-│   │   ├── chart.py            # Tab switching, pathway data loading, 8-chart dispatch
-│   │   ├── drawer.py           # Drawer open/close + drug/trust selection
-│   │   └── kpi.py              # KPI card value updates
+│   │   ├── chart.py            # Tab switching, pathway data loading, chart dispatch
+│   │   ├── modals.py           # Modal open/close + drug/trust/directorate selection
+│   │   ├── navigation.py       # Sidebar view switching + Trust Comparison navigation
+│   │   ├── trust_comparison.py # 6 Trust Comparison chart callbacks
+│   │   └── kpi.py              # Header fraction KPI updates
 │   └── utils/
 │       └── __init__.py
 │
@@ -264,6 +267,9 @@ Refactored from the original 267-line `generate_graph()` function:
 - **create_dosing_figure(data, title, group_by)** - Grouped horizontal bar chart: dosing intervals by drug or trust
 - **create_heatmap_figure(data, title, metric)** - Matrix heatmap: directorate × drug with patient/cost/cost_pp_pa colouring
 - **create_duration_figure(data, title, show_directory)** - Horizontal bar chart: average treatment duration in days per drug
+- **create_trust_market_share_figure(data, title)** - Trust Comparison: horizontal stacked bars grouped by trust, drugs as segments
+- **create_trust_heatmap_figure(data, title, metric)** - Trust Comparison: trust × drug matrix with NHS blue colorscale
+- **create_trust_duration_figure(data, title)** - Trust Comparison: grouped horizontal bars with one trace per trust
 - **save_figure_html()** - Save interactive HTML file
 - **open_figure_in_browser()** - Open chart in default browser
 
@@ -285,42 +291,69 @@ Shared query functions used by the Dash app (via thin wrappers in `dash_app/data
 - **get_dosing_intervals(db_path, filter_id, chart_type, drug, trust)** - Level 3 nodes with parsed average_spacing intervals
 - **get_drug_directory_matrix(db_path, filter_id, chart_type, trust)** - Level 3 nodes pivoted as directory × drug matrix
 - **get_treatment_durations(db_path, filter_id, chart_type, directory, trust)** - Level 3 nodes with avg_days by drug
+- **get_trust_market_share(db_path, filter_id, chart_type, directory)** - Trust Comparison: drugs by trust within a single directorate
+- **get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)** - Trust Comparison: one bar per trust showing cost_pp within directorate
+- **get_trust_dosing(db_path, filter_id, chart_type, directory)** - Trust Comparison: drug dosing intervals broken down by trust
+- **get_trust_heatmap(db_path, filter_id, chart_type, directory)** - Trust Comparison: trust × drug matrix for one directorate
+- **get_trust_durations(db_path, filter_id, chart_type, directory)** - Trust Comparison: drug durations by trust within directorate
+- **get_directorate_summary(db_path, filter_id, chart_type, directory)** - Summary stats for a directorate (total patients, drugs, cost)
 
 ### Dash Application (`dash_app/`)
 
-**State Management** via 3 `dcc.Store` components:
-- **app-state** (session): `chart_type`, `initiated`, `last_seen`, `date_filter_id`, `selected_drugs`, `selected_directorates`, `selected_trusts`
+**Two-View Architecture:**
+The application is split into two analytical perspectives, selectable via the sidebar:
+- **Patient Pathways**: Pathway-focused analysis (Icicle + Sankey charts) with drug/trust/directorate filters
+- **Trust Comparison**: Per-directorate analysis comparing drugs across trusts (6 charts for a selected directorate)
+
+**State Management** via 4 `dcc.Store` components:
+- **app-state** (session): `chart_type`, `initiated`, `last_seen`, `date_filter_id`, `selected_drugs`, `selected_directorates`, `selected_trusts`, `active_view` ("patient-pathways" | "trust-comparison"), `selected_comparison_directorate` (null | directorate name)
 - **chart-data** (memory): `nodes[]`, `unique_patients`, `total_drugs`, `total_cost`, `last_updated`
 - **reference-data** (session): `available_drugs`, `available_directorates`, `available_indications`, `available_trusts`, `total_patients`, `last_updated`
+- **active-tab** (memory): Currently selected chart tab within Patient Pathways ("icicle" | "sankey")
 
 **Callback Chain** (unidirectional):
 ```
 Page Load → load_reference_data → reference-data store + header indicators
          → update_app_state → app-state store (default filters)
                              → load_pathway_data → chart-data store
-                                                  ├→ update_kpis → KPI cards
-                                                  └→ update_chart → dcc.Graph (dispatches by active-tab)
+                                                  ├→ update_kpis → header fraction KPIs
+                                                  └→ update_chart → dcc.Graph (Icicle or Sankey)
 
 Filter change → update_app_state → app-state → load_pathway_data → (chain above)
-Drawer selection → all-drugs-chips/trust-chips → update_app_state → (chain above)
-Tab click → switch_tab → active-tab store → update_chart → dcc.Graph (lazy: only active tab computed)
+Modal selection → drug/trust chips → update_app_state → (chain above)
+Tab click → switch_tab → active-tab store → update_chart → dcc.Graph (lazy rendering)
+
+Sidebar click → switch_view → active_view in app-state → show/hide views
+Trust Comparison:
+  Landing page → directorate button click → selected_comparison_directorate → 6 chart callbacks
+  Back button → clear selected_comparison_directorate → return to landing
 ```
 
 **Key Components:**
-- **Header** (`header.py`): NHS branding, data freshness indicator (patient count + relative time)
-- **Sidebar** (`sidebar.py`): Navigation with Pathway Overview link (chart views moved to tab bar in chart_card.py)
-- **Filter Bar** (`filter_bar.py`): Chart type toggle pills (By Directory / By Indication) + date filter dropdowns
-- **KPI Row** (`kpi_row.py`): 4 cards — Unique Patients, Drug Types, Total Cost, Indication Match Rate (~93%)
-- **Chart Card** (`chart_card.py`): 8-tab chart area (Icicle, Market Share, Cost Effectiveness, Cost Waterfall, Sankey, Dosing, Heatmap, Duration) with `dcc.Loading` spinner, dynamic subtitle, and `dcc.Store(id="active-tab")`
-- **Drawer** (`drawer.py`): `dmc.Drawer` with drug chips (`dmc.ChipGroup`), trust chips, directorate accordion with indication sub-items and drug fragment badges
+- **Header** (`header.py`): NHS branding, fraction KPIs (X/X patients, X/X drugs, £X/£X cost), data freshness indicator
+- **Sidebar** (`sidebar.py`): 2 navigation items — "Patient Pathways" (default), "Trust Comparison"
+- **Sub-Header** (`sub_header.py`): Global filter bar — date dropdowns (Initiated, Last Seen) + chart type toggle pills (By Directory / By Indication). Constant across both views.
+- **Filter Bar** (`filter_bar.py`): Patient Pathways-only filter buttons — Drugs (with count badge), Trusts (with count badge), Directorates (with count badge), Clear All. Only visible on Patient Pathways view.
+- **Chart Card** (`chart_card.py`): 2-tab chart area (Icicle, Sankey) with `dcc.Loading` spinner, dynamic subtitle, and `dcc.Store(id="active-tab")`
+- **Modals** (`modals.py`): 3 `dmc.Modal` dialogs for drug selection (ChipGroup), trust selection (ChipGroup), directorate browser (Accordion with indication sub-items and drug fragment badges)
+- **Trust Comparison** (`trust_comparison.py`): Landing page (directorate/indication button grid) + 6-chart dashboard (Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness)
 - **Footer** (`footer.py`): NHS Norfolk and Waveney ICB branding
 
-**Drawer Drug Browser:**
-- "All Drugs" section: flat `dmc.ChipGroup` with 42 drugs from pathway_nodes level 3
-- "Trusts" section: `dmc.ChipGroup` with 7 trusts
-- "By Directorate" section: nested `dmc.Accordion` — 19 directorates → indications → drug fragment `dmc.Badge` items
+**Filter Modals:**
+- Drug Modal: flat `dmc.ChipGroup` with 42 drugs from pathway_nodes level 3
+- Trust Modal: `dmc.ChipGroup` with 7 trusts
+- Directorate Modal: nested `dmc.Accordion` — 19 directorates → indications → drug fragment `dmc.Badge` items
 - Clicking a drug fragment badge selects all full drug names containing that fragment (substring match)
 - "Clear All Filters" button resets drug and trust selections
+
+**Trust Comparison Dashboard (6 Charts):**
+All scoped to a single selected directorate, comparing drugs across trusts:
+1. **Market Share**: Drug breakdown per trust (stacked bars per trust)
+2. **Cost Waterfall**: Per-trust cost within directorate
+3. **Dosing**: Drug dosing intervals by trust
+4. **Heatmap**: Trust × drug matrix
+5. **Duration**: Drug durations by trust
+6. **Cost Effectiveness**: Pathway costs within directorate (NOT split by trust)
 
 ### Data Transformations (`data_processing/transforms.py`)
 
@@ -389,30 +422,48 @@ Core data transformation functions used by the pipeline:
 [Dash App: python run_dash.py]
 
     ┌──────────────────────────────────────────┐
-    │ Filter Bar + Drawer (toggle pills,       │
-    │   date dropdowns, drug/trust chips)      │
+    │ Global Sub-Header (date dropdowns,       │
+    │   chart type toggle pills)               │
     │   → Triggers update_app_state callback   │
     └──────────────────────────────────────────┘
            │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ load_pathway_data callback               │
-    │   → Input: app-state dcc.Store           │
-    │   → Calls pathway_queries.load_pathway_  │
-    │     nodes() with filters                 │
-    │   → Output: chart-data dcc.Store         │
-    └──────────────────────────────────────────┘
-           │
-           ├──────────────────────────────┐
-           ▼                              ▼
-    ┌────────────────────┐  ┌──────────────────────┐
-    │ update_kpis        │  │ update_chart         │
-    │   → 4 KPI cards    │  │   → create_icicle_   │
-    │   → formatted      │  │     from_nodes()     │
-    │     counts/costs   │  │   → 10-field custom- │
-    └────────────────────┘  │     data + NHS blue  │
-                            │   → dcc.Graph figure │
-                            └──────────────────────┘
+           ├─── Patient Pathways View ─────────────────────────────┐
+           │                                                        │
+           │  ┌──────────────────────────────────────────┐          │
+           │  │ Filter Bar (Drugs/Trusts/Directorates)   │          │
+           │  │   → Modal selections → app-state         │          │
+           │  └──────────────────────────────────────────┘          │
+           │         │                                              │
+           │         ▼                                              │
+           │  ┌──────────────────────────────────────────┐          │
+           │  │ load_pathway_data callback               │          │
+           │  │   → chart-data store                     │          │
+           │  └──────────────────────────────────────────┘          │
+           │         │                                              │
+           │         ├──────────────────────────────┐               │
+           │         ▼                              ▼               │
+           │  ┌────────────────────┐  ┌──────────────────────┐      │
+           │  │ update_kpis        │  │ update_chart         │      │
+           │  │   → header KPIs   │  │   → Icicle or Sankey │      │
+           │  └────────────────────┘  └──────────────────────┘      │
+           │                                                        │
+           ├─── Trust Comparison View ─────────────────────────────┤
+           │                                                        │
+           │  ┌──────────────────────────────────────────┐          │
+           │  │ Landing Page                             │          │
+           │  │   → Directorate/Indication buttons       │          │
+           │  │   → Click → selected_comparison_dir      │          │
+           │  └──────────────────────────────────────────┘          │
+           │         │                                              │
+           │         ▼                                              │
+           │  ┌──────────────────────────────────────────┐          │
+           │  │ 6-Chart Dashboard                        │          │
+           │  │   → Market Share, Cost Waterfall, Dosing │          │
+           │  │   → Heatmap, Duration, Cost Effectiveness│          │
+           │  │   → All per-trust within one directorate │          │
+           │  └──────────────────────────────────────────┘          │
+           │                                                        │
+           └────────────────────────────────────────────────────────┘
 ```
 
 ### Reference Data Files (`data/`)
@@ -493,21 +544,31 @@ The input data (CSV/Parquet) must contain columns including:
 
 ## Output
 
-8 interactive chart tabs in a single Dash application:
-1. **Icicle** — Hierarchical pathway view (Directory: Trust → Directorate → Drug → Pathway; Indication: Trust → GP Diagnosis → Drug → Pathway)
-2. **Market Share** — Horizontal stacked bars showing drug market share by directorate/indication
-3. **Cost Effectiveness** — Lollipop chart of pathway cost per patient per annum with retention annotations
-4. **Cost Waterfall** — Waterfall chart of directorate-level cost_pp_pa
-5. **Sankey** — Drug switching flows across 1st → 2nd → 3rd treatment lines
-6. **Dosing** — Grouped bar chart of dosing intervals by drug or trust
-7. **Heatmap** — Directorate × Drug matrix coloured by patient count, cost, or cost_pp_pa
-8. **Duration** — Horizontal bar chart of average treatment duration per drug
+Two-view Dash application with distinct analytical perspectives:
 
-All charts support:
+**Patient Pathways View** (2 tabs):
+1. **Icicle** — Hierarchical pathway view (Directory: Trust → Directorate → Drug → Pathway; Indication: Trust → GP Diagnosis → Drug → Pathway)
+2. **Sankey** — Drug switching flows across 1st → 2nd → 3rd treatment lines
+
+Patient Pathways supports:
 - Directory / Indication toggle
 - Date filter combinations (6 options)
-- Trust, drug, and directorate filters
+- Trust, drug, and directorate filters via modals
 - Lazy rendering (only active tab computed)
+
+**Trust Comparison View** (6 charts in dashboard):
+Landing page with directorate/indication buttons → 6-chart dashboard for selected directorate:
+1. **Market Share** — Drug breakdown per trust (stacked bars)
+2. **Cost Waterfall** — Per-trust cost within directorate
+3. **Dosing** — Drug dosing intervals by trust
+4. **Heatmap** — Trust × drug matrix
+5. **Duration** — Drug durations by trust
+6. **Cost Effectiveness** — Pathway costs within directorate (not split by trust)
+
+Trust Comparison supports:
+- Directory / Indication toggle (changes landing page buttons)
+- Date filter combinations (6 options)
+- All 6 charts scoped to selected directorate
 
 ## Testing
 
@@ -564,13 +625,14 @@ The pre-computed pathway architecture introduces these changes:
 - **Benefit**: Sub-50ms filter response time vs multi-minute calculations
 
 ### State Management (Dash)
-- State lives in 3 `dcc.Store` components: `app-state`, `chart-data`, `reference-data`
+- State lives in 4 `dcc.Store` components: `app-state`, `chart-data`, `reference-data`, `active-tab`
 - Filter state: `chart_type`, `initiated`, `last_seen`, `date_filter_id`, `selected_drugs`, `selected_directorates`, `selected_trusts`
-- Chart type toggle: "By Directory" / "By Indication" pills in filter bar
-- Dynamic subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway"
-- Drug/trust selection via `dmc.ChipGroup` in right-side drawer
+- View state: `active_view` ("patient-pathways" | "trust-comparison"), `selected_comparison_directorate` (null | directorate name)
+- Chart type toggle: "By Directory" / "By Indication" pills in global sub-header
+- Drug/trust/directorate selection via `dmc.Modal` dialogs (Patient Pathways only)
+- Fraction KPIs in header (X/X patients, X/X drugs, £X/£X cost)
 
-### Icicle Chart
+### Icicle Chart (Patient Pathways)
 - Full 10-field customdata structure (value, colour, cost, costpp, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, cost_pp_pa)
 - NHS blue gradient colorscale: Heritage Blue #003087 → Pale Blue #E3F2FD
 - Treatment statistics (average_spacing, cost_pp_pa) in hover tooltips
