@@ -1509,3 +1509,61 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Read `get_cost_waterfall()` in pathway_queries.py for exact data shape
 ### Blocked items:
 - None
+
+## Iteration 27 — 2026-02-06
+### Task: Phase 9 — Task 9.5 (Cost Waterfall chart — Tab 4)
+### Why this task:
+- Tasks 9.1 (tab infra), 9.2 (queries), 9.3 (market share), 9.4 (cost effectiveness) complete. Task 9.5 is next in sequence.
+- Progress.txt from iteration 26 explicitly recommended this task.
+- Cost Waterfall is a straightforward bar chart — validates the pattern for remaining charts.
+### Status: COMPLETE
+### What was done:
+- **Created `create_cost_waterfall_figure(data, title)` in `src/visualization/plotly_generator.py`**:
+  - Vertical bar chart: one bar per directorate, sorted by cost_pp (cost per patient) descending
+  - NHS colour palette cycling through 12 colours for visual distinction
+  - Text labels above bars showing £ values, patient count annotations below
+  - Weighted average reference line (dashed red) across all directorates
+  - Hover shows: directorate name, cost per patient, patient count, total cost
+  - Auto tick angle rotation for >6 bars, dynamic sizing
+  - NHS design aesthetic: Source Sans 3, transparent backgrounds, clean gridlines
+- **Added `_render_cost_waterfall(app_state, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params (date_filter_id, chart_type, single trust)
+  - Calls `get_cost_waterfall()` wrapper then `create_cost_waterfall_figure()`
+  - Handles empty data and exceptions gracefully
+- **Wired into `update_chart` dispatch**: `active_tab == "cost-waterfall"` → `_render_cost_waterfall()`
+- **Architecture note**: Uses `go.Bar` (not `go.Waterfall`) for cleaner control — each bar shows absolute cost_pp for a directorate. The weighted average reference line gives the "running total" context that a true waterfall would provide.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 11 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory chart: 12 bars (directorates), sorted by cost_pp desc — renders correctly
+  - Indication chart: 39 bars (indications) — renders correctly
+  - Trust filter (NNUH): 10 bars — filters correctly
+  - Date filter (2yr_12mo): 12 bars — filters correctly
+  - Empty data: returns empty figure — handled correctly
+  - Icicle still works: 293 nodes, 11,118 patients — no regression
+  - Market share still works: 63 rows, 39 traces — no regression
+  - Cost effectiveness still works — no regression
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: `create_cost_waterfall_figure()` (~130 lines)
+- `dash_app/callbacks/chart.py` — Added: `_render_cost_waterfall()` helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.5 marked [x]
+### Committed: 73a8d1a "feat: add Cost Waterfall bar chart (Task 9.5)"
+### Patterns discovered:
+- `go.Bar` is better than `go.Waterfall` for this use case — we want absolute values per directorate, not cumulative increments. Waterfall would show how each directorate adds to a running total, but the spec asks for comparing cost_pp across directorates independently.
+- The weighted average reference line (`fig.add_hline()`) provides the "big picture" context — users can quickly see which directorates are above/below average cost per patient.
+- Patient count annotations below bars (`yshift=-18`) give context on sample size without cluttering the main bars.
+- The `_render_cost_waterfall(app_state, title)` pattern matches `_render_market_share()` — both take app_state and title, query independently from SQLite (not from chart-data nodes).
+### Next iteration should:
+- Start Task 9.6 — Drug Switching Sankey chart (Tab 5)
+- Sub-steps:
+  1. Create figure function in `src/visualization/plotly_generator.py` — `create_sankey_figure(data, title)`
+  2. Build Plotly Sankey diagram from `get_drug_transitions()` data
+  3. The query returns `{nodes: [{label, colour}], links: [{source, target, value, source_label, target_label}]}`
+  4. Left nodes = 1st-line drugs, middle = 2nd-line, right = 3rd-line. Link width = patient count.
+  5. Wire into `update_chart` via `_render_sankey()` helper
+  6. Responds to all existing filters (directory, trust, date, chart type)
+- Read `get_drug_transitions()` in pathway_queries.py for exact data shape
+- Note: Sankey has ordinal suffixes (e.g., "ADALIMUMAB (1st)") to prevent self-loops
+### Blocked items:
+- None
