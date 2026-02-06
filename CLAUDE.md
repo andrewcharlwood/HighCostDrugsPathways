@@ -10,7 +10,7 @@ NHS High-Cost Drug Patient Pathway Analysis Tool - a web-based application that 
 - **Dual chart types**: Directory-based (Trust → Directory → Drug → Pathway) and Indication-based (Trust → GP Diagnosis → Drug → Pathway) views with toggle
 - **Pre-computed pathway architecture**: Treatment pathways pre-processed and stored in SQLite for instant filtering
 - **GP diagnosis matching**: Patient indications matched from GP records using SNOMED cluster codes queried directly from Snowflake (~93% match rate)
-- Multi-source data loading: CSV/Parquet files, SQLite database, Snowflake data warehouse
+- Data pipeline: Snowflake → pre-computed SQLite pathway nodes (CSV/Parquet file loading retained for legacy compatibility)
 - Interactive browser-based UI using Reflex framework
 - 6 pre-defined date filter combinations × 2 chart types = 12 pre-computed datasets with sub-50ms response times
 
@@ -86,15 +86,14 @@ The refresh command:
 │
 ├── data_processing/         # Data layer
 │   ├── database.py         # SQLite connection management
-│   ├── schema.py           # Database schema (including pathway tables)
+│   ├── schema.py           # Database schema (reference + pathway tables)
 │   ├── pathway_pipeline.py # Pathway processing pipeline (Snowflake → SQLite)
-│   ├── loader.py           # DataLoader abstraction (CSV/SQLite)
-│   ├── patient_data.py     # Patient data migration and loading
+│   ├── loader.py           # FileDataLoader for CSV/Parquet files
 │   ├── reference_data.py   # Reference data migration
 │   ├── snowflake_connector.py  # Snowflake integration
 │   ├── cache.py            # Query result caching
-│   ├── data_source.py      # Data source fallback chain
-│   └── diagnosis_lookup.py # GP diagnosis validation
+│   ├── data_source.py      # Data source fallback chain (Snowflake/file)
+│   └── diagnosis_lookup.py # GP diagnosis lookup and drug-indication mapping
 │
 ├── analysis/                # Analysis pipeline
 │   ├── pathway_analyzer.py # prepare_data, calculate_statistics, build_hierarchy
@@ -184,7 +183,7 @@ Each node in `pathway_nodes` contains:
 
 **Database Management:**
 - `DatabaseManager` - SQLite connection pooling and transaction management
-- Tables: `ref_drug_names`, `ref_organizations`, `ref_directories`, `ref_drug_directory_map`, `ref_drug_indication_clusters`, `fact_interventions`, `mv_patient_treatment_summary`, `processed_files`
+- **Reference Tables**: `ref_drug_names`, `ref_organizations`, `ref_directories`, `ref_drug_directory_map`, `ref_drug_indication_clusters`
 - **Pathway Tables**: `pathway_date_filters`, `pathway_nodes`, `pathway_refresh_log`
 
 **Pathway Pipeline (`pathway_pipeline.py`):**
@@ -203,15 +202,13 @@ Each node in `pathway_nodes` contains:
   - `process_all_date_filters()` - Convenience function to process all 6 filters
 
 **Data Loaders:**
-- `FileDataLoader` - Loads from CSV/Parquet files
-- `SQLiteDataLoader` - Queries fact_interventions table
-- Factory function `get_loader()` selects appropriate loader
+- `FileDataLoader` - Loads from CSV/Parquet files (used by legacy pipeline, not by Reflex app)
+- Factory function `get_loader()` creates a `FileDataLoader`
 
 **Snowflake Integration:**
 - SSO authentication via `externalbrowser` authenticator
 - `fetch_activity_data(start_date, end_date, provider_codes)` method
 - Query caching with TTL-based invalidation
-- Fallback chain: cache → Snowflake → local files
 
 **GP Diagnosis Lookup (`diagnosis_lookup.py`):**
 - `CLUSTER_MAPPING_SQL` - Embedded SQL constant with ~148 Search_Term → Cluster_ID mappings plus explicit SNOMED codes
@@ -245,9 +242,9 @@ The `AppState` class manages all application state:
 - **Chart type**: `selected_chart_type` ("directory" or "indication"), toggled via `set_chart_type()`
 - **Computed vars**: `chart_hierarchy_label` (dynamic "Trust → Directorate → ..." or "Trust → Indication → ..."), `chart_type_label`
 - Filter variables: dates, drugs, trusts, directories
-- Reference data: available options loaded from CSV/SQLite
+- Reference data: available options loaded from pathway_nodes and CSV files
 - Analysis state: running flag, status messages, chart data
-- Data source state: file path, source type, row counts
+- `load_data()` sources available drugs/directorates from `pathway_nodes` and `total_records` from `pathway_refresh_log.source_row_count`
 
 **Chart Type Toggle** (`chart_type_toggle()` component):
 - Segmented control with "By Directory" and "By Indication" pill buttons
@@ -357,39 +354,6 @@ Still used during transition:
     └──────────────────────────────────────────┘
 ```
 
-**Legacy Data Flow (Original):**
-
-```
-Data Sources:
-    CSV/Parquet file upload
-    OR SQLite database query
-    OR Snowflake fetch (with caching)
-           │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ Data Transformations (tools/data.py)     │
-    │   → patient_id() creates UPID            │
-    │   → drug_names() standardizes names      │
-    │   → department_identification() → Dir    │
-    └──────────────────────────────────────────┘
-           │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ Analysis Pipeline (analysis/)            │
-    │   → prepare_data() - filter by criteria  │
-    │   → calculate_statistics()               │
-    │   → build_hierarchy()                    │
-    │   → prepare_chart_data()                 │
-    └──────────────────────────────────────────┘
-           │
-           ▼
-    ┌──────────────────────────────────────────┐
-    │ Visualization (visualization/)           │
-    │   → create_icicle_figure()               │
-    │   → Display in rx.plotly() component     │
-    └──────────────────────────────────────────┘
-```
-
 ### Reference Data Files (`data/`)
 
 | File | Purpose |
@@ -403,7 +367,7 @@ Data Sources:
 | `treatment_function_codes.csv` | NHS treatment function code mappings |
 | `drug_indication_clusters.csv` | Drug to SNOMED cluster mappings |
 | `ta-recommendations.xlsx` | NICE TA recommendations |
-| `pathways.db` | SQLite database with all tables |
+| `pathways.db` | SQLite database (~3.5 MB: reference tables + pathway nodes) |
 
 ### Key Patterns
 
@@ -425,19 +389,12 @@ The `department_identification()` function has 5 levels of fallback:
 3. Build `indication_df` mapping UPID → Search_Term (matched) or Directorate + " (no GP dx)" (unmatched)
 4. Pass to `generate_icicle_chart_indication()` for pathway hierarchy building
 
-**Indication Validation Workflow (legacy, per-patient):**
-1. Map drug → SNOMED cluster IDs (e.g., ADALIMUMAB → RARTH_COD, PSORIASIS_COD)
-2. Get all SNOMED codes for those clusters
-3. Check GP records (PrimaryCareClinicalCoding) for matching codes
-4. Report match/no-match with source tracking
-
-**Data Source Fallback Chain:**
+**Data Source Fallback Chain** (for raw data loading, not used by Reflex app):
 1. Query cache for recent results
 2. Attempt Snowflake connection
-3. Fall back to SQLite database
-4. Fall back to CSV/Parquet files
+3. Fall back to CSV/Parquet files
 
-## Database Schema
+## Database Schema (~3.5 MB)
 
 ### Reference Tables
 - `ref_drug_names` - Drug name standardization
@@ -445,15 +402,6 @@ The `department_identification()` function has 5 levels of fallback:
 - `ref_directories` - Valid directory names
 - `ref_drug_directory_map` - Valid drug-directory pairs
 - `ref_drug_indication_clusters` - Drug to SNOMED cluster mapping
-
-### Fact Tables
-- `fact_interventions` - Patient intervention records (UPID, drug, date, cost, directory)
-
-### Materialized Views
-- `mv_patient_treatment_summary` - Pre-aggregated patient statistics
-
-### File Tracking
-- `processed_files` - Hash-based tracking for incremental loading
 
 ### Pathway Tables
 - `pathway_date_filters` - 6 pre-defined date filter combinations
@@ -470,7 +418,7 @@ The `department_identification()` function has 5 levels of fallback:
   - Unique constraint: `UNIQUE(date_filter_id, chart_type, ids)` — critical for INSERT OR REPLACE correctness
   - Indexed for: date_filter_id, chart_type, trust_name, directory, level
 - `pathway_refresh_log` - Tracks data refresh status
-  - Columns: `refresh_id`, `started_at`, `completed_at`, `status`, `records_processed`, `error_message`
+  - Columns: `refresh_id`, `started_at`, `completed_at`, `status`, `records_processed`, `error_message`, `source_row_count`
 
 ## Input Data Requirements
 
@@ -568,12 +516,6 @@ The pre-computed pathway architecture introduces these changes:
 - **Added**: Indication chart uses `generate_icicle_chart_indication()` with Search_Term hierarchy
 
 ## Development
-
-### Adding New Data Sources
-
-1. Create loader class implementing `DataLoader` protocol in `data_processing/loader.py`
-2. Add to factory function `get_loader()`
-3. Update `DataSourceManager` fallback chain if needed
 
 ### Adding New Analysis Features
 
