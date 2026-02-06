@@ -1384,5 +1384,64 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
   4. Use NHS blue palette, one cluster per directorate, drugs as bars within
 - Read `dash_app/callbacks/chart.py` to understand the tab dispatch pattern
 - Read `src/visualization/plotly_generator.py` to see existing figure function pattern
+### Blocked items (iter 24):
+- None
+
+## Iteration 25 — 2026-02-06
+### Task: Phase 9 — Task 9.3 (First-Line Market Share chart — Tab 2)
+### Why this task:
+- Tasks 9.1 (tab infra) and 9.2 (query functions) complete. Task 9.3 is the first actual chart.
+- Progress.txt from iteration 24 explicitly recommended this task.
+- Simplest chart — validates the tab-switching + figure-building pattern for all subsequent charts.
+### Status: COMPLETE
+### What was done:
+- **Created `create_market_share_figure(data, title)` in `src/visualization/plotly_generator.py`**:
+  - Horizontal stacked bar chart: one row per directorate (sorted by total patients desc), drugs stacked within
+  - NHS colour palette (15 colours cycling for different drugs)
+  - Hover shows drug name, directorate, patient count, share %, cost, cost p.p.p.a.
+  - Dynamic height based on number of directorates (60px per row + margins)
+  - Legend positioned below chart in horizontal orientation
+  - Transparent backgrounds, Source Sans 3 font, matching NHS design aesthetic
+- **Added `_render_market_share(app_state, title)` helper in `dash_app/callbacks/chart.py`**:
+  - Extracts filter params from app-state (date_filter_id, chart_type, directory, trust)
+  - Calls `get_drug_market_share()` wrapper then `create_market_share_figure()`
+  - Handles empty data and exceptions gracefully
+  - For single-directory filter: passes to query as `directory=` param. For multi: shows all.
+  - For single-trust filter: passes to query as `trust=` param. For multi: shows all.
+- **Updated `update_chart` dispatch**: `active_tab == "market-share"` → `_render_market_share()`
+- **Architecture note**: Separate `dash_app/callbacks/market_share.py` file not needed — the dispatch pattern uses a single `update_chart` callback with helper functions. This avoids `allow_duplicate=True` on `Output("pathway-chart", "figure")`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 11 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - Directory chart: 63 rows, 12 directories, 39 drugs, 39 traces — renders correctly
+  - Indication chart: 111 rows, 39 traces — renders correctly
+  - Trust filter (NNUH): 45 rows — filters correctly
+  - Date filter (2yr_12mo): 47 rows — filters correctly
+  - Empty data: returns empty figure — handled correctly
+  - Icicle still works: 293 nodes, 11,118 patients — no regression
+### Files changed:
+- `src/visualization/plotly_generator.py` — Added: `create_market_share_figure()` (120 lines)
+- `dash_app/callbacks/chart.py` — Added: `_render_market_share()` helper + dispatch branch
+- `IMPLEMENTATION_PLAN.md` — Task 9.3 marked [x]
+### Committed: f8960a3 "feat: add First-Line Market Share chart (Task 9.3)"
+### Patterns discovered:
+- Market share chart uses `barmode="stack"` for cleaner visualization — stacked bars show proportion within each directorate clearly
+- The `_render_X()` helper pattern (query + figure builder in one function) is clean and reusable for all subsequent chart types
+- Market share query returns data sorted by directory total patients desc — reversed for horizontal bars so highest total is at top
+- 39 unique drugs creates many traces, but most drugs only appear in 1-2 directorates so visual complexity is manageable
+- `get_drug_market_share()` accepts single directory/trust — for multi-select, pass None to show all
+### Next iteration should:
+- Start Task 9.4 — Pathway Cost Effectiveness chart (Tab 3)
+- Sub-steps:
+  1. Create figure function in `src/visualization/plotly_generator.py` — `create_cost_effectiveness_figure(data, retention)`
+  2. Build horizontal lollipop/dot chart: Y-axis = pathway label, X-axis = £ per patient per annum
+  3. Dot size = patient count, colour gradient: green (cheap) → amber → red (expensive)
+  4. Add retention rate annotations using `calculate_retention_rate()` from `src/data_processing/parsing.py`
+  5. Wire into `update_chart` via `_render_cost_effectiveness()` helper
+  6. The query `get_pathway_costs()` returns [{ids, pathway_label, cost_pp_pa, patients, directory, drug_sequence}]
+  7. Use `parse_pathway_drugs()` if needed for pathway labels
+- Read `src/data_processing/parsing.py` for `calculate_retention_rate()` signature
+- Read `get_pathway_costs()` data shape
 ### Blocked items:
 - None
