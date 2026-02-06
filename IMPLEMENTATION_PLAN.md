@@ -556,13 +556,13 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Filters visible on Patient Pathways, hidden on Trust Comparison, all filter functionality preserved
 
 ### 10.10 CSS updates + polish
-- [ ] Global filter sub-header styling per design from 10.1
-- [ ] Trust Comparison landing page styling (directorate buttons grid)
-- [ ] Trust Comparison dashboard grid styling (6-chart layout)
-- [ ] Header fraction KPI styling
-- [ ] Remove or repurpose `.kpi-row` / `.kpi-card` CSS
-- [ ] Ensure responsive behavior
-- [ ] Update `01_nhs_classic.html` if it serves as an ongoing design reference (or note that Phase 10 diverges)
+- [x] Global filter sub-header styling per design from 10.1
+- [x] Trust Comparison landing page styling (directorate buttons grid)
+- [x] Trust Comparison dashboard grid styling (6-chart layout)
+- [x] Header fraction KPI styling
+- [x] Remove or repurpose `.kpi-row` / `.kpi-card` CSS
+- [x] Ensure responsive behavior
+- [x] Update `01_nhs_classic.html` if it serves as an ongoing design reference (or note that Phase 10 diverges)
 - **Checkpoint**: All new components styled consistently with NHS design system
 
 ### 10.11 Final integration + documentation

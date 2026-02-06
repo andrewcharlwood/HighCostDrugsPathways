@@ -12,6 +12,8 @@
     --nhs-yellow: #FFB81C;
     --nhs-red: #DA291C;
     --sidebar-w: 240px;
+    --sub-header-h: 44px;
+    --header-total-h: 100px;  /* 56px header + 44px sub-header */
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,11 +55,6 @@ body {
     font-size: 20px; font-weight: 700;
     letter-spacing: -0.01em;
 }
-.top-header__breadcrumb {
-    color: rgba(255,255,255,0.7);
-    font-size: 14px; font-weight: 400;
-}
-.top-header__breadcrumb strong { color: var(--nhs-white); font-weight: 600; }
 .top-header__right {
     display: flex; align-items: center; gap: 20px; color: rgba(255,255,255,0.8); font-size: 14px;
 }
@@ -142,11 +139,6 @@ body {
     color: var(--nhs-blue);
     font-weight: 600;
 }
-.sidebar__item--disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: none;
-}
 .sidebar__item svg { width: 18px; height: 18px; flex-shrink: 0; }
 .sidebar__icon { width: 18px; height: 18px; flex-shrink: 0; }
 .sidebar__footer {
@@ -162,7 +154,7 @@ body {
     left: var(--sidebar-w);
     right: 0;
     z-index: 150;
-    height: 44px;
+    height: var(--sub-header-h);
     background: #E8F0FE;
     border-bottom: 1px solid #C5D4E8;
     display: flex;
@@ -193,39 +185,10 @@ body {
 /* ── Main Content ── */
 .main {
     margin-left: var(--sidebar-w);
-    margin-top: 100px;
+    margin-top: var(--header-total-h);
     padding: 24px;
-    min-height: calc(100vh - 100px);
+    min-height: calc(100vh - var(--header-total-h));
     display: flex; flex-direction: column; gap: 20px;
-}
-
-/* ── KPI Row ── */
-.kpi-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-}
-.kpi-card {
-    background: var(--nhs-white);
-    border: 1px solid var(--nhs-pale-grey);
-    border-top: 4px solid var(--nhs-blue);
-    padding: 20px;
-    display: flex; flex-direction: column; gap: 2px;
-}
-.kpi-card--green { border-top-color: var(--nhs-green); }
-.kpi-card__label {
-    font-size: 12px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--nhs-mid-grey);
-}
-.kpi-card__value {
-    font-size: 32px; font-weight: 300;
-    color: var(--nhs-dark-blue);
-    line-height: 1.1;
-    font-variant-numeric: tabular-nums;
-}
-.kpi-card__sub {
-    font-size: 13px; color: var(--nhs-mid-grey); margin-top: 4px;
 }
 
 /* ── Patient Pathways Filter Strip ── */
@@ -261,18 +224,6 @@ body {
 }
 .toggle-pill:hover:not(.toggle-pill--active) { background: #F0F4F5; }
 .toggle-pill:focus-visible { box-shadow: 0 0 0 3px var(--nhs-yellow); z-index: 1; }
-
-/* Selects */
-.filter-select {
-    height: 34px; padding: 0 12px;
-    border: 1px solid var(--nhs-pale-grey);
-    font-family: inherit; font-size: 14px;
-    color: var(--nhs-dark-grey);
-    background: var(--nhs-white);
-    cursor: pointer;
-    min-width: 140px;
-}
-.filter-select:focus { outline: 3px solid var(--nhs-yellow); outline-offset: 0; }
 
 /* Dash dcc.Dropdown overrides for filter bar */
 .filter-dropdown {
@@ -527,15 +478,15 @@ body {
 @media (max-width: 1200px) {
     .tc-landing__grid { grid-template-columns: repeat(2, 1fr); }
     .tc-landing__grid--wide { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 1024px) {
-    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .top-header__kpis { gap: 16px; }
+    .header-kpi__label { display: none; }
 }
 @media (max-width: 768px) {
     .sidebar { display: none; }
     .main { margin-left: 0; }
     .sub-header { left: 0; }
-    .kpi-row { grid-template-columns: 1fr; }
+    .top-header__kpis { display: none; }
     .tc-landing__grid { grid-template-columns: 1fr; }
     .tc-dashboard__grid { grid-template-columns: 1fr; }
+    .pathway-filters { flex-wrap: wrap; gap: 8px; }
 }
