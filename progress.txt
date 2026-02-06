@@ -1056,3 +1056,62 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Update sidebar IDs and any callbacks that reference removed IDs (e.g., `sidebar-drug-selection`, `sidebar-trust-selection`, `sidebar-indications` are used in drawer.py `open_drawer` callback)
 ### Blocked items:
 - None
+
+## Iteration 20 — 2026-02-06
+### Task: Phase 7 — Task 7.3 (Restructure sidebar: chart views, remove placeholder items)
+### Why this task:
+- Tasks 7.1 and 7.2 (bug fixes) complete. Task 7.3 is next in Phase 7 dependency order.
+- Progress.txt from iteration 19 explicitly recommended this task.
+- Tasks 7.4 (modals) and 7.5 (filter bar triggers) depend on the sidebar being cleaned up first.
+### Status: COMPLETE
+### What was done:
+- **Sidebar restructured** (`dash_app/components/sidebar.py`):
+  - Removed 6 items: Drug Selection, Trust Selection, Directory Selection, Indications, Cost Analysis, Export Data
+  - Renamed "Analysis" section to "Overview" (now contains only "Pathway Overview")
+  - Added "Chart Views" section with: "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled)
+  - New SVG icons for chart views: icicle (stacked bars), sankey (flow lines), timeline (dots on line)
+  - Sidebar footer preserved
+- **Chart card tab row removed** (`dash_app/components/chart_card.py`):
+  - Removed the 3-tab row (Icicle/Sankey/Timeline) — chart view selection is now in the sidebar
+  - Chart card now contains only header (title + subtitle) and the loading-wrapped dcc.Graph
+- **Drawer open callback removed** (`dash_app/callbacks/drawer.py`):
+  - Removed `open_drawer` callback that referenced removed sidebar IDs (`sidebar-drug-selection`, `sidebar-indications`, `sidebar-trust-selection`)
+  - Fragment matching and clear callbacks preserved (still functional via drawer component in layout)
+  - Callback count dropped from 7 to 6
+- **CSS updated** (`dash_app/assets/nhs.css`):
+  - Added `.sidebar__item--disabled` class (opacity 0.4, cursor not-allowed, pointer-events none)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 6 callbacks registered
+- Tier 2 (Layout):
+  - Sidebar: 2 sections (Overview: 1 item, Chart Views: 3 items), footer present
+  - Icicle Chart: active, Sankey/Timeline: disabled
+  - Chart card: no tab row, header + graph only
+  - Removed IDs confirmed absent: sidebar-drug-selection, sidebar-indications, sidebar-trust-selection
+  - Drawer still in layout (will be replaced in Task 7.4): drug-drawer, all-drugs-chips, trust-chips all present
+### Files changed:
+- `dash_app/components/sidebar.py` — Rewritten: removed filter items, added chart views
+- `dash_app/components/chart_card.py` — Updated: removed tab row
+- `dash_app/callbacks/drawer.py` — Updated: removed open_drawer callback
+- `dash_app/assets/nhs.css` — Added: .sidebar__item--disabled CSS
+- `IMPLEMENTATION_PLAN.md` — Task 7.3 marked [x], completion criteria updated
+### Committed: 7aa49b0 "refactor: restructure sidebar with chart views, remove placeholder items (Task 7.3)"
+### Patterns discovered:
+- When removing sidebar items that are referenced by callbacks (e.g., `sidebar-drug-selection` as Input to `open_drawer`), the callback must also be removed or updated. Dash will error on startup if a callback references an ID not in the layout and `suppress_callback_exceptions=False`, but with `suppress_callback_exceptions=True` it would silently fail. Removing the callback is cleaner.
+- The drawer component (and its drug/trust chips) can remain in the layout even after removing the way to open it. The `all-drugs-chips` and `trust-chips` IDs are still referenced by `update_app_state`, so they must remain until the modals replace them in Task 7.4.
+### Next iteration should:
+- Start Task 7.4 — Replace dmc.Drawer with dmc.Modal for filter selection
+- This is the biggest remaining task. Sub-steps:
+  1. **Use the frontend-developer agent** to design the modal UX: 42 drugs, 7 trusts, 19 directorates × 163 indications. Agent should recommend optimal modal layout, sizing, and interaction patterns.
+  2. Create `dash_app/components/modals.py` (or separate files per modal) with:
+     - Drug Selection modal (`dmc.Modal`, contains current `all-drugs-chips` ChipGroup)
+     - Trust Selection modal (`dmc.Modal`, contains current `trust-chips` ChipGroup)
+     - Directorate Browser modal (`dmc.Modal`, contains nested directorate accordion)
+  3. Remove `dash_app/components/drawer.py` and the `make_drawer()` call from `app.py`
+  4. Update callback wiring — `update_app_state` Inputs change from chip IDs in drawer to chip IDs in modals (or keep same IDs if modal components use the same IDs)
+  5. Modal IDs: `drug-modal`, `trust-modal`, `directorate-modal` (each needs `opened` state)
+- Read `dash_app/components/drawer.py` to understand the current chip/accordion structure
+- Read `dash_app/callbacks/drawer.py` to understand fragment matching logic
+- The simplest approach: move the same ChipGroup and accordion components from the drawer into modals with the SAME IDs, avoiding any callback rewiring
+- After 7.4, Task 7.5 adds trigger buttons in the filter bar to open each modal
+### Blocked items:
+- None
