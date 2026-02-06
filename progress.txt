@@ -171,7 +171,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 ### Files changed:
 - `dash_app/data/card_browser.py` — NEW: directorate tree builder + drug list accessor
 - `IMPLEMENTATION_PLAN.md` — Task 1.2 marked [x]
-### Committed: [pending]
+### Committed: 7654942 "feat: add directorate card tree builder for drug browser drawer (Task 1.2)"
 ### Patterns discovered:
 - `get_all_drugs()` uses a lazy import (`from dash_app.data.queries import load_initial_data`) to avoid circular imports since both modules are in `dash_app/data/`
 - Drug fragments in DimSearchTerm.csv are already UPPERCASE in the CSV, but `.upper()` is applied defensively
@@ -184,5 +184,58 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Use CSS classes from nhs.css (`.top-header`, `.sidebar`, etc.) — NOT inline styles
 - Header needs placeholder `html.Span` with IDs for callback updates: `id="header-record-count"`, `id="header-last-updated"`
 - Sidebar needs click targets for drawer open (Drug Selection, Indications items)
+### Blocked items:
+- None
+
+## Iteration 4 — 2026-02-06
+### Task: Phase 2 — Task 2.1 (Header + sidebar components)
+### Why this task:
+- Phases 0 and 1 complete. Phase 2 is the static layout phase, and 2.1 is the first task.
+- Previous iteration (3) explicitly recommended this as the next task.
+- Header and sidebar are foundational layout components — everything else renders inside this shell.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/components/header.py` with `make_header()` function:
+  - Top bar with `.top-header` class, NHS logo badge, "HCD Analysis" title, breadcrumb
+  - Data freshness indicators: green status dot + `html.Span(id="header-record-count")` + `html.Span(id="header-last-updated")` for callback updates
+  - Structure matches `01_nhs_classic.html` lines 319-333 exactly
+- Created `dash_app/components/sidebar.py` with `make_sidebar()` function:
+  - 7 navigation items across 2 sections (Analysis: 5 items, Reports: 2 items)
+  - SVG icons from the HTML concept, embedded via data URI `html.Img` elements (Dash lacks inline SVG support)
+  - Added `.sidebar__icon` CSS class matching `.sidebar__item svg` sizing (18x18px)
+  - "Drug Selection" (`id="sidebar-drug-selection"`) and "Indications" (`id="sidebar-indications"`) have IDs + `n_clicks=0` for drawer callbacks in Phase 4
+  - Footer: "NHS Norfolk & Waveney ICB / High Cost Drugs Programme"
+- Updated `dash_app/app.py`:
+  - Imports and uses `make_header()` and `make_sidebar()`
+  - Layout: MantineProvider → [3 stores, Header, Nav(sidebar), Main(placeholder)]
+  - Main content area uses `html.Main(className="main")` — ready for KPIs/filter bar/chart card in Task 2.2
+### Validation results:
+- Tier 1 (Code): All imports OK — `from dash_app.components.header import make_header`, sidebar, app all pass
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): Programmatic check confirms structure: MantineProvider with 6 children (3 stores + Header(top-header) + Nav(sidebar) + Main(main))
+### Files changed:
+- `dash_app/components/header.py` — NEW: header component
+- `dash_app/components/sidebar.py` — NEW: sidebar component with SVG icons
+- `dash_app/app.py` — Updated to import and assemble header + sidebar
+- `dash_app/assets/nhs.css` — Added `.sidebar__icon` rule
+- `IMPLEMENTATION_PLAN.md` — Task 2.1 marked [x]
+### Committed: bdc1690 "feat: add header and sidebar components for Dash layout (Task 2.1)"
+### Patterns discovered:
+- Dash doesn't support inline SVG elements natively (no `html.Svg` or similar). Workaround: embed SVG as data URI in `html.Img` elements using `urllib.parse.quote()`. Limitation: `stroke="currentColor"` doesn't inherit from parent CSS, so icons appear in their default SVG color (black) rather than inheriting the sidebar item color. This is cosmetic and acceptable for now.
+- Dash serves a minimal HTML shell; all React components render client-side. Don't test for CSS classes in the HTTP response — use programmatic layout inspection instead.
+- `html.A` elements in Dash accept `n_clicks=0` property, making them callback-compatible for click events (needed for sidebar drawer triggers).
+### Next iteration should:
+- Start Task 2.2 — Main content area: KPI row + filter bar + chart card
+- Create three component files:
+  - `dash_app/components/kpi_row.py` with `make_kpi_row()` — 4 KPI cards with IDs for callback updates
+  - `dash_app/components/filter_bar.py` with `make_filter_bar()` — chart type toggle pills + date dropdowns
+  - `dash_app/components/chart_card.py` with `make_chart_card()` — chart area with tabs + `dcc.Graph(id="pathway-chart")`
+- Read `01_nhs_classic.html` lines 377-516 for the exact structure
+- Use CSS classes: `.kpi-row`, `.kpi-card`, `.filter-bar`, `.toggle-pill`, `.chart-card`, `.chart-tab`
+- Filter bar needs: chart type toggle pills (By Directory / By Indication), Initiated dropdown, Last seen dropdown
+- Chart card needs: title, dynamic subtitle (hierarchy label), tab row (Icicle active, Sankey/Timeline disabled), `dcc.Graph`
+- KPI card IDs: `id="kpi-patients"`, `id="kpi-drugs"`, `id="kpi-cost"`, `id="kpi-match"`
+- Toggle pill IDs: `id="chart-type-directory"`, `id="chart-type-indication"`
+- Filter IDs: `id="filter-initiated"`, `id="filter-last-seen"`
 ### Blocked items:
 - None
