@@ -441,3 +441,55 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Task 3.4 requires reading `pathways_app/pathways_app.py` lines 769-920 for the icicle figure construction, then adding `create_icicle_from_nodes()` to `src/visualization/plotly_generator.py`
 ### Blocked items:
 - None
+
+## Iteration 9 — 2026-02-06
+### Task: Phase 3 — Task 3.3 (KPI update callback)
+### Why this task:
+- Phase 3.2 (pathway data loading) is complete. Task 3.3 is next in the callback chain.
+- Previous iteration (8) explicitly recommended this task.
+- KPI cards currently show "—" placeholders — this callback populates them with real data.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/callbacks/kpi.py` with `register_kpi_callbacks(app)`:
+  - `update_kpis` callback: Input=`chart-data` + `app-state`, Output=4 KPI card values
+  - Formats: patients with commas (11,118), drugs as plain number (39), cost as £130.6M
+  - `_format_cost()` helper handles M/K/plain thresholds
+  - 4th KPI (Indication Match): shows "~93%" when chart_type is "indication", "—" otherwise
+  - Returns `no_update` when chart-data is empty (prevents clearing KPIs during load)
+- Registered in `dash_app/callbacks/__init__.py` — now 4 callbacks total
+- Decision: Indication match rate is static "~93%" because:
+  - Reflex app's `indication_match_rate` was never dynamically computed (always 0.0 → "—")
+  - Computing from nodes would require detecting "(no GP dx)" labels, adding complexity for marginal value
+  - ~93% is the documented rate from the SNOMED cluster matching pipeline
+### Validation results:
+- Tier 1 (Code): `from dash_app.callbacks.kpi import register_kpi_callbacks` — OK
+- Tier 1 (App starts): `from dash_app.app import app` — OK, 4 callbacks registered
+- Tier 3 (Functional):
+  - Cost formatting: 130.5M → £130.5M, 50K → £50.0K, 999 → £999
+  - Directory chart: 11,118 patients, 39 drugs, £130.6M, Match = —
+  - Indication chart: Match = ~93%
+  - All 4 KPI output IDs registered: kpi-patients, kpi-drugs, kpi-cost, kpi-match
+### Files changed:
+- `dash_app/callbacks/kpi.py` — NEW: KPI update callback with formatting
+- `dash_app/callbacks/__init__.py` — Updated: registers kpi callback
+- `IMPLEMENTATION_PLAN.md` — Task 3.3 marked [x]
+### Committed: 9c971c0 "feat: add KPI update callback with formatted patient/drug/cost display (Task 3.3)"
+### Patterns discovered:
+- `\u00a3` (£) is the safe way to embed the pound sign in Python strings — avoids encoding issues with source files
+- `no_update` tuple must match the number of outputs: `return no_update, no_update, no_update, no_update` for 4 outputs
+- The `app-state` is used as a secondary Input (not just `chart-data`) to get `chart_type` for the indication match KPI — this is fine since `app-state` changes trigger `chart-data` changes which also trigger this callback
+### Next iteration should:
+- Start Task 3.4 — Icicle chart rendering callback (the final core callback)
+- Two sub-tasks:
+  1. Add `create_icicle_from_nodes(nodes, title)` to `src/visualization/plotly_generator.py`
+     - Read `pathways_app/pathways_app.py` lines 769-920 for the exact Plotly go.Icicle construction
+     - Extract the 10-field customdata, NHS blue colorscale, texttemplate, hovertemplate
+     - Keep existing `create_icicle_figure(ice_df)` untouched — add new function alongside
+  2. Add `update_chart` callback to `dash_app/callbacks/chart.py`
+     - Input: `chart-data` store, Output: `pathway-chart` figure
+     - Calls `create_icicle_from_nodes(chart_data["nodes"], title)`
+     - Dynamic title based on chart type
+- IMPORTANT: Read the guardrails about the icicle figure — must use NHS blue gradient, not Viridis
+- After 3.4, Phase 3 is complete — Phase 4 (Drawer) is next
+### Blocked items:
+- None
