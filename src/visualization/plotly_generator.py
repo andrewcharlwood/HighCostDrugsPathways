@@ -1473,3 +1473,309 @@ def create_duration_figure(
     )
 
     return fig
+
+
+# --- Trust Comparison chart functions ---
+
+
+def create_trust_market_share_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create horizontal stacked bar chart showing drug market share per trust.
+
+    Unlike create_market_share_figure (which groups by directorate), this groups
+    by trust within a single directorate — used by Trust Comparison dashboard.
+
+    Args:
+        data: List of dicts from get_trust_market_share() with keys:
+              trust_name, drug, patients, proportion, cost, cost_pp_pa.
+        title: Chart title suffix.
+    """
+    if not data:
+        return go.Figure()
+
+    nhs_colours = [
+        "#003087", "#005EB8", "#0072CE", "#1E88E5", "#41B6E6",
+        "#4FC3F7", "#768692", "#AE2573", "#006747", "#ED8B00",
+        "#8A1538", "#330072", "#009639", "#DA291C", "#00A499",
+    ]
+
+    seen_trusts = []
+    for d in data:
+        t = d["trust_name"]
+        if t not in seen_trusts:
+            seen_trusts.append(t)
+
+    seen_drugs = []
+    for d in data:
+        if d["drug"] not in seen_drugs:
+            seen_drugs.append(d["drug"])
+
+    drug_colour_map = {drug: nhs_colours[i % len(nhs_colours)] for i, drug in enumerate(seen_drugs)}
+    lookup = {(d["trust_name"], d["drug"]): d for d in data}
+
+    def short_trust(name):
+        return name.replace(" NHS FOUNDATION TRUST", "").replace(" HOSPITALS", "")
+
+    display_trusts = list(reversed(seen_trusts))
+
+    traces = []
+    for drug in seen_drugs:
+        y_vals = []
+        x_vals = []
+        hover_texts = []
+        for trust in display_trusts:
+            row = lookup.get((trust, drug))
+            y_vals.append(short_trust(trust))
+            if row:
+                x_vals.append(row["proportion"] * 100)
+                hover_texts.append(
+                    f"<b>{drug}</b><br>"
+                    f"{short_trust(trust)}<br>"
+                    f"Patients: {row['patients']:,}<br>"
+                    f"Share: {row['proportion']:.1%}<br>"
+                    f"Cost: \u00a3{row['cost']:,.0f}<br>"
+                    f"Cost p.p.p.a: \u00a3{row['cost_pp_pa']:,.0f}"
+                )
+            else:
+                x_vals.append(0)
+                hover_texts.append("")
+
+        traces.append(go.Bar(
+            name=drug, y=y_vals, x=x_vals, orientation="h",
+            marker_color=drug_colour_map[drug],
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
+        ))
+
+    display_title = f"Drug Market Share by Trust \u2014 {title}" if title else "Drug Market Share by Trust"
+
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+        barmode="stack",
+        title=dict(
+            text=display_title,
+            font=dict(family="Source Sans 3, system-ui, sans-serif", size=16, color="#1E293B"),
+            x=0.5, xanchor="center",
+        ),
+        xaxis=dict(title="% of patients", ticksuffix="%", range=[0, 105], gridcolor="#E2E8F0", zeroline=False),
+        yaxis=dict(title="", automargin=True),
+        legend=dict(
+            title="Drug", orientation="h", yanchor="top", y=-0.15,
+            xanchor="center", x=0.5, font=dict(family="Source Sans 3", size=11),
+        ),
+        margin=dict(t=50, l=8, r=24, b=100),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        autosize=True,
+        hoverlabel=dict(
+            bgcolor="#FFFFFF", bordercolor="#CBD5E1",
+            font=dict(family="Source Sans 3, system-ui, sans-serif", size=13, color="#1E293B"),
+        ),
+        font=dict(family="Source Sans 3, system-ui, sans-serif"),
+        height=max(300, len(seen_trusts) * 60 + 200),
+    )
+
+    return fig
+
+
+def create_trust_heatmap_figure(
+    data: dict,
+    title: str = "",
+    metric: str = "patients",
+) -> go.Figure:
+    """Create a trust x drug heatmap for a single directorate.
+
+    Args:
+        data: Dict from get_trust_heatmap() with keys:
+              trusts (list), drugs (list),
+              matrix ({trust_name: {drug: {patients, cost, cost_pp_pa}}}).
+        title: Chart title suffix.
+        metric: Colour metric — "patients", "cost", or "cost_pp_pa".
+    """
+    trusts = data.get("trusts", [])
+    drugs = data.get("drugs", [])
+    matrix = data.get("matrix", {})
+
+    if not trusts or not drugs:
+        return go.Figure()
+
+    drugs = drugs[:25]
+
+    metric_labels = {
+        "patients": "Patients",
+        "cost": "Total Cost (\u00a3)",
+        "cost_pp_pa": "Cost per Patient p.a. (\u00a3)",
+    }
+    metric_label = metric_labels.get(metric, "Patients")
+
+    def short_trust(name):
+        return name.replace(" NHS FOUNDATION TRUST", "").replace(" HOSPITALS", "")
+
+    z_values = []
+    hover_texts = []
+
+    for t in trusts:
+        row_z = []
+        row_hover = []
+        trust_data = matrix.get(t, {})
+        for drug in drugs:
+            cell = trust_data.get(drug)
+            if cell:
+                val = cell.get(metric, cell.get("patients", 0))
+                patients = cell.get("patients", 0)
+                cost = cell.get("cost", 0)
+                cpp = cell.get("cost_pp_pa", 0)
+                row_z.append(val if val else 0)
+                row_hover.append(
+                    f"<b>{drug}</b><br>"
+                    f"{short_trust(t)}<br>"
+                    f"Patients: {patients:,}<br>"
+                    f"Total cost: \u00a3{cost:,.0f}<br>"
+                    f"Cost p.a.: \u00a3{cpp:,.0f}"
+                )
+            else:
+                row_z.append(0)
+                row_hover.append(f"<b>{drug}</b><br>{short_trust(t)}<br>No patients")
+        z_values.append(row_z)
+        hover_texts.append(row_hover)
+
+    colorscale = [
+        [0.0, "#F0F4F8"], [0.01, "#E3F2FD"], [0.1, "#90CAF9"],
+        [0.3, "#42A5F5"], [0.5, "#1E88E5"], [0.7, "#0066CC"], [1.0, "#003087"],
+    ]
+
+    display_trusts = [short_trust(t) for t in trusts]
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=z_values, x=drugs, y=display_trusts,
+            colorscale=colorscale,
+            hovertext=hover_texts,
+            hovertemplate="%{hovertext}<extra></extra>",
+            colorbar=dict(
+                title=dict(text=metric_label, font=dict(size=12, color="#425563")),
+                thickness=15, len=0.8,
+            ),
+            xgap=2, ygap=2,
+        )
+    )
+
+    chart_title = f"Trust \u00d7 Drug \u2014 {metric_label}"
+    if title:
+        chart_title = f"{chart_title} \u2014 {title}"
+
+    n_drugs = len(drugs)
+    n_trusts = len(trusts)
+
+    fig.update_layout(
+        title=dict(
+            text=chart_title,
+            font=dict(family="Source Sans 3, system-ui, sans-serif", size=16, color="#003087"),
+            x=0.5, xanchor="center",
+        ),
+        xaxis=dict(title="", tickfont=dict(size=11, color="#425563"), tickangle=-45, side="bottom"),
+        yaxis=dict(title="", tickfont=dict(size=12, color="#425563"), autorange="reversed"),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Source Sans 3, system-ui, sans-serif"),
+        margin=dict(t=60, l=200, r=80, b=120),
+        width=max(700, 80 + n_drugs * 55),
+        height=max(300, 80 + n_trusts * 50),
+    )
+
+    return fig
+
+
+def create_trust_duration_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create grouped horizontal bar chart showing drug durations by trust.
+
+    Args:
+        data: List of dicts from get_trust_durations() with keys:
+              drug, trust_name, avg_days, patients.
+        title: Chart title suffix.
+    """
+    if not data:
+        return go.Figure()
+
+    nhs_colours = [
+        "#005EB8", "#003087", "#41B6E6", "#0066CC", "#1E88E5",
+        "#4FC3F7", "#009639", "#ED8B00", "#768692", "#AE2573",
+    ]
+
+    seen_drugs = []
+    for d in data:
+        if d["drug"] not in seen_drugs:
+            seen_drugs.append(d["drug"])
+
+    seen_trusts = []
+    for d in data:
+        t = d["trust_name"]
+        if t not in seen_trusts:
+            seen_trusts.append(t)
+
+    def short_trust(name):
+        return name.replace(" NHS FOUNDATION TRUST", "").replace(" HOSPITALS", "")
+
+    trust_colour_map = {t: nhs_colours[i % len(nhs_colours)] for i, t in enumerate(seen_trusts)}
+    lookup = {(d["drug"], d["trust_name"]): d for d in data}
+
+    display_drugs = list(reversed(seen_drugs))
+
+    traces = []
+    for trust in seen_trusts:
+        y_vals = []
+        x_vals = []
+        hover_texts = []
+        for drug in display_drugs:
+            row = lookup.get((drug, trust))
+            y_vals.append(drug)
+            if row:
+                years = row["avg_days"] / 365.25
+                x_vals.append(row["avg_days"])
+                hover_texts.append(
+                    f"<b>{drug}</b><br>"
+                    f"{short_trust(trust)}<br>"
+                    f"Avg duration: {row['avg_days']:,.0f} days ({years:.1f} yrs)<br>"
+                    f"Patients: {row['patients']:,}"
+                )
+            else:
+                x_vals.append(0)
+                hover_texts.append("")
+
+        traces.append(go.Bar(
+            name=short_trust(trust), y=y_vals, x=x_vals, orientation="h",
+            marker_color=trust_colour_map[trust],
+            hovertemplate="%{customdata}<extra></extra>",
+            customdata=hover_texts,
+        ))
+
+    display_title = f"Treatment Duration by Trust \u2014 {title}" if title else "Treatment Duration by Trust"
+
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+        barmode="group",
+        title=dict(
+            text=display_title,
+            font=dict(family="Source Sans 3, system-ui, sans-serif", size=16, color="#003087"),
+            x=0.5, xanchor="center",
+        ),
+        xaxis=dict(
+            title="Average Duration (days)", titlefont=dict(size=13, color="#425563"),
+            gridcolor="rgba(0,0,0,0.06)", zeroline=True, zerolinecolor="rgba(0,0,0,0.1)",
+        ),
+        yaxis=dict(title="", automargin=True, tickfont=dict(size=11, color="#425563")),
+        legend=dict(
+            title="Trust", orientation="h", yanchor="top", y=-0.12,
+            xanchor="center", x=0.5, font=dict(size=11),
+        ),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Source Sans 3, system-ui, sans-serif"),
+        margin=dict(t=60, l=200, r=40, b=100),
+        height=max(350, len(seen_drugs) * 35 + 200),
+        bargap=0.15, bargroupgap=0.05,
+    )
+
+    return fig

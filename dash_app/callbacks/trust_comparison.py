@@ -91,41 +91,170 @@ def register_trust_comparison_callbacks(app):
         else:
             return show, hide, ""
 
-    # Dashboard chart rendering will be added in Task 10.8.
-    # For now, register empty figure placeholders for the 6 chart IDs
-    # so the dcc.Graph components don't error on load.
-    _tc_chart_ids = [
-        "tc-chart-market-share",
-        "tc-chart-cost-waterfall",
-        "tc-chart-dosing",
-        "tc-chart-heatmap",
-        "tc-chart-duration",
-        "tc-chart-cost-effectiveness",
-    ]
+    # --- Trust Comparison dashboard charts (6 charts) ---
 
-    for chart_id in _tc_chart_ids:
-        @app.callback(
-            Output(chart_id, "figure"),
-            Input("app-state", "data"),
-            prevent_initial_call=True,
+    def _tc_empty(message):
+        """Return a blank figure with a centered message for TC dashboard."""
+        fig = go.Figure()
+        fig.update_layout(
+            xaxis={"visible": False}, yaxis={"visible": False},
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            margin={"t": 0, "l": 0, "r": 0, "b": 0}, height=300,
+            annotations=[{
+                "text": message, "xref": "paper", "yref": "paper",
+                "x": 0.5, "y": 0.5, "showarrow": False,
+                "font": {"size": 14, "color": "#768692", "family": "Source Sans 3"},
+                "xanchor": "center", "yanchor": "middle",
+            }],
         )
-        def _placeholder_chart(app_state, _cid=chart_id):
-            """Placeholder — returns empty figure until Task 10.8 implements real charts."""
-            selected = (app_state or {}).get("selected_comparison_directorate")
-            if not selected:
-                return no_update
-            fig = go.Figure()
-            fig.update_layout(
-                template="plotly_white",
-                margin=dict(l=20, r=20, t=30, b=20),
-                height=300,
-                annotations=[
-                    dict(
-                        text="Chart will be implemented in Task 10.8",
-                        xref="paper", yref="paper",
-                        x=0.5, y=0.5, showarrow=False,
-                        font=dict(size=14, color="#999"),
-                    )
-                ],
-            )
-            return fig
+        return fig
+
+    def _tc_title(app_state):
+        """Generate a short title suffix from global filter state."""
+        chart_type = (app_state or {}).get("chart_type", "directory")
+        label = "By Indication" if chart_type == "indication" else "By Directory"
+        initiated = (app_state or {}).get("initiated", "all")
+        last_seen = (app_state or {}).get("last_seen", "6mo")
+        i_labels = {"all": "All years", "1yr": "Last 1 yr", "2yr": "Last 2 yrs"}
+        l_labels = {"6mo": "6 mo", "12mo": "12 mo"}
+        return f"{label} | {i_labels.get(initiated, 'All')} / {l_labels.get(last_seen, '6 mo')}"
+
+    # 1. Market Share — drug breakdown per trust
+    @app.callback(
+        Output("tc-chart-market-share", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_market_share(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_trust_market_share
+        from visualization.plotly_generator import create_trust_market_share_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_trust_market_share(filter_id, chart_type, selected)
+        except Exception:
+            return _tc_empty("Failed to load market share data.")
+        if not data:
+            return _tc_empty("No market share data for this selection.")
+        return create_trust_market_share_figure(data, _tc_title(app_state))
+
+    # 2. Cost Waterfall — cost per patient by trust
+    @app.callback(
+        Output("tc-chart-cost-waterfall", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_cost_waterfall(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_trust_cost_waterfall
+        from visualization.plotly_generator import create_cost_waterfall_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_trust_cost_waterfall(filter_id, chart_type, selected)
+        except Exception:
+            return _tc_empty("Failed to load cost data.")
+        if not data:
+            return _tc_empty("No cost data for this selection.")
+        # Reuse existing waterfall figure — map trust_name to directory key
+        mapped = [{"directory": d["trust_name"], "patients": d["patients"],
+                    "total_cost": d["total_cost"], "cost_pp": d["cost_pp"]} for d in data]
+        return create_cost_waterfall_figure(mapped, _tc_title(app_state))
+
+    # 3. Dosing — drug dosing intervals by trust
+    @app.callback(
+        Output("tc-chart-dosing", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_dosing(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_trust_dosing
+        from visualization.plotly_generator import create_dosing_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_trust_dosing(filter_id, chart_type, selected)
+        except Exception:
+            return _tc_empty("Failed to load dosing data.")
+        if not data:
+            return _tc_empty("No dosing data for this selection.")
+        # Add directory field expected by _dosing_by_trust helper
+        for d in data:
+            d["directory"] = selected
+        return create_dosing_figure(data, _tc_title(app_state), group_by="trust")
+
+    # 4. Heatmap — trust x drug matrix
+    @app.callback(
+        Output("tc-chart-heatmap", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_heatmap(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_trust_heatmap
+        from visualization.plotly_generator import create_trust_heatmap_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_trust_heatmap(filter_id, chart_type, selected)
+        except Exception:
+            return _tc_empty("Failed to load heatmap data.")
+        if not data.get("trusts") or not data.get("drugs"):
+            return _tc_empty("No heatmap data for this selection.")
+        return create_trust_heatmap_figure(data, _tc_title(app_state))
+
+    # 5. Duration — drug durations by trust
+    @app.callback(
+        Output("tc-chart-duration", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_duration(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_trust_durations
+        from visualization.plotly_generator import create_trust_duration_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_trust_durations(filter_id, chart_type, selected)
+        except Exception:
+            return _tc_empty("Failed to load duration data.")
+        if not data:
+            return _tc_empty("No duration data for this selection.")
+        return create_trust_duration_figure(data, _tc_title(app_state))
+
+    # 6. Cost Effectiveness — pathway costs within directorate (NOT split by trust)
+    @app.callback(
+        Output("tc-chart-cost-effectiveness", "figure"),
+        Input("app-state", "data"),
+        prevent_initial_call=True,
+    )
+    def tc_cost_effectiveness(app_state):
+        selected = (app_state or {}).get("selected_comparison_directorate")
+        if not selected:
+            return no_update
+        from dash_app.data.queries import get_pathway_costs
+        from data_processing.parsing import calculate_retention_rate
+        from visualization.plotly_generator import create_cost_effectiveness_figure
+        filter_id = app_state.get("date_filter_id", "all_6mo")
+        chart_type = app_state.get("chart_type", "directory")
+        try:
+            data = get_pathway_costs(filter_id, chart_type, directory=selected)
+        except Exception:
+            return _tc_empty("Failed to load pathway cost data.")
+        if not data:
+            return _tc_empty("No pathway cost data for this selection.")
+        retention = calculate_retention_rate(data)
+        return create_cost_effectiveness_figure(data, retention, _tc_title(app_state))

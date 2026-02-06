@@ -533,18 +533,18 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Landing page shows directorate buttons, clicking one transitions to dashboard state, back button works
 
 ### 10.8 Trust Comparison 6-chart dashboard
-- [ ] Build 6-chart dashboard layout per design from 10.1
-- [ ] All 6 charts scoped to the selected directorate:
+- [x] Build 6-chart dashboard layout per design from 10.1
+- [x] All 6 charts scoped to the selected directorate:
   1. **Market Share**: Drug breakdown per trust (using `get_trust_market_share`)
   2. **Cost Waterfall**: Per-trust cost within directorate (using `get_trust_cost_waterfall`)
   3. **Dosing**: Drug dosing intervals by trust (using `get_trust_dosing`)
   4. **Heatmap**: Trust × drug matrix (using `get_trust_heatmap`)
   5. **Duration**: Drug durations by trust (using `get_trust_durations`)
   6. **Cost Effectiveness**: Pathway costs within directorate, NOT split by trust (using `get_directorate_pathway_costs`)
-- [ ] Create new visualization functions in `src/visualization/plotly_generator.py` where existing ones don't fit the trust-comparison perspective (may need `create_trust_market_share_figure`, `create_trust_heatmap_figure`, etc., or parameterize existing functions)
-- [ ] All 6 charts respond to date filter and chart type toggle (global filters)
-- [ ] Dashboard title shows selected directorate name
-- [ ] Use `dcc.Loading` wrappers for each chart
+- [x] Create new visualization functions in `src/visualization/plotly_generator.py` where existing ones don't fit the trust-comparison perspective (may need `create_trust_market_share_figure`, `create_trust_heatmap_figure`, etc., or parameterize existing functions)
+- [x] All 6 charts respond to date filter and chart type toggle (global filters)
+- [x] Dashboard title shows selected directorate name
+- [x] Use `dcc.Loading` wrappers for each chart
 - **Checkpoint**: All 6 charts render for a selected directorate, comparing drugs across trusts. Charts update when date filter or chart type changes.
 
 ### 10.9 Patient Pathways filter relocation
