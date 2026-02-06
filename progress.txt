@@ -394,3 +394,50 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - This is the bridge between filter state and chart rendering — 3.3 (KPIs) and 3.4 (icicle chart) both depend on chart-data being populated
 ### Blocked items:
 - None
+
+## Iteration 8 — 2026-02-06
+### Task: Phase 3 — Task 3.2 (Pathway data loading callback)
+### Why this task:
+- Phase 3.1 (filter state management) is complete. Task 3.2 is the next dependency in the callback chain.
+- Previous iteration (7) explicitly recommended this task.
+- Tasks 3.3 (KPIs) and 3.4 (icicle chart) both depend on chart-data being populated by this callback.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/callbacks/chart.py` with `register_chart_callbacks(app)`:
+  - `load_pathway_data` callback: Input=`app-state` store, Output=`chart-data` store
+  - Extracts `date_filter_id`, `chart_type`, `selected_drugs`, `selected_directorates` from app-state
+  - Converts empty lists to None (so query function skips WHERE clause for unfiltered state)
+  - Lazy imports `queries.load_pathway_data` to avoid circular import at module level
+  - Returns `no_update` when app-state is empty (prevents query on initial empty state)
+- Registered in `dash_app/callbacks/__init__.py` alongside filter callbacks
+- Callback chain now complete: filter change → app-state → chart-data
+### Validation results:
+- Tier 1 (Code): `from dash_app.callbacks.chart import register_chart_callbacks` — OK
+- Tier 1 (App starts): `from dash_app.app import app` — OK, all 3 callbacks registered
+- Tier 3 (Functional): Verified callback chain with real data:
+  - Default (all_6mo, directory): 293 nodes, 11,118 patients, 39 drugs, £130.6M
+  - Indication chart: 438 nodes, 11,252 patients
+  - Drug filter (ADALIMUMAB): 70 nodes
+  - Date filter (2yr_12mo): 147 nodes, 5,104 patients
+  - JSON serialization verified — dcc.Store compatible
+### Files changed:
+- `dash_app/callbacks/chart.py` — NEW: pathway data loading callback
+- `dash_app/callbacks/__init__.py` — Updated: registers chart callback
+- `IMPLEMENTATION_PLAN.md` — Task 3.2 marked [x]
+### Committed: ad9fa1c "feat: add pathway data loading callback bridging filters to chart-data (Task 3.2)"
+### Patterns discovered:
+- Empty list `[]` from app-state needs conversion to `None` before passing to `load_pathway_nodes()`. The query function treats `None` as "no filter" (skips WHERE clause) but `[]` would create an empty IN clause returning zero results.
+- `no_update` is the correct return for when app-state is not yet populated (rather than returning an empty dict), since it prevents downstream callbacks from firing unnecessarily.
+### Next iteration should:
+- Start Task 3.3 — KPI update callback
+- Create `dash_app/callbacks/kpi.py`:
+  - Input: `chart-data` store
+  - Output: 4 KPI card values (`kpi-patients`, `kpi-drugs`, `kpi-cost`, `kpi-match`)
+  - Extract `unique_patients`, `total_drugs`, `total_cost` from chart-data
+  - Format: patients with commas (e.g., "11,118"), cost as "£130.6M", drugs as plain number
+  - Indication match rate: could be "~93%" (from CLAUDE.md) or computed from data — check if chart-data has match info
+- Register in callbacks/__init__.py
+- After 3.3, move to Task 3.4 (icicle chart rendering) — the final core callback
+- Task 3.4 requires reading `pathways_app/pathways_app.py` lines 769-920 for the icicle figure construction, then adding `create_icicle_from_nodes()` to `src/visualization/plotly_generator.py`
+### Blocked items:
+- None
