@@ -214,13 +214,13 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Drawer opens with correct layout, all directorates and drugs visible
 
 ### 4.2 Drawer callbacks
-- [ ] Create `dash_app/callbacks/drawer.py`:
+- [x] Create `dash_app/callbacks/drawer.py`:
   - Open/close drawer: sidebar "Drug Selection" or "Indications" click → open drawer
-  - Drug selection: clicking a drug chip → adds drug to `selected_drugs` in `app-state` → triggers chart reload
-  - Indication selection: clicking an indication accordion item → filters to drugs under that indication
-  - Visual highlights: selected drugs get active styling (e.g., blue background on chips)
-  - Clear filters: resets `selected_drugs` and `selected_directorates` in `app-state`
-  - Use pattern-matching callbacks for dynamic drug chips: `@app.callback(..., Input({"type": "drug-chip", "index": ALL}, "n_clicks"))`
+  - Drug selection: ChipGroup value change → app-state.selected_drugs via update_app_state
+  - Drug fragment click: pattern-matching badge clicks → substring match → update chip selection
+  - Clear filters: resets chip selection → app-state.selected_drugs empties
+  - Fragment matching uses `drug.upper() in fragment.upper()` for substring match
+  - Toggle behavior: clicking already-selected fragment deselects matching drugs
 - **Checkpoint**: Select drug from drawer → chart filters to show that drug → clear resets
 
 ---
