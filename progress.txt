@@ -919,8 +919,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 ### Blocked items:
 - None
 
-## ALL PHASES COMPLETE
-All 24 tasks across 6 phases complete. 17 iterations total.
+## Phases 0-6 COMPLETE (17 iterations)
 - Phase 0: Scaffolding (2 tasks) — iteration 1
 - Phase 1: Data Access (2 tasks) — iterations 2-3
 - Phase 2: Static Layout (3 tasks) — iterations 4-6
@@ -928,3 +927,86 @@ All 24 tasks across 6 phases complete. 17 iterations total.
 - Phase 4: Drawer (2 tasks) — iterations 11-12
 - Phase 5: Polish & Cleanup (4 tasks) — iterations 13-16
 - Phase 6: Documentation (4 tasks) — iteration 17
+
+---
+
+## Phase 7: Bug Fixes & UI Restructure (NEW)
+
+User testing revealed 2 bugs and several UX issues. Phase 7 addresses all of them.
+
+### Known Bugs
+
+**Bug 1 — Duplicate ID on first load:**
+`DuplicateIdError: Duplicate component id found in the initial layout: {"index":"CARDIOLOGY|RIVAROXABAN","type":"drug-fragment"}`
+- Only happens on first `python run_dash.py` load. Subsequent refreshes are fine.
+- Root cause: In `drawer.py:66`, badge IDs are `f"{directorate}|{frag}"` but the same fragment can appear under multiple indications within the same directorate. E.g., RIVAROXABAN appears under both "acute coronary syndrome" and "atrial fibrillation" within CARDIOLOGY.
+- Fix: Include search_term in the ID: `f"{directorate}|{search_term}|{frag}"`. Update callback parsing in `drawer.py` to handle the 3-part key.
+
+**Bug 2 — Drug filter breaks icicle chart ("multiple implied roots"):**
+Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of trace 0`
+- Happens when selecting ANY drug from the All Drugs chip group — chart goes blank.
+- Root cause: `pathway_queries.py:load_pathway_nodes()` applies the `drug_sequence LIKE` filter to ALL levels. This drops ancestor nodes (root, trust, directory levels 0-2) that don't have a drug_sequence matching the filter. Without ancestors, the icicle chart sees disconnected subtrees.
+- Fix: Restructure the WHERE clause so drug/directorate/trust filters only apply to the appropriate levels. Ancestor nodes (level 0-2) must ALWAYS be included. The WHERE logic should be: `WHERE date_filter_id = ? AND chart_type = ? AND (level < 3 OR drug_sequence LIKE ?)` — or similar approach that preserves the parent chain.
+- IMPORTANT: Check if the same issue affects trust and directorate filters too.
+
+### UX Issues
+
+**UX 1 — Sidebar has wrong items:**
+- "Cost Analysis" and "Export Data" have no functionality — remove them.
+- Drug/Trust/Directory/Indication items open the same drawer — confusing. These filter triggers should move to the filter bar.
+- Sidebar should contain chart VIEW selectors (Icicle, Sankey, Timeline) instead.
+
+**UX 2 — Single drawer for all filters doesn't work:**
+- Too much scrolling, confusing that 3-4 buttons open the same panel.
+- Replace `dmc.Drawer` with `dmc.Modal` dialogs — one per filter type (Drugs, Trusts, Directorates).
+- Each modal opened by a button in the filter bar (with selection count badge).
+
+### Task Dependency Order for Phase 7
+
+1. **Task 7.1** (duplicate ID fix) — standalone, no dependencies. Do this first.
+2. **Task 7.2** (filter query fix) — standalone, no dependencies. Can be done right after 7.1.
+3. **Task 7.3** (sidebar restructure) — remove items, add chart view buttons. No modal dependency.
+4. **Task 7.4** (replace drawer with modals) — depends on 7.3 (sidebar items removed). This is the biggest task. **Use the frontend-developer agent** to design the modal UX.
+5. **Task 7.5** (filter triggers in filter bar) — depends on 7.4 (modals exist to open).
+
+### Next iteration should:
+- Start with Task 7.1 (duplicate ID fix) — it's the simplest and most isolated.
+- Read `dash_app/components/drawer.py` line 66 — the badge ID construction.
+- Read `dash_app/callbacks/drawer.py` line 48 — the fragment key parsing.
+- Read `dash_app/data/card_browser.py` — `build_directorate_tree()` to understand the data shape and where duplicates come from.
+- Fix the ID to include search_term, update the callback parsing, verify no DuplicateIdError on first load.
+
+## Iteration 18 — 2026-02-06
+### Task: Phase 7 — Task 7.1 (Fix duplicate component ID error on first load)
+### Why this task:
+- First task in Phase 7, simplest and most isolated bug fix
+- Progress.txt from Phase 7 setup explicitly recommended starting here
+- No dependencies on other Phase 7 tasks
+### Status: COMPLETE
+### What was done:
+- Changed badge ID format in `drawer.py:66` from `f"{directorate}|{frag}"` to `f"{directorate}|{search_term}|{frag}"`
+- Updated callback fragment parsing in `callbacks/drawer.py:48` from `split("|", 1)[-1]` to `rsplit("|", 1)[-1]` (split from right to extract just the fragment from the 3-part key)
+- Verified 544 IDs in drawer component — all unique, zero duplicates
+- Confirmed 90+ duplicate fragments existed across directorates (CARDIOLOGY, CLINICAL HAEMATOLOGY, MEDICAL ONCOLOGY, RHEUMATOLOGY, etc.)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 7 callbacks registered
+- Tier 1 (App starts): Layout access succeeds, no DuplicateIdError
+- Tier 3 (Functional): Fragment parsing verified for 3-part key ("CARDIOLOGY|acute coronary syndrome|RIVAROXABAN" → "RIVAROXABAN"), 2-part key fallback, and standalone key
+### Files changed:
+- `dash_app/components/drawer.py` — Updated: badge ID includes search_term (line 66)
+- `dash_app/callbacks/drawer.py` — Updated: fragment parsing uses rsplit (line 48)
+- `IMPLEMENTATION_PLAN.md` — Task 7.1 marked [x]
+### Committed: 7be136a "fix: resolve DuplicateIdError by including search_term in drug-fragment badge IDs (Task 7.1)"
+### Patterns discovered:
+- `rsplit("|", 1)[-1]` is the correct way to extract the last segment from a multi-part key. `split("|", 1)[-1]` would return everything after the first pipe, which fails for 3+ part keys.
+- The DuplicateIdError only occurred on first load because Dash validates layout IDs during initial render. `suppress_callback_exceptions=True` only suppresses callback-related ID checks, not layout duplication.
+- Over 90 drug fragments are shared across multiple indications within the same directorate — this is expected because drugs are prescribed for multiple conditions.
+### Next iteration should:
+- Start Task 7.2 — Fix drug filter breaking the icicle chart ("multiple implied roots")
+- Read `src/data_processing/pathway_queries.py` — the `load_pathway_nodes()` function
+- The WHERE clause applies `drug_sequence LIKE %DRUG%` to ALL levels, dropping ancestor nodes (root, trust, directory levels 0-2) that have NULL drug_sequence
+- Fix: restructure WHERE so levels 0-2 are always included, drug filter only applies to level >= 3
+- Also check if trust/directorate filters have the same issue (ancestor nodes dropping)
+- Verify: select a drug → chart renders correctly with full hierarchy intact
+### Blocked items:
+- None
