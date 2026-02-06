@@ -286,7 +286,7 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - `dash_app/app.py` — Updated: imports and assembles new components in main area
 - `dash_app/assets/nhs.css` — Added: `.filter-dropdown` CSS for dcc.Dropdown styling
 - `IMPLEMENTATION_PLAN.md` — Task 2.2 items marked [x]
-### Committed: [pending]
+### Committed: 307563b "feat: add KPI row, filter bar, and chart card components (Task 2.2)"
 ### Patterns discovered:
 - `dcc.Dropdown` must be used instead of `html.Select` for Dash callback compatibility. `html.Select` doesn't have a `value` property that triggers callbacks. `dcc.Dropdown` renders its own React-Select widget that needs CSS customization to match the `.filter-select` styling from the HTML concept.
 - `html.Button` with `n_clicks=0` works for toggle pills — callbacks can use `callback_context.triggered_id` to determine which button was clicked.
