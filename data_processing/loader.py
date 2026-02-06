@@ -11,7 +11,6 @@ The DataLoader ABC defines the contract for all loader implementations.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -29,7 +28,7 @@ class LoadResult:
 
     Attributes:
         df: The loaded DataFrame with processed patient intervention data
-        source: Description of the data source (e.g., "csv:/path/to/file.csv", "sqlite:fact_interventions")
+        source: Description of the data source (e.g., "file:/path/to/file.csv")
         row_count: Number of rows loaded
         columns: List of column names in the DataFrame
         load_time_seconds: Time taken to load the data
@@ -224,150 +223,6 @@ class FileDataLoader(DataLoader):
         )
 
 
-class SQLiteDataLoader(DataLoader):
-    """Loads data from SQLite fact_interventions table.
-
-    This provides faster loading by reading pre-processed data from SQLite
-    instead of re-processing CSV files each time.
-
-    The SQLite database must have been populated by the migration scripts.
-
-    Args:
-        db_path: Path to the SQLite database (uses default if None)
-        date_range: Optional tuple of (start_date, end_date) to filter data
-        trusts: Optional list of trust names to filter
-        drugs: Optional list of drug names to filter
-        directories: Optional list of directories to filter
-    """
-
-    def __init__(
-        self,
-        db_path: Optional[Path | str] = None,
-        date_range: Optional[tuple[date, date]] = None,
-        trusts: Optional[list[str]] = None,
-        drugs: Optional[list[str]] = None,
-        directories: Optional[list[str]] = None,
-    ):
-        from data_processing.database import default_db_config
-
-        self.db_path = Path(db_path) if db_path else Path(default_db_config.db_path)
-        self.date_range = date_range
-        self.trusts = trusts
-        self.drugs = drugs
-        self.directories = directories
-
-    def validate_source(self) -> tuple[bool, str]:
-        """Check if the database exists and has the fact_interventions table."""
-        if not self.db_path.exists():
-            return False, f"Database not found: {self.db_path}"
-
-        # Check if fact_interventions table exists
-        from data_processing.database import DatabaseManager, DatabaseConfig
-
-        config = DatabaseConfig(db_path=self.db_path)
-        manager = DatabaseManager(config)
-
-        if not manager.table_exists("fact_interventions"):
-            return False, "fact_interventions table not found in database"
-
-        count = manager.get_table_count("fact_interventions")
-        if count == 0:
-            return False, "fact_interventions table is empty"
-
-        return True, f"OK ({count:,} rows available)"
-
-    @property
-    def source_description(self) -> str:
-        return f"sqlite:{self.db_path}"
-
-    def load(self) -> LoadResult:
-        """Load data from SQLite fact_interventions table.
-
-        Maps SQLite column names to the expected DataFrame column names.
-        Applies optional filters for date range, trusts, drugs, directories.
-        """
-        import time
-        from data_processing.database import DatabaseManager, DatabaseConfig
-
-        start_time = time.time()
-
-        # Validate source
-        is_valid, msg = self.validate_source()
-        if not is_valid:
-            raise FileNotFoundError(msg)
-
-        logger.info(f"Loading data from SQLite: {self.db_path}")
-
-        # Build query with optional filters
-        query = """
-            SELECT
-                upid AS "UPID",
-                provider_code AS "Provider Code",
-                person_key AS "PersonKey",
-                drug_name_std AS "Drug Name",
-                intervention_date AS "Intervention Date",
-                price_actual AS "Price Actual",
-                org_name AS "OrganisationName",
-                directory AS "Directory",
-                treatment_function_code AS "Treatment Function Code",
-                additional_detail_1 AS "Additional Detail 1",
-                additional_detail_2 AS "Additional Detail 2",
-                additional_detail_3 AS "Additional Detail 3",
-                additional_detail_4 AS "Additional Detail 4",
-                additional_detail_5 AS "Additional Detail 5"
-            FROM fact_interventions
-            WHERE 1=1
-        """
-        params = []
-
-        if self.date_range:
-            start, end = self.date_range
-            query += " AND intervention_date >= ? AND intervention_date < ?"
-            params.extend([str(start), str(end)])
-
-        if self.trusts:
-            placeholders = ','.join('?' * len(self.trusts))
-            query += f" AND org_name IN ({placeholders})"
-            params.extend(self.trusts)
-
-        if self.drugs:
-            placeholders = ','.join('?' * len(self.drugs))
-            query += f" AND drug_name_std IN ({placeholders})"
-            params.extend(self.drugs)
-
-        if self.directories:
-            placeholders = ','.join('?' * len(self.directories))
-            query += f" AND directory IN ({placeholders})"
-            params.extend(self.directories)
-
-        # Execute query
-        config = DatabaseConfig(db_path=self.db_path)
-        manager = DatabaseManager(config)
-
-        with manager.get_connection() as conn:
-            df = pd.read_sql_query(query, conn, params=params)
-
-        # Convert intervention_date to datetime
-        df['Intervention Date'] = pd.to_datetime(df['Intervention Date'])
-
-        logger.info(f"Loaded {len(df)} rows from SQLite")
-
-        # Validate result
-        is_valid, missing = self.validate_dataframe(df)
-        if not is_valid:
-            raise ValueError(f"SQLite data missing required columns: {missing}")
-
-        load_time = time.time() - start_time
-        logger.info(f"SQLite data loading complete. {len(df)} rows in {load_time:.2f}s")
-
-        return LoadResult(
-            df=df,
-            source=self.source_description,
-            row_count=len(df),
-            load_time_seconds=load_time,
-        )
-
-
 def get_loader(
     source: str | Path,
     paths: Optional[PathConfig] = None,
@@ -376,7 +231,7 @@ def get_loader(
     """Factory function to create the appropriate DataLoader.
 
     Args:
-        source: Either a file path (CSV/Parquet) or "sqlite" for database
+        source: File path (CSV/Parquet)
         paths: PathConfig for reference data (used by FileDataLoader)
         **kwargs: Additional arguments passed to the loader constructor
 
@@ -386,14 +241,6 @@ def get_loader(
     Examples:
         >>> loader = get_loader("data/activity.csv")
         >>> loader = get_loader("data/activity.parquet")
-        >>> loader = get_loader("sqlite")
-        >>> loader = get_loader("sqlite", date_range=(date(2024, 1, 1), date(2024, 12, 31)))
     """
-    source_str = str(source).lower()
-
-    if source_str == "sqlite":
-        return SQLiteDataLoader(**kwargs)
-
-    # Assume it's a file path
     path = Path(source)
     return FileDataLoader(file_path=path, paths=paths)

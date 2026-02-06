@@ -232,9 +232,9 @@ class DataSourceManager:
             )
 
     def _check_sqlite_status(self) -> SourceStatus:
-        """Check if SQLite database is available with data."""
+        """Check if SQLite database is available with pathway data."""
         try:
-            from data_processing.database import default_db_manager, default_db_config
+            from data_processing.database import default_db_config
 
             db_path = self._sqlite_db_path or Path(default_db_config.db_path)
 
@@ -252,22 +252,22 @@ class DataSourceManager:
             config = DatabaseConfig(db_path=db_path)
             manager = DatabaseManager(config)
 
-            if not manager.table_exists("fact_interventions"):
+            if not manager.table_exists("pathway_nodes"):
                 return SourceStatus(
                     source_type=DataSourceType.SQLITE,
                     available=False,
                     configured=True,
-                    message="fact_interventions table not found",
+                    message="pathway_nodes table not found",
                     last_checked=datetime.now(),
                 )
 
-            count = manager.get_table_count("fact_interventions")
+            count = manager.get_table_count("pathway_nodes")
             if count == 0:
                 return SourceStatus(
                     source_type=DataSourceType.SQLITE,
                     available=False,
                     configured=True,
-                    message="fact_interventions table is empty",
+                    message="pathway_nodes table is empty",
                     last_checked=datetime.now(),
                 )
 
@@ -275,7 +275,7 @@ class DataSourceManager:
                 source_type=DataSourceType.SQLITE,
                 available=True,
                 configured=True,
-                message=f"SQLite database ready ({count:,} rows)",
+                message=f"SQLite database ready ({count:,} pathway nodes)",
                 last_checked=datetime.now(),
             )
         except Exception as e:
@@ -535,50 +535,14 @@ class DataSourceManager:
         drugs: Optional[list[str]],
         directories: Optional[list[str]],
     ) -> Optional[DataSourceResult]:
-        """Try to get data from SQLite."""
-        import time
+        """Try to get data from SQLite.
 
-        try:
-            from data_processing.loader import SQLiteDataLoader
-
-            # Determine database path
-            db_path = self._sqlite_db_path
-            if db_path is None:
-                from data_processing.database import default_db_config
-                db_path = Path(default_db_config.db_path)
-
-            loader = SQLiteDataLoader(
-                db_path=db_path,
-                date_range=(start_date, end_date) if start_date and end_date else None,
-                trusts=trusts,
-                drugs=drugs,
-                directories=directories,
-            )
-
-            # Check if source is valid
-            is_valid, msg = loader.validate_source()
-            if not is_valid:
-                logger.debug(f"SQLite not available: {msg}")
-                return None
-
-            start_time = time.time()
-            result = loader.load()
-            load_time = time.time() - start_time
-
-            logger.info(f"SQLite loaded {result.row_count} rows in {load_time:.2f}s")
-
-            return DataSourceResult(
-                df=result.df,
-                source_type=DataSourceType.SQLITE,
-                source_detail=str(db_path),
-                row_count=result.row_count,
-                cached=False,
-                from_fallback=False,
-                load_time_seconds=load_time,
-            )
-        except Exception as e:
-            logger.warning(f"SQLite query failed: {e}")
-            return None
+        Note: Raw intervention data is no longer stored in SQLite.
+        The app now uses pre-computed pathway_nodes via load_pathway_data().
+        This fallback is retained for interface compatibility but always returns None.
+        """
+        logger.debug("SQLite raw data fallback skipped (fact_interventions removed)")
+        return None
 
     def _try_file(
         self,

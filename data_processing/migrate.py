@@ -35,6 +35,7 @@ from data_processing.schema import (
     verify_all_tables_exist,
     get_all_table_counts,
     migrate_pathway_nodes_chart_type,
+    migrate_refresh_log_source_row_count,
 )
 from data_processing.reference_data import (
     MigrationResult,
@@ -49,12 +50,6 @@ from data_processing.reference_data import (
     verify_drug_directory_map_migration,
     verify_drug_indication_clusters_migration,
 )
-from data_processing.patient_data import (
-    load_patient_data,
-    refresh_patient_treatment_summary,
-    get_patient_data_stats,
-    verify_mv_consistency,
-)
 
 logger = get_logger(__name__)
 
@@ -67,9 +62,8 @@ def initialize_database(
     """
     Initialize the database with all required tables.
 
-    Creates all tables defined in the schema (reference tables, fact tables,
-    materialized views, and file tracking tables). Uses IF NOT EXISTS so
-    safe to run multiple times.
+    Creates all tables defined in the schema (reference tables and pathway
+    tables). Uses IF NOT EXISTS so safe to run multiple times.
 
     Args:
         db_manager: DatabaseManager instance. Uses default if not provided.
@@ -121,6 +115,14 @@ def initialize_database(
                 logger.info(f"pathway_nodes migration: {msg}")
             else:
                 logger.error(f"pathway_nodes migration failed: {msg}")
+                return False
+
+            # Add source_row_count column to pathway_refresh_log if it doesn't exist
+            success, msg = migrate_refresh_log_source_row_count(conn)
+            if success:
+                logger.info(f"pathway_refresh_log migration: {msg}")
+            else:
+                logger.error(f"pathway_refresh_log migration failed: {msg}")
                 return False
     except Exception as e:
         logger.error(f"Migration failed: {e}")
@@ -274,107 +276,6 @@ def create_progress_reporter(description: str = "Loading", width: int = 40):
     return report_progress
 
 
-def load_patient_data_cli(
-    file_path: Path,
-    db_manager: Optional[DatabaseManager] = None,
-    paths: Optional[PathConfig] = None,
-    force: bool = False,
-    refresh_mv: bool = True
-) -> bool:
-    """
-    Load patient data from file with CLI progress reporting.
-
-    Args:
-        file_path: Path to CSV or Parquet file.
-        db_manager: DatabaseManager instance. Uses default if not provided.
-        paths: PathConfig for reference data. Uses default if not provided.
-        force: If True, re-process even if file hash matches.
-        refresh_mv: If True, refresh the materialized view after loading.
-
-    Returns:
-        True if loading succeeded, False otherwise.
-    """
-    if db_manager is None:
-        db_manager = DatabaseManager()
-    if paths is None:
-        paths = default_paths
-
-    print(f"\n=== Loading Patient Data ===\n")
-    print(f"File: {file_path}")
-
-    # Check file exists
-    if not file_path.exists():
-        print(f"ERROR: File not found: {file_path}")
-        return False
-
-    # Calculate and display file info
-    file_size_mb = file_path.stat().st_size / (1024 * 1024)
-    print(f"Size: {file_size_mb:.1f} MB")
-    print()
-
-    # Create progress callback
-    progress_callback = create_progress_reporter("Loading rows", width=40)
-
-    # Load the data
-    result = load_patient_data(
-        file_path=file_path,
-        db_manager=db_manager,
-        paths=paths,
-        batch_size=5000,
-        force=force,
-        progress_callback=progress_callback
-    )
-
-    # Print result
-    print()
-    if result.was_already_processed:
-        print("File already processed (same hash). Skipping.")
-        print(f"Use --force to re-process.")
-    elif result.success:
-        print(f"Loaded {result.rows_inserted:,} rows in {result.load_time_seconds:.1f}s")
-        if result.rows_skipped > 0:
-            print(f"Skipped {result.rows_skipped:,} rows (missing UPID or date)")
-    else:
-        print(f"FAILED: {result.error_message}")
-        return False
-
-    # Refresh materialized view if requested
-    if refresh_mv and result.success and not result.was_already_processed:
-        print()
-        print("Refreshing materialized view...")
-        mv_progress = create_progress_reporter("Processing patients", width=40)
-        mv_result = refresh_patient_treatment_summary(
-            db_manager=db_manager,
-            progress_callback=mv_progress
-        )
-
-        if mv_result.success:
-            print(f"MV refreshed: {mv_result.patients_processed:,} patients in {mv_result.refresh_time_seconds:.1f}s")
-
-            # Verify consistency
-            consistent, msg = verify_mv_consistency(db_manager)
-            if consistent:
-                print(f"MV verification: OK")
-            else:
-                print(f"MV verification: FAILED - {msg}")
-        else:
-            print(f"MV refresh FAILED: {mv_result.error_message}")
-
-    # Print summary statistics
-    print()
-    print("=== Patient Data Summary ===")
-    stats = get_patient_data_stats(db_manager)
-    print(f"  Total rows: {stats['total_rows']:,}")
-    print(f"  Unique patients: {stats['unique_patients']:,}")
-    print(f"  Unique drugs: {stats['unique_drugs']:,}")
-    print(f"  Unique organizations: {stats['unique_organizations']:,}")
-    if stats['date_range'][0] and stats['date_range'][1]:
-        print(f"  Date range: {stats['date_range'][0]} to {stats['date_range'][1]}")
-    print()
-
-    return result.success
-
-
 def get_database_status(db_manager: Optional[DatabaseManager] = None) -> dict:
     """
     Get the current status of the database.
@@ -452,8 +353,6 @@ Examples:
   python -m data_processing.migrate --drop-existing  # Reset database
   python -m data_processing.migrate --reference-data  # Migrate reference data
   python -m data_processing.migrate --reference-data --verify  # With verification
-  python -m data_processing.migrate --load-patient-data data.parquet  # Load patient data
-  python -m data_processing.migrate --load-patient-data data.csv --force  # Force reload
   python -m data_processing.migrate --db-path ./data/test.db  # Custom path
         """
     )
@@ -493,23 +392,6 @@ Examples:
         action="store_true",
         help="Enable verbose logging"
     )
-    parser.add_argument(
-        "--load-patient-data",
-        type=Path,
-        metavar="FILE",
-        help="Load patient data from CSV or Parquet file with progress reporting"
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force re-processing even if file hash matches (use with --load-patient-data)"
-    )
-    parser.add_argument(
-        "--no-refresh-mv",
-        action="store_true",
-        help="Skip materialized view refresh after loading (use with --load-patient-data)"
-    )
-
     args = parser.parse_args()
 
     # Set up logging
@@ -560,32 +442,6 @@ Examples:
             return 0
         else:
             print("Reference data migration completed with errors. Check logs for details.")
-            return 1
-
-    # Handle --load-patient-data (load patient data from CSV/Parquet)
-    if args.load_patient_data:
-        # Ensure database exists with tables first
-        if not db_manager.exists:
-            print("Database does not exist. Initializing schema first...")
-            success = initialize_database(db_manager=db_manager)
-            if not success:
-                print("\nDatabase initialization failed. Check logs for details.")
-                return 1
-
-        # Load patient data with progress reporting
-        success = load_patient_data_cli(
-            file_path=args.load_patient_data,
-            db_manager=db_manager,
-            paths=default_paths,
-            force=args.force,
-            refresh_mv=not args.no_refresh_mv
-        )
-
-        if success:
-            print("Patient data load completed successfully.")
-            return 0
-        else:
-            print("Patient data load failed. Check logs for details.")
             return 1
 
     # Run schema migration (default behavior)

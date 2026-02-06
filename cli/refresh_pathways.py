@@ -176,6 +176,7 @@ def log_refresh_complete(
     record_count: int,
     date_filter_counts: dict[str, int],
     duration_seconds: float,
+    source_row_count: Optional[int] = None,
 ) -> None:
     """Log the successful completion of a refresh operation."""
     conn.execute("""
@@ -184,13 +185,15 @@ def log_refresh_complete(
             status = 'completed',
             record_count = ?,
             date_filter_counts = ?,
-            processing_duration_seconds = ?
+            processing_duration_seconds = ?,
+            source_row_count = ?
         WHERE refresh_id = ?
     """, (
         datetime.now().isoformat(),
         record_count,
         json.dumps(date_filter_counts),
         duration_seconds,
+        source_row_count,
         refresh_id,
     ))
     conn.commit()
@@ -517,6 +520,7 @@ def refresh_pathways(
                 record_count=stats["total_records"],
                 date_filter_counts=stats["date_filter_counts"],
                 duration_seconds=elapsed,
+                source_row_count=stats.get("snowflake_rows"),
             )
 
             # Verify final counts

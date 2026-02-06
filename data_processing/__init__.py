@@ -24,15 +24,6 @@ from data_processing.schema import (
     REF_DRUG_DIRECTORY_MAP_SCHEMA,
     REF_DRUG_INDICATION_CLUSTERS_SCHEMA,
     REFERENCE_TABLES_SCHEMA,
-    # Fact table schemas
-    FACT_INTERVENTIONS_SCHEMA,
-    FACT_TABLES_SCHEMA,
-    # Materialized view schemas
-    MV_PATIENT_TREATMENT_SUMMARY_SCHEMA,
-    MATERIALIZED_VIEWS_SCHEMA,
-    # File tracking schemas
-    PROCESSED_FILES_SCHEMA,
-    FILE_TRACKING_SCHEMA,
     # Combined schema
     ALL_TABLES_SCHEMA,
     # Reference table functions
@@ -40,16 +31,6 @@ from data_processing.schema import (
     drop_reference_tables,
     get_reference_table_counts,
     verify_reference_tables_exist,
-    # Fact table functions
-    create_fact_tables,
-    drop_fact_tables,
-    get_fact_table_counts,
-    verify_fact_tables_exist,
-    # File tracking functions
-    create_file_tracking_tables,
-    drop_file_tracking_tables,
-    get_file_tracking_counts,
-    verify_file_tracking_tables_exist,
     # Combined functions
     create_all_tables,
     drop_all_tables,
@@ -81,25 +62,10 @@ from data_processing.reference_data import (
 from data_processing.loader import (
     DataLoader,
     FileDataLoader,
-    SQLiteDataLoader,
     LoadResult,
     get_loader,
     REQUIRED_COLUMNS,
     OPTIONAL_COLUMNS,
-)
-
-# Patient data migration functions
-from data_processing.patient_data import (
-    PatientDataLoadResult,
-    load_patient_data,
-    get_patient_data_stats,
-    list_processed_files,
-    calculate_file_hash,
-    # Materialized view functions
-    MVRefreshResult,
-    refresh_patient_treatment_summary,
-    get_patient_summary_stats,
-    verify_mv_consistency,
 )
 
 # Snowflake connector
@@ -165,15 +131,6 @@ __all__ = [
     "REF_DRUG_DIRECTORY_MAP_SCHEMA",
     "REF_DRUG_INDICATION_CLUSTERS_SCHEMA",
     "REFERENCE_TABLES_SCHEMA",
-    # Fact table schemas
-    "FACT_INTERVENTIONS_SCHEMA",
-    "FACT_TABLES_SCHEMA",
-    # Materialized view schemas
-    "MV_PATIENT_TREATMENT_SUMMARY_SCHEMA",
-    "MATERIALIZED_VIEWS_SCHEMA",
-    # File tracking schemas
-    "PROCESSED_FILES_SCHEMA",
-    "FILE_TRACKING_SCHEMA",
     # Combined schema
     "ALL_TABLES_SCHEMA",
     # Reference table functions
@@ -181,16 +138,6 @@ __all__ = [
     "drop_reference_tables",
     "get_reference_table_counts",
     "verify_reference_tables_exist",
-    # Fact table functions
-    "create_fact_tables",
-    "drop_fact_tables",
-    "get_fact_table_counts",
-    "verify_fact_tables_exist",
-    # File tracking functions
-    "create_file_tracking_tables",
-    "drop_file_tracking_tables",
-    "get_file_tracking_counts",
-    "verify_file_tracking_tables_exist",
     # Combined functions
     "create_all_tables",
     "drop_all_tables",
@@ -216,22 +163,10 @@ __all__ = [
     # Data loader abstractions
     "DataLoader",
     "FileDataLoader",
-    "SQLiteDataLoader",
     "LoadResult",
     "get_loader",
     "REQUIRED_COLUMNS",
     "OPTIONAL_COLUMNS",
-    # Patient data migration
-    "PatientDataLoadResult",
-    "load_patient_data",
-    "get_patient_data_stats",
-    "list_processed_files",
-    "calculate_file_hash",
-    # Materialized view functions
-    "MVRefreshResult",
-    "refresh_patient_treatment_summary",
-    "get_patient_summary_stats",
-    "verify_mv_consistency",
     # Snowflake connector
     "SnowflakeConnector",
     "SnowflakeConnectionError",

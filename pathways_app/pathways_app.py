@@ -5,7 +5,7 @@ Single-page dashboard with reactive filtering and real-time chart updates.
 Design reference: DESIGN_SYSTEM.md
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -69,14 +69,6 @@ class AppState(rx.State):
     # Data freshness tracking
     last_updated: str = ""  # ISO format timestamp of last data load
 
-    # Raw data storage - list of dicts (Reflex-friendly)
-    # Each dict represents a patient record with keys like:
-    # UPID, Drug Name, Intervention Date, Price Actual, Directory, etc.
-    raw_data: list[dict[str, Any]] = []
-
-    # Latest date in dataset (detected on load, used for "to" date defaults)
-    latest_date_in_data: str = ""
-
     # =========================================================================
     # UI State Variables
     # =========================================================================
@@ -111,22 +103,7 @@ class AppState(rx.State):
         {"value": "12mo", "label": "Last 12 months"},
     ]
 
-    # Legacy date filter state (kept for backwards compatibility, will be removed)
-    # Filter toggle state
-    initiated_filter_enabled: bool = False
-    last_seen_filter_enabled: bool = True
-
-    # Date filter values (ISO format strings YYYY-MM-DD)
-    # Initiated filter: Defaults empty (filter is OFF by default)
-    initiated_from_date: str = ""
-    initiated_to_date: str = ""
-
-    # Last Seen filter: Defaults to last 6 months (filter is ON by default)
-    # These will be updated on data load to use actual latest date
-    last_seen_from_date: str = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
-    last_seen_to_date: str = datetime.now().strftime("%Y-%m-%d")
-
-    # Available options for dropdowns (populated from data in Phase 3)
+    # Available options for dropdowns (populated from data)
     available_drugs: list[str] = ["Drug A", "Drug B", "Drug C", "Drug D", "Drug E"]
     available_indications: list[str] = ["Indication 1", "Indication 2", "Indication 3"]
     available_directorates: list[str] = ["Medical", "Surgical", "Oncology", "Rheumatology"]
@@ -146,45 +123,7 @@ class AppState(rx.State):
     indication_dropdown_open: bool = False
     directorate_dropdown_open: bool = False
 
-    # Event handlers for filter toggles
-    def toggle_initiated_filter(self):
-        """Toggle initiated date filter on/off."""
-        self.initiated_filter_enabled = not self.initiated_filter_enabled
-        if self.data_loaded:
-            self.apply_filters()
-
-    def toggle_last_seen_filter(self):
-        """Toggle last seen date filter on/off."""
-        self.last_seen_filter_enabled = not self.last_seen_filter_enabled
-        if self.data_loaded:
-            self.apply_filters()
-
-    # Event handlers for date changes
-    def set_initiated_from(self, value: str):
-        """Set initiated from date."""
-        self.initiated_from_date = value
-        if self.data_loaded:
-            self.apply_filters()
-
-    def set_initiated_to(self, value: str):
-        """Set initiated to date."""
-        self.initiated_to_date = value
-        if self.data_loaded:
-            self.apply_filters()
-
-    def set_last_seen_from(self, value: str):
-        """Set last seen from date."""
-        self.last_seen_from_date = value
-        if self.data_loaded:
-            self.apply_filters()
-
-    def set_last_seen_to(self, value: str):
-        """Set last seen to date."""
-        self.last_seen_to_date = value
-        if self.data_loaded:
-            self.apply_filters()
-
-    # Event handlers for date filter dropdowns (new pathway_nodes approach)
+    # Event handlers for date filter dropdowns
     def set_initiated_filter(self, value: str):
         """Set initiated filter dropdown value."""
         self.selected_initiated = value
@@ -461,141 +400,6 @@ class AppState(rx.State):
     # Filter Logic Methods
     # =========================================================================
 
-    def apply_filters(self):
-        """
-        Apply current filter state to data and update KPI values.
-
-        This method queries the SQLite database with the current filter settings:
-        - Initiated date filter: filters patients whose FIRST intervention date is within range
-        - Last Seen date filter: filters patients whose LAST intervention date is within range
-        - Drug filter: filters by selected drugs (empty = all)
-        - Directorate filter: filters by selected directorates (empty = all)
-
-        Note: Indication filter is not implemented at the database level since indications
-        are derived from drug mappings, not stored directly in fact_interventions.
-
-        Updates: unique_patients, total_drugs, total_cost, and filtered_record_count
-        """
-        import sqlite3
-
-        db_path = Path("data/pathways.db")
-
-        if not db_path.exists():
-            self.error_message = "Unable to connect to database. Please ensure data has been loaded."
-            return
-
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-
-            # Build the filter query dynamically
-            # We use a CTE to compute first_seen and last_seen dates per patient,
-            # then filter based on those dates if date filters are enabled
-
-            where_clauses = []
-            params = []
-
-            # Drug filter (if any drugs selected)
-            if self.selected_drugs:
-                placeholders = ",".join("?" * len(self.selected_drugs))
-                where_clauses.append(f"drug_name_std IN ({placeholders})")
-                params.extend(self.selected_drugs)
-
-            # Directorate filter (if any directorates selected)
-            if self.selected_directorates:
-                placeholders = ",".join("?" * len(self.selected_directorates))
-                where_clauses.append(f"directory IN ({placeholders})")
-                params.extend(self.selected_directorates)
-
-            # Build WHERE clause for base data filtering
-            base_where = ""
-            if where_clauses:
-                base_where = "WHERE " + " AND ".join(where_clauses)
-
-            # Date filter logic:
-            # - "Initiated" filters patients whose FIRST intervention is within the date range
-            # - "Last Seen" filters patients whose LAST intervention is within the date range
-            # We need to use a subquery to compute patient-level date ranges
-
-            having_clauses = []
-            having_params = []
-
-            # Initiated filter (when enabled)
-            if self.initiated_filter_enabled and self.initiated_from_date:
-                having_clauses.append("first_seen_date >= ?")
-                having_params.append(self.initiated_from_date)
-            if self.initiated_filter_enabled and self.initiated_to_date:
-                having_clauses.append("first_seen_date <= ?")
-                having_params.append(self.initiated_to_date)
-
-            # Last Seen filter (when enabled)
-            if self.last_seen_filter_enabled and self.last_seen_from_date:
-                having_clauses.append("last_seen_date >= ?")
-                having_params.append(self.last_seen_from_date)
-            if self.last_seen_filter_enabled and self.last_seen_to_date:
-                having_clauses.append("last_seen_date <= ?")
-                having_params.append(self.last_seen_to_date)
-
-            having_clause = ""
-            if having_clauses:
-                having_clause = "HAVING " + " AND ".join(having_clauses)
-
-            # Query to get filtered patient UPIDs
-            # This computes per-patient first/last seen dates and filters accordingly
-            patient_filter_query = f"""
-                WITH patient_dates AS (
-                    SELECT
-                        upid,
-                        MIN(intervention_date) as first_seen_date,
-                        MAX(intervention_date) as last_seen_date
-                    FROM fact_interventions
-                    {base_where}
-                    GROUP BY upid
-                    {having_clause}
-                )
-                SELECT upid FROM patient_dates
-            """
-
-            # Now get KPI values for filtered patients
-            kpi_query = f"""
-                WITH filtered_patients AS (
-                    {patient_filter_query}
-                )
-                SELECT
-                    COUNT(DISTINCT f.upid) as unique_patients,
-                    COUNT(DISTINCT f.drug_name_std) as unique_drugs,
-                    COALESCE(SUM(f.price_actual), 0) as total_cost,
-                    COUNT(*) as record_count
-                FROM fact_interventions f
-                INNER JOIN filtered_patients fp ON f.upid = fp.upid
-                {base_where.replace('WHERE', 'AND') if base_where else ''}
-            """
-
-            # Combine all params: base params for CTE, having params, then base params again for final join
-            all_params = params + having_params
-            if where_clauses:
-                all_params.extend(params)  # For the AND conditions in the final query
-
-            cursor.execute(kpi_query, all_params)
-            result = cursor.fetchone()
-
-            if result:
-                self.unique_patients = result[0] or 0
-                self.total_drugs = result[1] or 0
-                self.total_cost = float(result[2]) if result[2] else 0.0
-                # Note: filtered_record_count could be stored if needed
-
-            conn.close()
-            self.error_message = ""
-
-            # Update chart data with new filtered results
-            self.prepare_chart_data()
-
-        except sqlite3.Error as e:
-            self.error_message = f"Unable to filter data. Database error: {str(e)}"
-        except Exception as e:
-            self.error_message = f"An unexpected error occurred while filtering. Details: {str(e)}"
-
     # =========================================================================
     # Data Loading Methods
     # =========================================================================
@@ -604,11 +408,8 @@ class AppState(rx.State):
         """
         Load data from SQLite database on app initialization.
 
-        This method:
-        1. Connects to the SQLite database (data/pathways.db)
-        2. Loads available drugs, indications, directorates from actual data
-        3. Detects the latest date in the dataset for "to" date defaults
-        4. Updates total_records, last_updated, and data_loaded state
+        Sources available drugs/directorates from pathway_nodes and total_records
+        from the latest pathway_refresh_log entry.
         """
         import sqlite3
 
@@ -622,30 +423,38 @@ class AppState(rx.State):
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
 
-            # Get total records
-            cursor.execute("SELECT COUNT(*) FROM fact_interventions")
-            self.total_records = cursor.fetchone()[0]
-
-            if self.total_records == 0:
-                self.error_message = "The database is empty. No patient records found."
-                conn.close()
-                return
-
-            # Get available drugs (distinct, sorted)
+            # Get total source records from latest completed refresh log
             cursor.execute("""
-                SELECT DISTINCT drug_name_std
-                FROM fact_interventions
-                WHERE drug_name_std IS NOT NULL AND drug_name_std != ''
-                ORDER BY drug_name_std
+                SELECT source_row_count, completed_at
+                FROM pathway_refresh_log
+                WHERE status = 'completed'
+                ORDER BY started_at DESC
+                LIMIT 1
+            """)
+            refresh_row = cursor.fetchone()
+            if refresh_row:
+                self.total_records = refresh_row[0] or 0
+                if refresh_row[1]:
+                    self.last_updated = refresh_row[1]
+            else:
+                self.total_records = 0
+
+            # Get available drugs from pathway_nodes (level 3 = drug nodes)
+            cursor.execute("""
+                SELECT DISTINCT labels
+                FROM pathway_nodes
+                WHERE level = 3 AND labels IS NOT NULL AND labels != ''
+                ORDER BY labels
             """)
             self.available_drugs = [row[0] for row in cursor.fetchall()]
 
-            # Get available directories (distinct, sorted)
+            # Get available directorates from directory chart pathway_nodes (level 2)
             cursor.execute("""
-                SELECT DISTINCT directory
-                FROM fact_interventions
-                WHERE directory IS NOT NULL AND directory != ''
-                ORDER BY directory
+                SELECT DISTINCT labels
+                FROM pathway_nodes
+                WHERE level = 2 AND chart_type = 'directory'
+                    AND labels IS NOT NULL AND labels != ''
+                ORDER BY labels
             """)
             self.available_directorates = [row[0] for row in cursor.fetchall()]
 
@@ -658,50 +467,17 @@ class AppState(rx.State):
             """)
             self.available_indications = [row[0] for row in cursor.fetchall()]
 
-            # If no indications in reference table, use placeholder
             if not self.available_indications:
                 self.available_indications = ["(No indications available)"]
 
-            # Get date range from data
-            cursor.execute("""
-                SELECT MIN(intervention_date), MAX(intervention_date)
-                FROM fact_interventions
-            """)
-            date_range = cursor.fetchone()
-            min_date, max_date = date_range
-
-            # Update latest_date_in_data and set "to" date defaults
-            if max_date:
-                self.latest_date_in_data = max_date
-                self.last_seen_to_date = max_date
-                self.initiated_to_date = max_date
-
-                # Set "from" date for last_seen filter (6 months before max_date)
-                max_dt = datetime.strptime(max_date, "%Y-%m-%d")
-                six_months_ago = max_dt - timedelta(days=180)
-                self.last_seen_from_date = six_months_ago.strftime("%Y-%m-%d")
-
-            # Get unique patient count for KPIs
-            cursor.execute("SELECT COUNT(DISTINCT upid) FROM fact_interventions")
-            self.unique_patients = cursor.fetchone()[0]
-
-            # Get unique drug count
-            self.total_drugs = len(self.available_drugs)
-
-            # Get total cost
-            cursor.execute("SELECT SUM(price_actual) FROM fact_interventions")
-            total_cost_result = cursor.fetchone()[0]
-            self.total_cost = float(total_cost_result) if total_cost_result else 0.0
-
             conn.close()
 
-            # Set data_loaded and last_updated
             self.data_loaded = True
-            self.last_updated = datetime.now().isoformat()
+            if not self.last_updated:
+                self.last_updated = datetime.now().isoformat()
             self.error_message = ""
 
             # Load pre-computed pathway data for the default date filter
-            # This replaces apply_filters() which used dynamic calculation
             self.load_pathway_data()
 
         except sqlite3.Error as e:
@@ -985,269 +761,6 @@ class AppState(rx.State):
     # Structure: [{"parents": str, "ids": str, "labels": str, "value": int, "cost": float, "colour": float}, ...]
     chart_data: list[dict[str, Any]] = []
     chart_title: str = ""
-
-    def prepare_chart_data(self):
-        """
-        Prepare hierarchical data for Plotly icicle chart.
-
-        This method queries the filtered patient data and transforms it into
-        a hierarchical structure: Root → Trust → Directory → Drug
-
-        The chart data is stored in self.chart_data as a list of dicts with:
-        - parents: Parent node identifier
-        - ids: Unique node identifier (hierarchical path)
-        - labels: Display label
-        - value: Patient count
-        - cost: Total cost
-        - colour: Color value (proportion of parent)
-
-        Updates: chart_data, chart_title, chart_loading
-        """
-        import sqlite3
-
-        db_path = Path("data/pathways.db")
-
-        if not db_path.exists():
-            self.error_message = "Unable to generate chart. Database not found."
-            self.chart_data = []
-            return
-
-        self.chart_loading = True
-
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-
-            # Build WHERE clause for filters
-            where_clauses = []
-            params = []
-
-            # Drug filter (if any drugs selected)
-            if self.selected_drugs:
-                placeholders = ",".join("?" * len(self.selected_drugs))
-                where_clauses.append(f"drug_name_std IN ({placeholders})")
-                params.extend(self.selected_drugs)
-
-            # Directorate filter (if any directorates selected)
-            if self.selected_directorates:
-                placeholders = ",".join("?" * len(self.selected_directorates))
-                where_clauses.append(f"directory IN ({placeholders})")
-                params.extend(self.selected_directorates)
-
-            base_where = ""
-            if where_clauses:
-                base_where = "WHERE " + " AND ".join(where_clauses)
-
-            # Build date filter HAVING clauses for patient-level filtering
-            having_clauses = []
-            having_params = []
-
-            if self.initiated_filter_enabled and self.initiated_from_date:
-                having_clauses.append("first_seen >= ?")
-                having_params.append(self.initiated_from_date)
-            if self.initiated_filter_enabled and self.initiated_to_date:
-                having_clauses.append("first_seen <= ?")
-                having_params.append(self.initiated_to_date)
-
-            if self.last_seen_filter_enabled and self.last_seen_from_date:
-                having_clauses.append("last_seen >= ?")
-                having_params.append(self.last_seen_from_date)
-            if self.last_seen_filter_enabled and self.last_seen_to_date:
-                having_clauses.append("last_seen <= ?")
-                having_params.append(self.last_seen_to_date)
-
-            having_clause = ""
-            if having_clauses:
-                having_clause = "HAVING " + " AND ".join(having_clauses)
-
-            # Query to get aggregated data by Trust -> Directory -> Drug
-            # fact_interventions already has org_name, use it directly
-            chart_query = f"""
-                WITH filtered_patients AS (
-                    SELECT upid
-                    FROM (
-                        SELECT
-                            upid,
-                            MIN(intervention_date) as first_seen,
-                            MAX(intervention_date) as last_seen
-                        FROM fact_interventions
-                        {base_where}
-                        GROUP BY upid
-                        {having_clause}
-                    )
-                ),
-                patient_records AS (
-                    SELECT
-                        f.upid,
-                        COALESCE(f.org_name, f.provider_code) as trust_name,
-                        f.directory,
-                        f.drug_name_std,
-                        f.price_actual
-                    FROM fact_interventions f
-                    INNER JOIN filtered_patients fp ON f.upid = fp.upid
-                    {base_where.replace('WHERE', 'AND') if base_where else ''}
-                )
-                SELECT
-                    trust_name,
-                    directory,
-                    drug_name_std,
-                    COUNT(DISTINCT upid) as patient_count,
-                    COALESCE(SUM(price_actual), 0) as total_cost
-                FROM patient_records
-                GROUP BY trust_name, directory, drug_name_std
-                ORDER BY trust_name, directory, drug_name_std
-            """
-
-            all_params = params + having_params
-            if where_clauses:
-                all_params.extend(params)
-
-            cursor.execute(chart_query, all_params)
-            rows = cursor.fetchall()
-
-            conn.close()
-
-            # Build hierarchical chart data
-            chart_data = []
-            hierarchy_totals = {}  # Track totals for calculating color values
-
-            # Root node
-            root_id = "N&WICS"
-            chart_data.append({
-                "parents": "",
-                "ids": root_id,
-                "labels": "Norfolk & Waveney ICS",
-                "value": 0,
-                "cost": 0.0,
-                "colour": 1.0,
-            })
-
-            # Process rows to build hierarchy
-            trust_totals = {}
-            directory_totals = {}
-            drug_data = []
-
-            for row in rows:
-                trust_name, directory, drug_name, patient_count, cost = row
-
-                if not trust_name or not directory or not drug_name:
-                    continue
-
-                # Trust level
-                trust_id = f"{root_id} - {trust_name}"
-                if trust_id not in trust_totals:
-                    trust_totals[trust_id] = {"value": 0, "cost": 0.0, "label": trust_name}
-                trust_totals[trust_id]["value"] += patient_count
-                trust_totals[trust_id]["cost"] += cost
-
-                # Directory level
-                dir_id = f"{trust_id} - {directory}"
-                if dir_id not in directory_totals:
-                    directory_totals[dir_id] = {
-                        "value": 0,
-                        "cost": 0.0,
-                        "label": directory,
-                        "parent": trust_id,
-                    }
-                directory_totals[dir_id]["value"] += patient_count
-                directory_totals[dir_id]["cost"] += cost
-
-                # Drug level (leaf)
-                drug_id = f"{dir_id} - {drug_name}"
-                drug_data.append({
-                    "ids": drug_id,
-                    "labels": drug_name,
-                    "parent": dir_id,
-                    "value": patient_count,
-                    "cost": float(cost),
-                })
-
-            # Calculate root total
-            root_total = sum(t["value"] for t in trust_totals.values())
-            root_cost = sum(t["cost"] for t in trust_totals.values())
-            chart_data[0]["value"] = root_total
-            chart_data[0]["cost"] = root_cost
-
-            # Add trust nodes with color proportions
-            for trust_id, data in trust_totals.items():
-                colour = data["value"] / root_total if root_total > 0 else 0
-                chart_data.append({
-                    "parents": root_id,
-                    "ids": trust_id,
-                    "labels": data["label"],
-                    "value": data["value"],
-                    "cost": data["cost"],
-                    "colour": colour,
-                })
-
-            # Add directory nodes with color proportions
-            for dir_id, data in directory_totals.items():
-                parent_total = trust_totals[data["parent"]]["value"]
-                colour = data["value"] / parent_total if parent_total > 0 else 0
-                chart_data.append({
-                    "parents": data["parent"],
-                    "ids": dir_id,
-                    "labels": data["label"],
-                    "value": data["value"],
-                    "cost": data["cost"],
-                    "colour": colour,
-                })
-
-            # Add drug nodes with color proportions
-            for drug in drug_data:
-                parent_dir = drug["parent"]
-                parent_total = directory_totals[parent_dir]["value"]
-                colour = drug["value"] / parent_total if parent_total > 0 else 0
-                chart_data.append({
-                    "parents": parent_dir,
-                    "ids": drug["ids"],
-                    "labels": drug["labels"],
-                    "value": drug["value"],
-                    "cost": drug["cost"],
-                    "colour": colour,
-                })
-
-            self.chart_data = chart_data
-            self.chart_title = self._generate_chart_title()
-            self.chart_loading = False
-            self.error_message = ""
-
-        except sqlite3.Error as e:
-            self.error_message = f"Unable to generate chart. Database error: {str(e)}"
-            self.chart_data = []
-            self.chart_loading = False
-        except Exception as e:
-            self.error_message = f"Unable to generate chart. Details: {str(e)}"
-            self.chart_data = []
-            self.chart_loading = False
-
-    def _generate_chart_title(self) -> str:
-        """Generate chart title based on current filter state."""
-        parts = []
-
-        # Date range info
-        if self.last_seen_filter_enabled:
-            parts.append(f"Last seen: {self.last_seen_from_date} to {self.last_seen_to_date}")
-        elif self.initiated_filter_enabled:
-            parts.append(f"Initiated: {self.initiated_from_date} to {self.initiated_to_date}")
-
-        # Drug selection info
-        if self.selected_drugs:
-            if len(self.selected_drugs) <= 3:
-                parts.append(", ".join(self.selected_drugs))
-            else:
-                parts.append(f"{len(self.selected_drugs)} drugs selected")
-
-        # Directorate selection info
-        if self.selected_directorates:
-            if len(self.selected_directorates) <= 2:
-                parts.append(", ".join(self.selected_directorates))
-            else:
-                parts.append(f"{len(self.selected_directorates)} directorates")
-
-        if parts:
-            return " | ".join(parts)
-        return "All Patients"
 
     # =========================================================================
     # Plotly Chart Generation
