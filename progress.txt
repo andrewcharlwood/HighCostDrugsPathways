@@ -1341,3 +1341,48 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Test each query with `python -c "..."` against real data
 ### Blocked items:
 - None
+
+## Iteration 24 — 2026-02-06
+### Task: Phase 9 — Task 9.2 (Query functions for all 7 chart types)
+### Why this task:
+- Task 9.1 (parsing + tab infrastructure) complete in iteration 23
+- Progress.txt explicitly recommended this task next
+- All 7 chart implementations (9.3–9.9) depend on these query functions
+### Status: COMPLETE
+### What was done:
+- **Added 7 query functions to `src/data_processing/pathway_queries.py`**:
+  1. `get_drug_market_share()` — Level 3 nodes aggregated across trusts by directory+drug, with computed proportions. 63 rows for directory chart, 111 for indication.
+  2. `get_pathway_costs()` — Level 4+ nodes with pathway labels (drug_sequence joined with →). 38 pathways for RHEUMATOLOGY.
+  3. `get_cost_waterfall()` — Aggregates level 3 cost/patients by directory (level 2 cost_pp_pa is always "N/A"). 12 directorates sorted by cost_pp desc.
+  4. `get_drug_transitions()` — Parses drug_sequence into source→target transitions with ordinal line labels (e.g., "ADALIMUMAB (1st)" → "ETANERCEPT (2nd)"). Returns {nodes, links} for Sankey. 49 nodes, 65 links.
+  5. `get_dosing_intervals()` — Uses `parse_average_spacing()` to extract weekly_interval/dose_count/total_weeks. 124 rows for all drugs.
+  6. `get_drug_directory_matrix()` — Pivots level 3 into directory × drug matrix with patients/cost/cost_pp_pa. 12×39 matrix, 63 non-empty cells.
+  7. `get_treatment_durations()` — Weighted avg of avg_days by patients across trusts. 59 entries unfiltered.
+- **Added helpers**: `_safe_float()` for None/N/A handling, `_ordinal()` for Sankey node labels
+- **Added 7 thin wrappers** to `dash_app/data/queries.py` (resolve DB_PATH, delegate to src/)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 11 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional): All 7 queries tested with real data, both chart types
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added: 7 query functions + 2 helpers
+- `dash_app/data/queries.py` — Added: 7 thin wrapper functions
+- `IMPLEMENTATION_PLAN.md` — Task 9.2 marked [x]
+### Committed: d98cd4f "feat: add 7 analytics chart query functions (Task 9.2)"
+### Patterns discovered:
+- `cost_pp_pa` at level 2 is always "N/A". Waterfall must compute from level 3 aggregation.
+- `cost_pp_pa` at level 3 is a string (including "N/A"). Use `_safe_float()`.
+- Sankey ordinal suffix ("1st", "2nd") prevents self-loops for same-drug transitions.
+- Treatment duration uses weighted average for cross-trust aggregation.
+- All queries work seamlessly with both "directory" and "indication" chart types.
+### Next iteration should:
+- Start Task 9.3 — First-Line Market Share chart (Tab 2)
+- Sub-steps:
+  1. Create figure function in `src/visualization/` — `create_market_share_figure(data)` for horizontal grouped bar chart
+  2. Wire into `update_chart` in `dash_app/callbacks/chart.py` — dispatch on active_tab="market-share"
+  3. The query `get_drug_market_share()` returns [{directory, drug, patients, proportion, cost, cost_pp_pa}] sorted by total desc
+  4. Use NHS blue palette, one cluster per directorate, drugs as bars within
+- Read `dash_app/callbacks/chart.py` to understand the tab dispatch pattern
+- Read `src/visualization/plotly_generator.py` to see existing figure function pattern
+### Blocked items:
+- None
