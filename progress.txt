@@ -554,3 +554,60 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - IMPORTANT: DMC version is 2.5.1 (Mantine v7 based). Check DMC 2.x API for Drawer, Accordion, Chip — prop names may differ from 0.14.x. E.g., `dmc.Drawer` may use `opened` instead of `open`, `onClose` instead of `on_close`.
 ### Blocked items:
 - None
+
+## Iteration 11 — 2026-02-06
+### Task: Phase 4 — Task 4.1 (dmc.Drawer layout)
+### Why this task:
+- Phases 0-3 are complete. Phase 4 (Directorate Card Browser) is next in dependency order.
+- Iteration 10 explicitly recommended this as the next task.
+- The drawer layout is needed before drawer callbacks (Task 4.2) can be built.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/components/drawer.py` with `make_drawer()` function:
+  - `dmc.Drawer(id="drug-drawer", position="right", size="480px", opened=False)`
+  - Title: "Drug & Indication Browser" via `dmc.Text`
+  - ScrollArea wrapping all content for vertical overflow
+  - **All Drugs section**: `dmc.ChipGroup(id="all-drugs-chips", multiple=True)` with 42 drug chips from pathway_nodes level 3
+  - **Directorate section**: Nested `dmc.Accordion` with 19 directorates, each containing an inner accordion of indications (163 total). Drug fragments shown as `dmc.Badge` with pattern-match IDs `{"type": "drug-fragment", "index": "DIRECTORATE|FRAGMENT"}`
+  - **Clear button**: `dmc.Button("Clear All Filters", id="clear-drug-filters", variant="outline", color="red")`
+- Added drawer CSS to `dash_app/assets/nhs.css`:
+  - `.drawer-section`, `.drawer-section-title`, `.drawer-chips-wrap`, `.drawer-drug-badge`, `.drawer-directorate-accordion`, `.drawer-clear-btn`
+  - Chip font-family override to Source Sans 3
+  - Badge hover effect for drug fragments
+- Updated `dash_app/app.py`:
+  - Added `make_drawer()` import and placed drawer in MantineProvider children (after sidebar, before main)
+### Validation results:
+- Tier 1 (Code): `from dash_app.components.drawer import make_drawer` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): Verified programmatically:
+  - MantineProvider: 8 children (4 stores/location + Header + Nav + Drawer + Main)
+  - Drawer: position=right, size=480px, opened=False
+  - All Drugs ChipGroup: 42 chips, multiple=True
+  - Directorate Accordion: 19 directorates, 163 indications
+  - 433 IDs in layout (mostly drug-fragment pattern-match IDs)
+  - Key IDs present: drug-drawer, all-drugs-chips, clear-drug-filters
+  - App has 5 callbacks registered (same as before — no new callbacks in this layout-only task)
+### Files changed:
+- `dash_app/components/drawer.py` — NEW: drawer component with drug chips and directorate cards
+- `dash_app/app.py` — Updated: imports and adds drawer to layout
+- `dash_app/assets/nhs.css` — Added: drawer-specific CSS classes
+- `IMPLEMENTATION_PLAN.md` — Task 4.1 marked [x]
+### Committed: 5dc552f "feat: add dmc.Drawer drug browser with directorate cards and drug chips (Task 4.1)"
+### Patterns discovered:
+- DMC 2.5.1 `dmc.Chip` doesn't expose `n_clicks`. It's a controlled component that works through `dmc.ChipGroup` with `value` prop (list of selected values when `multiple=True`). This is simpler than pattern-matching callbacks for drug selection — a single callback on `all-drugs-chips.value` replaces N individual chip click handlers.
+- DMC 2.5.1 `dmc.Drawer` uses `opened` (not `open`), consistent with Mantine v7 API.
+- `dmc.AccordionControl` + `dmc.AccordionPanel` inside `dmc.AccordionItem` is the DMC 2.x pattern. Nesting accordions works — directorate accordion → indication accordion inside.
+- Drug fragments use `dmc.Badge` (not `dmc.Chip`) because they're informational/action triggers, not multi-select toggles. Badge IDs use pattern-matching format `{"type": "drug-fragment", "index": "DIR|FRAG"}` for callback handling in 4.2.
+- The drawer data is loaded at layout time (module-level `make_drawer()` call during app import), not lazily. This is fine since the data is small (~165 CSV rows + 42 drugs from SQLite) and only runs once at app startup.
+### Next iteration should:
+- Start Task 4.2 — Drawer callbacks
+- Create `dash_app/callbacks/drawer.py` with `register_drawer_callbacks(app)`:
+  1. **Open/close drawer**: sidebar "Drug Selection" (`id="sidebar-drug-selection"`, n_clicks) or "Indications" (`id="sidebar-indications"`, n_clicks) click → set `drug-drawer.opened=True`. Drawer's built-in close (X button, overlay click) handles closing via `opened` prop.
+  2. **Drug chip selection**: `all-drugs-chips.value` (ChipGroup value change) → update `app-state.selected_drugs` → triggers chain: app-state → chart-data → KPIs + chart
+  3. **Drug fragment click**: `{"type": "drug-fragment", "index": ALL}.n_clicks` → match fragment against full drug names → select matching drugs in `all-drugs-chips.value` + `app-state.selected_drugs`
+  4. **Clear filters**: `clear-drug-filters.n_clicks` → reset `app-state.selected_drugs=[]` + `all-drugs-chips.value=[]`
+- Register in `dash_app/callbacks/__init__.py`
+- Key consideration: The `all-drugs-chips` ChipGroup value must stay in sync with `app-state.selected_drugs`. Consider whether to use `all-drugs-chips.value` as the source of truth (simpler) or `app-state.selected_drugs` (needed for other callbacks). May need a two-way sync or just derive one from the other.
+- IMPORTANT: Clicking a drug fragment badge should filter to drugs whose FULL names contain that fragment (substring match). The fragment "PEGYLATED" would match "PEGYLATED INTERFERON ALFA-2A" for example. The matching logic should use `drug_name.upper().find(fragment) >= 0`.
+### Blocked items:
+- None
