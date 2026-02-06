@@ -8,7 +8,7 @@ def make_chart_card():
     Contains:
     - Header with title and dynamic subtitle (hierarchy label)
     - Tab row (Icicle active, Sankey and Timeline as disabled placeholders)
-    - dcc.Graph for the Plotly icicle figure
+    - dcc.Loading wrapper around dcc.Graph for loading spinner
     """
     return html.Section(
         className="chart-card",
@@ -60,15 +60,29 @@ def make_chart_card():
                     ),
                 ],
             ),
-            # Chart area
-            dcc.Graph(
-                id="pathway-chart",
-                style={"minHeight": "500px", "flex": "1"},
-                config={
-                    "displayModeBar": True,
-                    "displaylogo": False,
-                    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-                },
+            # Chart area with loading spinner
+            dcc.Loading(
+                type="circle",
+                color="#005EB8",
+                children=[
+                    html.Div(
+                        id="chart-container",
+                        children=[
+                            dcc.Graph(
+                                id="pathway-chart",
+                                style={"minHeight": "500px", "flex": "1"},
+                                config={
+                                    "displayModeBar": True,
+                                    "displaylogo": False,
+                                    "modeBarButtonsToRemove": [
+                                        "lasso2d",
+                                        "select2d",
+                                    ],
+                                },
+                            ),
+                        ],
+                    ),
+                ],
             ),
         ],
     )

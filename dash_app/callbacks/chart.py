@@ -1,5 +1,40 @@
 """Callbacks for pathway data loading and icicle chart rendering."""
+import logging
+
 from dash import Input, Output, no_update
+import plotly.graph_objects as go
+
+log = logging.getLogger(__name__)
+
+
+def _empty_figure(message):
+    """Return a blank Plotly figure with a centered message annotation."""
+    fig = go.Figure()
+    fig.update_layout(
+        xaxis={"visible": False},
+        yaxis={"visible": False},
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin={"t": 0, "l": 0, "r": 0, "b": 0},
+        annotations=[
+            {
+                "text": message,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.5,
+                "y": 0.5,
+                "showarrow": False,
+                "font": {
+                    "size": 16,
+                    "color": "#768692",
+                    "family": "Source Sans 3, Arial, sans-serif",
+                },
+                "xanchor": "center",
+                "yanchor": "middle",
+            }
+        ],
+    )
+    return fig
 
 
 def _generate_chart_title(app_state):
@@ -62,13 +97,23 @@ def register_chart_callbacks(app):
         selected_directorates = app_state.get("selected_directorates") or None
         selected_trusts = app_state.get("selected_trusts") or None
 
-        return query_pathway_data(
-            filter_id=filter_id,
-            chart_type=chart_type,
-            selected_drugs=selected_drugs,
-            selected_directorates=selected_directorates,
-            selected_trusts=selected_trusts,
-        )
+        try:
+            return query_pathway_data(
+                filter_id=filter_id,
+                chart_type=chart_type,
+                selected_drugs=selected_drugs,
+                selected_directorates=selected_directorates,
+                selected_trusts=selected_trusts,
+            )
+        except Exception:
+            log.exception("Failed to load pathway data")
+            return {
+                "nodes": [],
+                "unique_patients": 0,
+                "total_drugs": 0,
+                "total_cost": 0.0,
+                "error": "Database query failed. Check logs for details.",
+            }
 
     @app.callback(
         Output("pathway-chart", "figure"),
@@ -78,18 +123,28 @@ def register_chart_callbacks(app):
     )
     def update_chart(chart_data, app_state):
         """Render icicle chart from chart-data nodes."""
-        if not chart_data or not chart_data.get("nodes"):
-            return no_update, no_update
-
-        from visualization.plotly_generator import create_icicle_from_nodes
-
-        title = _generate_chart_title(app_state) if app_state else ""
-        fig = create_icicle_from_nodes(chart_data["nodes"], title)
-
         chart_type = (app_state or {}).get("chart_type", "directory")
         if chart_type == "indication":
             subtitle = "Trust \u2192 Indication \u2192 Drug \u2192 Patient Pathway"
         else:
             subtitle = "Trust \u2192 Directorate \u2192 Drug \u2192 Patient Pathway"
+
+        if not chart_data:
+            return no_update, no_update
+
+        error_msg = chart_data.get("error")
+        if error_msg:
+            return _empty_figure(error_msg), subtitle
+
+        if not chart_data.get("nodes"):
+            return _empty_figure(
+                "No matching pathways found.\n"
+                "Try adjusting your filters."
+            ), subtitle
+
+        from visualization.plotly_generator import create_icicle_from_nodes
+
+        title = _generate_chart_title(app_state) if app_state else ""
+        fig = create_icicle_from_nodes(chart_data["nodes"], title)
 
         return fig, subtitle

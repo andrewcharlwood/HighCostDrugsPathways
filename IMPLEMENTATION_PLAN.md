@@ -235,10 +235,10 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Selecting trusts filters the chart correctly
 
 ### 5.2 Loading/error/empty states + dynamic hierarchy label
-- [ ] Add `dcc.Loading` wrapper around chart area
-- [ ] Show "No data" message when chart-data is empty
-- [ ] Show error toast/alert when database query fails
-- [ ] Dynamic chart subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway" based on chart type
+- [x] Add `dcc.Loading` wrapper around chart area
+- [x] Show "No data" message when chart-data is empty
+- [x] Show error feedback when database query fails
+- [x] Dynamic chart subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway" based on chart type (done in Task 3.4)
 - **Checkpoint**: Loading spinner appears during data fetch, empty state shows message
 
 ### 5.3 Data freshness indicator
