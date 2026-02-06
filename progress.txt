@@ -611,3 +611,57 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - IMPORTANT: Clicking a drug fragment badge should filter to drugs whose FULL names contain that fragment (substring match). The fragment "PEGYLATED" would match "PEGYLATED INTERFERON ALFA-2A" for example. The matching logic should use `drug_name.upper().find(fragment) >= 0`.
 ### Blocked items:
 - None
+
+## Iteration 12 — 2026-02-06
+### Task: Phase 4 — Task 4.2 (Drawer callbacks)
+### Why this task:
+- Phase 4.1 (drawer layout) complete. Task 4.2 adds the interactivity to the drawer.
+- Iteration 11 explicitly recommended this as the next task.
+- Without callbacks, the drawer can't open or affect the chart — it's just a static component.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/callbacks/drawer.py` with `register_drawer_callbacks(app)`:
+  1. `open_drawer`: Input = sidebar-drug-selection + sidebar-indications n_clicks → Output = drug-drawer.opened = True. Drawer's built-in close (X / overlay) handles closing.
+  2. `handle_fragment_or_clear`: Input = drug-fragment badges (pattern-matching ALL) n_clicks + clear-drug-filters n_clicks → Output = all-drugs-chips.value
+     - Fragment click: extracts fragment from `{"type": "drug-fragment", "index": "DIR|FRAG"}`, finds all drugs containing the fragment (substring match), toggles them in chip selection
+     - Clear click: sets chip value to empty list `[]`
+     - Toggle behavior: if all matching drugs already selected, deselects them; otherwise adds them
+- Modified `dash_app/callbacks/filters.py` `update_app_state`:
+  - Added `all-drugs-chips.value` as 5th Input (after date filter dropdowns)
+  - When chip selection changes, `selected_drugs` in app-state is updated
+  - This completes the callback chain: chip change → app-state → chart-data → chart + KPIs
+- Registered drawer callbacks in `dash_app/callbacks/__init__.py` — now 7 callbacks total
+- Design decision: `all-drugs-chips.value` (ChipGroup) is the visual source of truth for drug selection. The drawer callbacks write to it, and `update_app_state` reads from it to sync into `app-state.selected_drugs`. No `allow_duplicate` needed — clean unidirectional flow.
+### Validation results:
+- Tier 1 (Code): All imports pass — drawer.py, filters.py, callbacks/__init__.py, app.py
+- Tier 1 (App starts): MantineProvider layout, 7 callbacks registered, app ready to serve
+- Tier 3 (Functional):
+  - Callback chain verified: sidebar clicks → drawer opens (drug-drawer.opened Output)
+  - Fragment matching: "ADALIMUMAB" → matches ["ADALIMUMAB"], "RITUXI" → matches ["RITUXIMAB"]
+  - Some fragments (PEGYLATED, INHALED) match 0 drugs in pathway_nodes — returns no_update (correct behavior: those fragments may reference drugs not in current data)
+  - Clear button → empty chip list → app-state.selected_drugs = [] → full chart reload
+  - update_app_state Input list confirmed: 5 Inputs (2 toggle pills + 2 dropdowns + 1 ChipGroup)
+### Files changed:
+- `dash_app/callbacks/drawer.py` — NEW: open_drawer + handle_fragment_or_clear callbacks
+- `dash_app/callbacks/__init__.py` — Updated: registers drawer callbacks
+- `dash_app/callbacks/filters.py` — Updated: added all-drugs-chips.value as Input to update_app_state
+- `IMPLEMENTATION_PLAN.md` — Task 4.2 marked [x]
+### Committed: fe76e5a "feat: add drawer callbacks for drug selection, fragment matching, and clear (Task 4.2)"
+### Patterns discovered:
+- `dmc.ChipGroup.value` is the cleanest way to manage multi-select drug state. The ChipGroup handles visual selection state internally; callbacks only need to update the `value` prop (list of selected values). No per-chip n_clicks tracking needed.
+- Fragment badge IDs use format `{"type": "drug-fragment", "index": "DIRECTORATE|FRAGMENT"}`. The directorate prefix is stripped with `split("|", 1)[-1]` to get the pure fragment for substring matching.
+- Pattern-matching `Input({"type": "drug-fragment", "index": ALL}, "n_clicks")` with `prevent_initial_call=True` is essential — without it, the callback fires on page load with all n_clicks as None/0, which would trigger `no_update`.
+- The toggle behavior (click fragment → select matching drugs; click again → deselect) is implemented by checking if all matching drugs are already in the current selection.
+- `allow_duplicate=True` was avoided by routing all drug selection through `all-drugs-chips.value` → `update_app_state`. Only one callback writes to each Output.
+### Next iteration should:
+- Start Phase 5: Task 5.1 — Trust selection
+- Options for trust selection:
+  - Add a "Trusts" section to the drawer (preferred — keeps all filters together)
+  - OR add trust checkboxes in the sidebar
+- Implementation: add `dmc.ChipGroup(id="trust-chips", multiple=True)` to the drawer with available trusts from reference-data
+- Wire trust selection similarly to drug selection: trust-chips.value → update_app_state → app-state.selected_trusts → chart reload
+- Check `src/data_processing/pathway_queries.py` `load_pathway_nodes()` — does it support a `selected_trusts` parameter? If not, add trust filtering to the query.
+- Read `pathways_app/pathways_app.py` for how trust filtering was handled in Reflex
+- ALTERNATIVE: Skip 5.1 for now and do 5.2 (loading/error/empty states) which is more impactful for UX polish. Trust selection is less critical since there are few trusts.
+### Blocked items:
+- None
