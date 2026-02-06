@@ -6,15 +6,13 @@
     Outer loop for iterative Reflex frontend development.
     Each iteration spawns a fresh `claude --print` invocation.
     Memory persists via filesystem only: git commits, progress.txt, IMPLEMENTATION_PLAN.md, guardrails.md.
-    Completion detected via <promise>COMPLETE</promise> in output.
+
+    Runs until completion (<promise>COMPLETE</promise>) or circuit breaker trips.
+    No arbitrary iteration limit — the loop continues until done.
 
     Circuit breakers prevent runaway costs:
     - No git changes for N consecutive iterations (stalled)
     - Same error repeated N consecutive iterations (stuck)
-    - Maximum iteration count reached
-
-.PARAMETER MaxIterations
-    Maximum number of loop iterations before stopping. Default: 15.
 
 .PARAMETER Model
     Claude model to use. Default: "sonnet".
@@ -29,15 +27,14 @@
     Number of consecutive iterations with the same error before circuit breaker trips. Default: 3.
 
 .EXAMPLE
-    .\ralph.ps1 -MaxIterations 15 -Model "sonnet" -BranchName "feature/ui-redesign"
+    .\ralph.ps1 -Model "sonnet" -BranchName "feature/ui-redesign"
 
 .EXAMPLE
     .\ralph.ps1 -Model "opus" -MaxNoProgress 2
 #>
 
 param(
-    [int]$MaxIterations = 15,
-    [string]$Model = "sonnet",
+    [string]$Model = "opus",
     [string]$BranchName,
     [int]$MaxNoProgress = 3,
     [int]$MaxSameError = 3
@@ -151,17 +148,19 @@ if (Test-Path $progressFile) {
 
 Write-Host ""
 Write-Host "===== Ralph Wiggum Loop (Reflex UI) =====" -ForegroundColor Cyan
-Write-Host "Model: $Model | Max iterations: $MaxIterations" -ForegroundColor Cyan
+Write-Host "Model: $Model | Runs until COMPLETE" -ForegroundColor Cyan
 Write-Host "Circuit breakers: no-progress=$MaxNoProgress, same-error=$MaxSameError" -ForegroundColor Cyan
 if ($BranchName) { Write-Host "Branch: $BranchName" -ForegroundColor Cyan }
 if ($existingIterations -gt 0) { Write-Host "Previous iterations: $existingIterations" -ForegroundColor Cyan }
 Write-Host "===========================================" -ForegroundColor Cyan
 Write-Host ""
 
-for ($i = 1; $i -le $MaxIterations; $i++) {
+$i = 0
+while ($true) {
+    $i++
     $totalIteration = $existingIterations + $i
     Write-Host ""
-    Write-Host "--- Iteration $i of $MaxIterations (Total: $totalIteration) ---" -ForegroundColor Yellow
+    Write-Host "--- Iteration $i (Total: $totalIteration) ---" -ForegroundColor Yellow
 
     # Record HEAD before this iteration
     $headBefore = git rev-parse HEAD 2>$null
@@ -199,41 +198,41 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
             $line = $_.ToString().Trim()
             if (-not $line) { return }
 
-            # Save raw event for debugging
-            Add-Content -Path $rawLogFile -Value $line -Encoding UTF8
+            # Save raw event for debugging (with error handling for stream closure)
+            try {
+                Add-Content -Path $rawLogFile -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
+            } catch {
+                # Stream closed or file locked - ignore and continue
+            }
 
             try {
                 $evt = $line | ConvertFrom-Json -ErrorAction Stop
 
-                # --- Tool use detection ---
+                # --- Tool use start (show tool name) ---
                 if ($evt.type -eq 'content_block_start' -and $evt.content_block.type -eq 'tool_use') {
                     $toolCount++
                     $toolName = $evt.content_block.name
                     Write-Host "  [$toolName]" -ForegroundColor DarkCyan
                 }
-                elseif ($evt.tool_name) {
-                    $toolCount++
-                    Write-Host "  [$($evt.tool_name)]" -ForegroundColor DarkCyan
-                }
-
-                # --- Text content ---
+                # --- Assistant text content (streaming deltas) ---
                 elseif ($evt.type -eq 'content_block_delta' -and $evt.delta.type -eq 'text_delta' -and $evt.delta.text) {
                     Write-Host -NoNewline $evt.delta.text
                     [void]$textBuilder.Append($evt.delta.text)
                 }
-
+                # --- Result event (error display + text capture for circuit breakers) ---
                 elseif ($evt.type -eq 'result') {
-                    if ($evt.result) {
-                        Write-Host $evt.result
-                        [void]$textBuilder.AppendLine($evt.result)
-                    }
                     if ($evt.subtype -eq 'error_result' -and $evt.error) {
                         Write-Host "  [ERROR] $($evt.error)" -ForegroundColor Red
                         [void]$textBuilder.AppendLine("ERROR: $($evt.error)")
                     }
+                    elseif ($evt.result) {
+                        # Capture for circuit breaker detection; don't print
+                        # (text already displayed via streaming deltas above)
+                        [void]$textBuilder.AppendLine($evt.result)
+                    }
                 }
-
-                elseif ($evt.message.content) {
+                # --- Message-level content (final message summary) ---
+                elseif ($evt.message -and $evt.message.content) {
                     foreach ($block in $evt.message.content) {
                         if ($block.type -eq 'text' -and $block.text) {
                             Write-Host $block.text
@@ -243,12 +242,16 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
                             $toolCount++
                             Write-Host "  [$($block.name)]" -ForegroundColor DarkCyan
                         }
+                        # Silently ignore tool_result and other block types
                     }
                 }
+                # All other JSON events (input_json_delta, content_block_stop,
+                # message_start, message_stop, ping, etc.) are silently ignored
 
             } catch {
-                # Not valid JSON — likely stderr output
-                if ($line) {
+                # Not valid JSON — only print if it looks like meaningful stderr
+                # (filter out JSON fragments from multi-line events)
+                if ($line -and $line -notmatch '^\s*[\{\[\}\]"]') {
                     Write-Host $line -ForegroundColor DarkYellow
                     [void]$textBuilder.AppendLine($line)
                 }
@@ -338,9 +341,3 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     # Brief pause between iterations
     Start-Sleep -Seconds 2
 }
-
-Write-Host ""
-Write-Host "===== MAX ITERATIONS REACHED =====" -ForegroundColor Red
-Write-Host "Completed $MaxIterations iterations without finishing all tasks." -ForegroundColor Red
-Write-Host "Check progress.txt for current state and what remains." -ForegroundColor Red
-exit 1

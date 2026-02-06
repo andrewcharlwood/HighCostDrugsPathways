@@ -5,7 +5,9 @@
       "Bash(wc:*)",
       "WebFetch(domain:flet.dev)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.flet.dev)"
+      "WebFetch(domain:docs.flet.dev)",
+      "Bash(python -c:*)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\charlwoodand\\\\Ralph local\\\\Tasks\\\\UI Redesign\\\\logs\\\\*\" -Force)"
     ]
   }
 }

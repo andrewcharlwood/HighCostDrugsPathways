@@ -1,0 +1,145 @@
+Drug,Indication,Cluster_ID,Cluster_Description,NICE_TA_Reference
+ABATACEPT,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA195/TA280/TA375
+ABATACEPT,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA195/TA280/TA375
+ABATACEPT,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA568
+ACALABRUTINIB,Chronic lymphocytic leukaemia,CLL_COD,Chronic lymphocytic leukaemia,TA689
+ADALIMUMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA130/TA195/TA375
+ADALIMUMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA130/TA195/TA375
+ADALIMUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA146/TA455
+ADALIMUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA146/TA455
+ADALIMUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA125/TA199
+ADALIMUMAB,Crohn's disease,CROHNS_COD,Crohn's disease codes,TA187
+ADALIMUMAB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA329
+ADALIMUMAB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA143/TA383
+AFLIBERCEPT,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA346
+AFLIBERCEPT,Diabetic macular oedema,DMTYPE2AUDIT_COD,Type 2 diabetes codes,TA346
+ALIROCUMAB,Hypercholesterolaemia,HYPERCHOL_COD,Hypercholesterolaemia codes,TA393
+APREMILAST,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA419
+APREMILAST,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA419
+APREMILAST,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA433
+ATEZOLIZUMAB,Cancer (various),CANCER_COD,Cancer codes (various),TA492/TA520/TA525
+BARICITINIB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA466
+BARICITINIB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA466
+BARICITINIB,Atopic dermatitis,ECZEMA_COD,Atopic dermatitis/eczema codes,TA681
+BEVACIZUMAB,Cancer (various),CANCER_COD,Cancer codes (various),TA584/TA666
+BIMEKIZUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA723
+BIMEKIZUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA723
+BOTULINUM A TOXIN,Spasticity (various),SPASTICITY_COD,Spasticity and movement disorder codes,No specific TA
+BRODALUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA511
+BRODALUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA511
+CERTOLIZUMAB PEGOL,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA375/TA415
+CERTOLIZUMAB PEGOL,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA375/TA415
+CERTOLIZUMAB PEGOL,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA574
+CERTOLIZUMAB PEGOL,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA445
+CERTOLIZUMAB PEGOL,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA383
+DENOSUMAB,Osteoporosis,OSTEO_COD,Osteoporosis codes,TA204
+DENOSUMAB,Bone metastases,CANCER_COD,Cancer codes (bone metastases),TA265
+DEXAMETHASONE,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA349/TA824
+DEXAMETHASONE,Diabetic macular oedema,DMTYPE2AUDIT_COD,Type 2 diabetes codes,TA349/TA824
+DEXAMETHASONE,Multiple myeloma,MM_COD,Multiple myeloma codes,TA311/TA380
+DEXAMETHASONE,Uveitis,UVEITIS_COD,Uveitis codes,TA460
+DIMETHYL FUMARATE,Multiple sclerosis,MS_COD,Multiple sclerosis codes,TA320
+DIMETHYL FUMARATE,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA475
+DOCETAXEL,Cancer (various),CANCER_COD,Cancer codes (breast/lung/prostate),TA006/TA030/TA101
+DUPILUMAB,Atopic dermatitis,ECZEMA_COD,Atopic dermatitis/eczema codes,TA534
+DUPILUMAB,Asthma,ASTHMA_COD,Asthma codes,TA751
+ERENUMAB,Migraine,MIGRAINE_COD,Migraine codes,TA682
+ETANERCEPT,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA036/TA130/TA195
+ETANERCEPT,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA036/TA130/TA195
+ETANERCEPT,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA103
+ETANERCEPT,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA103
+ETANERCEPT,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA104/TA199
+ETANERCEPT,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA143/TA383
+EVOLOCUMAB,Hypercholesterolaemia,HYPERCHOL_COD,Hypercholesterolaemia codes,TA394
+FARICIMAB,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA799
+FARICIMAB,Diabetic macular oedema,DMTYPE2AUDIT_COD,Type 2 diabetes codes,TA799
+FILGOTINIB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA676
+FILGOTINIB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA676
+FILGOTINIB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA792
+FLUOCINOLONE,Atopic dermatitis,ECZEMA_COD,Atopic dermatitis/eczema codes,TA081
+FLUOCINOLONE,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA301
+FLUOCINOLONE,Uveitis,UVEITIS_COD,Uveitis codes,TA590
+FLUOCINOLONE ACETONIDE,Atopic dermatitis,ECZEMA_COD,Atopic dermatitis/eczema codes,TA081
+FLUOCINOLONE ACETONIDE,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA301
+FLUOCINOLONE ACETONIDE,Uveitis,UVEITIS_COD,Uveitis codes,TA590
+FREMANEZUMAB,Migraine,MIGRAINE_COD,Migraine codes,TA631/TA764
+GALCANEZUMAB,Migraine,MIGRAINE_COD,Migraine codes,TA659
+GOLIMUMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA225/TA375
+GOLIMUMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA225/TA375
+GOLIMUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA220
+GOLIMUMAB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA329
+GOLIMUMAB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA233/TA383
+GUSELKUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA521
+GUSELKUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA521
+GUSELKUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA711/TA815
+IDARUCIZUMAB,Anticoagulant reversal,ANTICOAG_COD,Anticoagulation-related codes,No specific TA
+IMATINIB,Chronic myeloid leukaemia,CML_COD,Chronic myeloid leukaemia codes,TA050/TA070/TA251
+IMATINIB,Gastrointestinal stromal tumours,GIST_COD,Gastrointestinal stromal tumour codes,TA086/TA326
+IMMUNOGLOBULIN,Immunodeficiency (various),IMMUNODEF_COD,Primary/secondary immunodeficiency codes,TA481/TA482
+INFLIXIMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA036/TA130/TA195
+INFLIXIMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA036/TA130/TA195
+INFLIXIMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA134
+INFLIXIMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA134
+INFLIXIMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA104/TA199
+INFLIXIMAB,Crohn's disease,CROHNS_COD,Crohn's disease codes,TA040/TA187
+INFLIXIMAB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA163/TA329
+INFLIXIMAB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA383
+IXEKIZUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA442
+IXEKIZUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA442
+IXEKIZUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA537
+IXEKIZUMAB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA718
+LUCENTIS,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,Biosimilar of ranibizumab
+LUCENTIS,Diabetic macular oedema,DMTYPE2AUDIT_COD,Type 2 diabetes codes,Biosimilar of ranibizumab
+OBINUTUZUMAB,Chronic lymphocytic leukaemia,CLL_COD,Chronic lymphocytic leukaemia codes,TA343/TA663
+OBINUTUZUMAB,Follicular lymphoma,FL_COD,Follicular lymphoma codes,TA472/TA513/TA629
+OCTREOTIDE,Neuroendocrine tumours,NET_COD,Neuroendocrine tumour codes,No specific TA
+OMALIZUMAB,Asthma,ASTHMA_COD,Asthma codes,TA133/TA278
+OMALIZUMAB,Chronic urticaria,URTICARIA_COD,Urticaria codes,TA339
+RANIBIZUMAB,Diabetic macular oedema,DM_COD,Diabetes mellitus codes,TA274
+RANIBIZUMAB,Diabetic macular oedema,DMTYPE2AUDIT_COD,Type 2 diabetes codes,TA274
+REMICADE,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,Brand name for infliximab
+REMICADE,Crohn's disease,CROHNS_COD,Crohn's disease codes,Brand name for infliximab
+REMICADE,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,Brand name for infliximab
+REMICADE,Psoriasis,PSORIASIS_COD,Psoriasis codes,Brand name for infliximab
+RILUZOLE,Motor neurone disease,MND_COD,Motor neurone disease codes,TA020
+RISANKIZUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA596
+RISANKIZUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA596
+RISANKIZUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA803
+RITUXIMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA126/TA195
+RITUXIMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA126/TA195
+RITUXIMAB,Non-Hodgkin's lymphoma,NHL_COD,Non-Hodgkin's lymphoma codes,TA037/TA065/TA110
+RITUXIMAB,Chronic lymphocytic leukaemia,CLL_COD,Chronic lymphocytic leukaemia codes,TA174/TA193/TA359
+RITUXIMAB,ANCA-associated vasculitis,VASCULITIS_COD,Vasculitis codes,TA308
+RIXATHON,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,Biosimilar of rituximab
+RIXATHON,Non-Hodgkin's lymphoma,NHL_COD,Non-Hodgkin's lymphoma codes,Biosimilar of rituximab
+SACITUZUMAB,Triple-negative breast cancer,BREASTCA_COD,Breast cancer codes,TA819
+SARILUMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA485
+SARILUMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA485
+SECUKINUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA350/TA734
+SECUKINUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA350/TA734
+SECUKINUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA445
+SECUKINUMAB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA407/TA719
+TERIPARATIDE,Osteoporosis,OSTEO_COD,Osteoporosis codes,TA087/TA161
+TILDRAKIZUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,No TA match found
+TILDRAKIZUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),No TA match found
+TOCILIZUMAB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA198/TA247/TA375
+TOCILIZUMAB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA198/TA247/TA375
+TOCILIZUMAB,Juvenile idiopathic arthritis,JIA_COD,Juvenile idiopathic arthritis codes,TA238/TA373
+TOCILIZUMAB,Giant cell arteritis,GCA_COD,Giant cell arteritis codes,TA518
+TOFACITINIB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA480
+TOFACITINIB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA480
+TOFACITINIB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA543
+TOFACITINIB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA547
+UPADACITINIB,Rheumatoid arthritis,RARTH_COD,Rheumatoid arthritis diagnosis codes,TA665/TA744
+UPADACITINIB,Rheumatoid arthritis,C19RARTH_COD,Rheumatoid arthritis disorders (broader),TA665/TA744
+UPADACITINIB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA768
+UPADACITINIB,Atopic dermatitis,ECZEMA_COD,Atopic dermatitis/eczema codes,TA814
+UPADACITINIB,Ankylosing spondylitis,ANKSPON_COD,Ankylosing spondylitis codes,TA829
+UPADACITINIB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA856
+USTEKINUMAB,Psoriasis,PSORIASIS_COD,Psoriasis codes,TA180/TA455
+USTEKINUMAB,Psoriasis,CUST_CMMS_PSORIASIS,Psoriasis (Cambridge Multimorbidity),TA180/TA455
+USTEKINUMAB,Psoriatic arthritis,PSORIASIS_COD,Psoriasis codes (for psoriatic arthritis),TA340
+USTEKINUMAB,Crohn's disease,CROHNS_COD,Crohn's disease codes,TA456
+USTEKINUMAB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA633
+VEDOLIZUMAB,Ulcerative colitis,ULCCOLITIS_COD,Ulcerative colitis codes,TA342
+VEDOLIZUMAB,Crohn's disease,CROHNS_COD,Crohn's disease codes,TA352

@@ -1,4 +1,4 @@
-# Re-export app from app_v2 for the new UI redesign
-from pathways_app.app_v2 import app
+# Re-export app from pathways_app
+from pathways_app.pathways_app import app
 
 __all__ = ["app"]
