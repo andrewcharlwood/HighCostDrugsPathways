@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "dash>=2.14.0",
+    "dash-mantine-components>=0.14.0",
     "fastparquet>=2024.11.0",
     "numpy>=1.25.0",
     "pandas>=2.0.3",

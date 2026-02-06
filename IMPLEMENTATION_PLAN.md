@@ -1,246 +1,314 @@
-# Implementation Plan - Drug-Aware Indication Matching
+# Implementation Plan — Reflex → Dash Migration
 
 ## Project Overview
 
-Update the indication-based pathway charts so that patient indications are matched **per drug**, not just per patient. Currently, each patient gets ONE indication (most recent GP diagnosis match). This ignores which drugs the patient is actually taking.
+Migrate the Reflex web application to Dash (Plotly) + Dash Mantine Components. The backend (`src/`) is untouched — only the frontend changes.
 
-### The Problem
+### What Changes
+- `pathways_app/` (Reflex) → `dash_app/` (Dash + DMC)
+- `run_dash.py` entry point replaces `reflex run`
+- CSS extracted from `01_nhs_classic.html` → `dash_app/assets/nhs.css`
+- Drug/Directory/Indication filters consolidated into a right-side `dmc.Drawer`
 
-A patient on ADALIMUMAB + OMALIZUMAB currently gets assigned a single indication (e.g., "rheumatoid arthritis" — the most recent GP match). But:
-- ADALIMUMAB is used for rheumatoid arthritis, axial spondyloarthritis, crohn's disease, etc.
-- OMALIZUMAB is used for asthma, allergic asthma, urticaria
+### What Stays (DO NOT MODIFY pipeline/analysis logic)
+- `data_processing/pathway_pipeline.py`, `transforms.py`, `diagnosis_lookup.py` (matching logic)
+- `analysis/pathway_analyzer.py`, `statistics.py`
+- `cli/refresh_pathways.py`
+- `data_processing/schema.py`, `reference_data.py`, `cache.py`, `data_source.py`
+- SQLite schema and `pathway_nodes` table
+- `data/` reference files (CSVs, pathways.db)
 
-These are different clinical pathways and should be treated as separate treatment journeys.
+### What CAN be edited in `src/` (shared utilities)
+- `visualization/plotly_generator.py` — add/refactor a function to accept list-of-dicts (what Dash produces) instead of only DataFrames
+- `data_processing/database.py` — add shared query functions for pathway node loading so both Reflex and Dash use the same queries
+- `core/config.py` — if path resolution needs adjusting
 
-### The Solution
+### Dash App Structure
+```
+dash_app/
+├── __init__.py
+├── app.py                    # Entry point, layout root, dcc.Store components
+├── assets/
+│   └── nhs.css               # Extracted from 01_nhs_classic.html
+├── data/
+│   ├── queries.py             # SQLite queries (extracted from Reflex AppState)
+│   └── card_browser.py        # DimSearchTerm.csv → directorate tree
+├── components/
+│   ├── header.py              # Top header bar
+│   ├── sidebar.py             # Left navigation
+│   ├── kpi_row.py             # 4 KPI cards
+│   ├── filter_bar.py          # Chart type toggle + date dropdowns
+│   ├── chart_card.py          # Chart area with tabs + dcc.Graph
+│   ├── drawer.py              # dmc.Drawer with card browser
+│   └── footer.py              # Page footer
+├── callbacks/
+│   ├── __init__.py            # register_callbacks(app)
+│   ├── filters.py             # Date/chart-type → app-state store
+│   ├── chart.py               # chart-data → go.Icicle figure
+│   ├── drawer.py              # Drawer open/close + drug selection
+│   └── kpi.py                 # chart-data → KPI card values
+└── utils/
+    └── formatting.py          # Cost/patient display formatters
+```
 
-Match each drug to an indication by cross-referencing:
-1. **GP diagnosis** — which Search_Terms the patient has matching SNOMED codes for
-2. **Drug mapping** — which Search_Terms list each drug (from `DimSearchTerm.csv`)
+### State Management (3 dcc.Store components)
+- **app-state** (session): `chart_type`, `initiated`, `last_seen`, `selected_drugs`, `selected_directorates`, `date_filter_id`
+- **chart-data** (memory): `nodes[]`, `unique_patients`, `total_drugs`, `total_cost`
+- **reference-data** (session): `available_drugs`, `directorate_tree` (loaded once)
 
-Only assign a drug to an indication if BOTH conditions are met. If a patient's drugs map to different indications, they become separate pathways (via modified UPID).
+### Callback Chain
+```
+Page Load → load_reference_data → reference-data store
+         → load_pathway_data → chart-data store
+                              ├→ update_kpis → KPI cards
+                              └→ update_chart → dcc.Graph
 
-### Key Design Decisions
+Filter change → update_app_state → app-state store → load_pathway_data → (chain above)
 
-| Aspect | Decision |
-|--------|----------|
-| Drug-indication source | `data/DimSearchTerm.csv` — Search_Term → CleanedDrugName mapping |
-| UPID modification | `{original_UPID}\|{search_term}` for drugs with matched indication |
-| GP diagnosis matching | Return ALL matches per patient (not just most recent) |
-| Drug matching | Substring match: HCD drug name contains DimSearchTerm fragment |
-| Multiple indication matches per drug | Use highest GP code frequency as tiebreaker (COUNT of matching SNOMED codes per Search_Term) |
-| GP code time range | Only codes from MIN(Intervention Date) onwards — restricts to HCD data window |
-| No indication match | Fallback to directory (same as current behavior) |
-| Same patient, different indications | Separate pathways via different modified UPIDs |
+Drawer selection → update_drug_selection → app-state store → load_pathway_data → (chain above)
+```
 
-### Examples
-
-**Patient on ADALIMUMAB + GOLIMUMAB, GP dx: axial spondyloarthritis + asthma**
-- axial spondyloarthritis drug list includes both ADALIMUMAB and GOLIMUMAB
-- → Both drugs grouped under "axial spondyloarthritis", single pathway
-- Modified UPID: `RMV12345|axial spondyloarthritis`
-
-**Patient on ADALIMUMAB + OMALIZUMAB, GP dx: axial spondyloarthritis + asthma**
-- axial spondyloarthritis lists ADALIMUMAB but not OMALIZUMAB
-- asthma lists OMALIZUMAB but not ADALIMUMAB
-- → Two separate pathways:
-  - `RMV12345|axial spondyloarthritis` with ADALIMUMAB
-  - `RMV12345|asthma` with OMALIZUMAB
-
-**Patient on ADALIMUMAB, GP dx: rheumatoid arthritis (47 codes) + crohn's disease (2 codes)**
-- Both Search_Terms list ADALIMUMAB AND patient has GP dx for both
-- → Tiebreaker: highest code frequency — rheumatoid arthritis has 47 matching SNOMED codes vs 2 for crohn's
-- → Single pathway under rheumatoid arthritis (more clinical activity = more likely the treatment indication)
-
----
-
-## Phase 1: Update Snowflake Query & Drug Mapping
-
-### 1.1 Update `get_patient_indication_groups()` to return ALL matches with frequency
-- [x] Modify the Snowflake query in `get_patient_indication_groups()` (diagnosis_lookup.py):
-  - Remove `QUALIFY ROW_NUMBER() OVER (PARTITION BY ... ORDER BY EventDateTime DESC) = 1`
-  - Return ALL matching Search_Terms per patient with code frequency:
-    ```sql
-    SELECT pc."PatientPseudonym" AS "PatientPseudonym",
-           aic.Search_Term AS "Search_Term",
-           COUNT(*) AS "code_frequency"
-    FROM PrimaryCareClinicalCoding pc
-    JOIN AllIndicationCodes aic ON pc."SNOMEDCode" = aic.SNOMEDCode
-    WHERE pc."PatientPseudonym" IN (...)
-      AND pc."EventDateTime" >= :earliest_hcd_date
-    GROUP BY pc."PatientPseudonym", aic.Search_Term
-    ```
-  - `code_frequency` = number of matching SNOMED codes per Search_Term per patient
-  - Higher frequency = more clinical activity = stronger signal for tiebreaker
-  - `earliest_hcd_date` = `MIN(Intervention Date)` from the HCD DataFrame — restricts GP codes to the HCD data window, reducing noise from old/irrelevant diagnoses
-- [x] Accept `earliest_hcd_date` parameter in `get_patient_indication_groups()` and pass to query
-- [x] Keep batch processing (500 patients per query)
-- [x] Update return type: DataFrame now has multiple rows per patient (PatientPseudonym, Search_Term, code_frequency)
-- [x] Verify: Query returns more rows than before — 537,794 patient-indication rows (avg 16.0 per matched patient) vs previous single row per patient
-
-### 1.2 Merge related asthma Search_Terms in CLUSTER_MAPPING_SQL
-- [x] In `CLUSTER_MAPPING_SQL` (diagnosis_lookup.py), merge these 3 Search_Terms into one `"asthma"` entry:
-  - `allergic asthma` (Cluster: OMALIZUMAB only)
-  - `asthma` (Cluster: BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, OMALIZUMAB, RESLIZUMAB)
-  - `severe persistent allergic asthma` (Cluster: OMALIZUMAB only)
-- [x] Map all 3 Cluster_IDs to `Search_Term = 'asthma'` in the CTE VALUES
-- [x] `urticaria` (OMALIZUMAB, DERMATOLOGY) stays SEPARATE — do NOT merge with asthma
-- [x] Also update `load_drug_indication_mapping()` to apply the same merge when loading DimSearchTerm.csv:
-  - Combine drug lists from all 3 entries under a single `"asthma"` key
-  - Deduplicate drug fragments (OMALIZUMAB appears in all 3)
-- [x] Verify: GP code lookup returns `"asthma"` (not `"allergic asthma"` or `"severe persistent allergic asthma"`)
-- [x] Verify: Drug mapping for `"asthma"` includes full combined drug list: BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, OMALIZUMAB, RESLIZUMAB
-
-### 1.3 Build drug-to-Search_Term lookup from DimSearchTerm.csv
-- [x] Add function `load_drug_indication_mapping()` to `diagnosis_lookup.py`:
-  - Loads `data/DimSearchTerm.csv`
-  - Builds dict: `drug_fragment (uppercase) → list[Search_Term]`
-  - Also builds reverse: `search_term → list[drug_fragments]`
-  - CleanedDrugName is pipe-separated (e.g., "ADALIMUMAB|GOLIMUMAB|IXEKIZUMAB")
-- [x] Add function `get_search_terms_for_drug(drug_name, search_term_to_fragments) -> list[str]`:
-  - Returns all Search_Terms whose drug fragments are substrings of the drug name (case-insensitive)
-  - More practical than per-term boolean check — returns all matches at once for Phase 2 use
-- [x] Verify: ADALIMUMAB matches "axial spondyloarthritis", OMALIZUMAB matches "asthma"
+### Directorate Card Browser (dmc.Drawer)
+- Position: right, ~480px wide
+- **Top card**: "All Drugs" — flat list from `pathway_nodes` level 3. Pick one drug → see it across all directorates/indications.
+- **Below**: Cards per PrimaryDirectorate (from DimSearchTerm.csv). Each has `dmc.Accordion` with indication items → drug chips inside.
+- **Clear Filters** button resets all selections.
+- Data model: `DimSearchTerm.csv` grouped by PrimaryDirectorate → Search_Term → CleanedDrugName
 
 ---
 
-## Phase 2: Drug-Aware Indication Matching Logic
+## Phase 0: Project Scaffolding
 
-### 2.1 Create `assign_drug_indications()` function
-- [x] Add to `diagnosis_lookup.py` or `pathway_pipeline.py`:
-  ```
-  def assign_drug_indications(
-      df: pd.DataFrame,              # HCD data with UPID, Drug Name columns
-      gp_matches_df: pd.DataFrame,   # PatientPseudonym → list of matched Search_Terms
-      drug_mapping: dict,             # From load_drug_indication_mapping()
-  ) -> tuple[pd.DataFrame, pd.DataFrame]:
-      Returns: (modified_df, indication_df)
-      - modified_df: HCD data with UPID replaced by {UPID}|{indication}
-      - indication_df: mapping modified_UPID → Search_Term
-  ```
-- [x] Logic per UPID + Drug Name pair:
-  1. Get patient's GP-matched Search_Terms with code_frequency (from gp_matches_df via PseudoNHSNoLinked)
-  2. Get which Search_Terms include this drug (from drug_mapping)
-  3. Intersection = valid indications for this drug-patient pair
-  4. If 1 match: use it
-  5. If multiple matches: use highest code_frequency as tiebreaker (most GP coding activity = most likely treatment indication)
-  6. If 0 matches: use fallback directory
-- [x] Modify UPID in df rows: `{original_UPID}|{matched_search_term}`
-- [x] Build indication_df: `{modified_UPID}` → `Search_Term` (or fallback label)
-- [x] Verify: Function compiles, handles edge cases (no GP match, no drug match)
+### 0.1 Create dash_app/ skeleton + update pyproject.toml
+- [x] Create `dash_app/` directory with `__init__.py`, `app.py`, subdirectories (`assets/`, `data/`, `components/`, `callbacks/`, `utils/`)
+- [x] Create `run_dash.py` at project root (simple `from dash_app.app import app; app.run(debug=True, port=8050)`)
+- [x] Update `pyproject.toml`: add `dash>=2.14.0`, `dash-mantine-components>=0.14.0` to dependencies (keep `reflex` temporarily)
+- [x] Create minimal `app.py` with `dash.Dash(__name__)`, DMC provider wrapper, and "Hello Dash" placeholder layout
+- **Checkpoint**: `python run_dash.py` starts, shows "Hello Dash" at localhost:8050 ✓
 
-### 2.2 Handle tiebreaker for multiple indication matches
-- [x] When a drug matches multiple Search_Terms AND patient has GP dx for multiple:
-  - Use `code_frequency` from the GP query (COUNT of matching SNOMED codes per Search_Term)
-  - Higher code_frequency = more clinical activity for that condition = more likely treatment indication
-  - E.g., patient with 47 RA codes and 2 crohn's codes → ADALIMUMAB assigned to RA
-  - code_frequency is already returned by the updated query in Task 1.1
-- [x] Verify: Tiebreaker logic correctly picks highest-frequency diagnosis
-- [x] Verify: Tie on frequency (rare but possible) falls back to alphabetical Search_Term for determinism
+### 0.2 Extract CSS from 01_nhs_classic.html into dash_app/assets/nhs.css
+- [x] Copy the `<style>` block from `01_nhs_classic.html` (lines 8-314) into `dash_app/assets/nhs.css`
+- [x] Add Google Fonts `@import` for Source Sans 3 at top of CSS file
+- [x] Remove the mock icicle chart CSS (`.icicle`, `.icicle__row`, `.icicle__cell`, `.lvl-*` classes) — Plotly handles the real chart
+- [x] Verify CSS loads by checking browser dev tools when app starts
+- **Checkpoint**: `python run_dash.py` loads CSS (check font renders as Source Sans 3) ✓
 
 ---
 
-## Phase 3: Pipeline Integration
+## Phase 1: Data Access Layer
 
-### 3.1 Update `refresh_pathways.py` indication processing
-- [x] In the `elif current_chart_type == "indication":` block:
-  1. Call `get_patient_indication_groups()` as before (but now returns ALL matches)
-  2. Load drug mapping: `drug_mapping = load_drug_indication_mapping()`
-  3. Call `assign_drug_indications(df, gp_matches_df, drug_mapping)`
-  4. Use modified_df (with indication-aware UPIDs) for pathway processing
-  5. Use indication_df for the indication mapping
-- [x] Pass modified_df (not original df) to `process_indication_pathway_for_date_filter()`
-- [x] Verify: Pipeline compiles, `python -m py_compile cli/refresh_pathways.py`
+### 1.1 Create shared data access functions
+- [ ] Add query functions to `src/data_processing/database.py` (or a new `src/data_processing/pathway_queries.py` if database.py is already large):
+  - `load_initial_data(db_path) -> dict` — extracted from `AppState.load_data()` (pathways_app.py lines 407-488): returns `{"available_drugs": [...], "available_directorates": [...], "available_indications": [...], "total_records": int, "last_updated": str}`
+  - `load_pathway_data(db_path, filter_id, chart_type, selected_drugs=None, selected_directorates=None) -> dict` — extracted from `AppState.load_pathway_data()` (lines 490-642): returns `{"nodes": [...], "unique_patients": int, "total_drugs": int, "total_cost": float, "last_updated": str}`
+  - These are plain Python functions that accept `db_path` as a parameter (no Reflex state objects)
+- [ ] Create thin `dash_app/data/queries.py` that imports and calls the shared functions with the correct `db_path`
+- [ ] Return plain dicts/lists — JSON-serializable for dcc.Store
+- **Checkpoint**: `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"` returns valid data
 
-### 3.2 Test with dry run
-- [x] Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
-- [x] Verify:
-  - Modified UPIDs appear in pipeline log (42,072 unique modified UPIDs)
-  - Patient counts are reasonable (42,072 modified UPIDs vs 36,628 original patients)
-  - Drug-indication matching is logged (49.3% match, 50.7% fallback, 15,238 tiebreakers)
-  - Pathway hierarchy shows drug-specific grouping under correct indications (1,846 total nodes)
-- [x] Fixed: network_timeout increased from 30→600 (was killing GP lookup queries)
-- [x] Fixed: batch_size increased from 500→5000 (reduces CTE compilation overhead from 74 to 8 batches)
+### 1.2 Build directorate card tree from DimSearchTerm.csv
+- [ ] Create `dash_app/data/card_browser.py` with:
+  - `build_directorate_tree()` → dict structured as `{PrimaryDirectorate: {Search_Term: [drug_fragment, ...]}}`
+  - Loads `data/DimSearchTerm.csv`, groups by PrimaryDirectorate → Search_Term → split CleanedDrugName by pipe
+  - Applies SEARCH_TERM_MERGE_MAP from `data_processing.diagnosis_lookup` (merge asthma variants)
+  - `get_all_drugs()` → sorted flat list of all unique drug labels from `pathway_nodes` level 3
+- **Checkpoint**: `python -c "from dash_app.data.card_browser import build_directorate_tree; import json; print(json.dumps(build_directorate_tree(), indent=2))"` returns valid tree
 
 ---
 
-## Phase 4: Full Refresh & Validation
+## Phase 2: Static Layout
 
-### 4.1 Full refresh with both chart types
-- [x] Run `python -m cli.refresh_pathways --chart-type all`
-- [x] Verify:
-  - Both chart types generate data (directory: 1,101 nodes, indication: 1,846 nodes)
-  - Directory charts unchanged (293-329 nodes per date filter, same as before)
-  - Indication charts reflect drug-aware matching (42,072 modified UPIDs, 49.3% match rate)
+### 2.1 Header + sidebar components
+- [ ] Create `dash_app/components/header.py` — `make_header()` function returning Dash HTML component
+  - NHS logo, title "HCD Analysis", breadcrumb, data freshness indicator (status dot + record count + last updated)
+  - Use CSS classes from `nhs.css`: `.top-header`, `.top-header__brand`, `.top-header__logo`, `.top-header__title`, etc.
+  - Record count and last updated are `html.Span` with IDs for callback updates: `id="header-record-count"`, `id="header-last-updated"`
+- [ ] Create `dash_app/components/sidebar.py` — `make_sidebar()` function
+  - Navigation items matching 01_nhs_classic.html sidebar (Pathway Overview active, Drug Selection, Trust Selection, Directory Selection, Indications, Cost Analysis, Export Data)
+  - SVG icons as raw HTML (copy from 01_nhs_classic.html)
+  - "Drug Selection" and "Indications" items trigger the dmc.Drawer (via callback, wired in Phase 4)
+  - Footer: "NHS Norfolk & Waveney ICB / High Cost Drugs Programme"
+- **Checkpoint**: Components render in browser with correct NHS styling
 
-### 4.2 Validate indication chart correctness
-- [x] Check that drugs under an indication all appear in that Search_Term's drug list
-  - RA: ADALIMUMAB, RITUXIMAB, BARICITINIB, CERTOLIZUMAB PEGOL, TOCILIZUMAB ✓
-  - Asthma: DUPILUMAB, OMALIZUMAB ✓
-- [x] Verify that a patient on drugs for different indications creates separate pathway branches
-  - 42,072 modified UPIDs vs 36,628 original patients confirms splitting ✓
-- [x] Verify that drugs sharing an indication are grouped in the same pathway
-  - Multiple RA drugs (ADALIMUMAB, RITUXIMAB, etc.) all under "rheumatoid arthritis" ✓
-- [x] Log: patient count comparison (old vs new approach)
-  - Old: 36,628 patients → single indication each
-  - New: 42,072 modified UPIDs → drug-specific indications (15% increase from splitting)
+### 2.2 Main content area: KPI row + filter bar + chart card
+- [ ] Create `dash_app/components/kpi_row.py` — `make_kpi_row()` function
+  - 4 KPI cards: Unique Patients, Drug Types, Total Cost, Indication Match Rate
+  - Each card value has an ID for callback updates: `id="kpi-patients"`, `id="kpi-drugs"`, `id="kpi-cost"`, `id="kpi-match"`
+  - CSS classes: `.kpi-row`, `.kpi-card`, `.kpi-card__label`, `.kpi-card__value`, `.kpi-card__sub`
+- [ ] Create `dash_app/components/filter_bar.py` — `make_filter_bar()` function
+  - Chart type toggle pills ("By Directory" / "By Indication") — use `html.Button` with `.toggle-pill` CSS
+  - Initiated dropdown: All years, Last 2 years, Last 1 year — use `dcc.Dropdown` or `html.Select` with `.filter-select`
+  - Last seen dropdown: Last 6 months, Last 12 months
+  - NO drug/directorate dropdowns here (those are in the drawer)
+  - Component IDs: `id="chart-type-directory"`, `id="chart-type-indication"`, `id="filter-initiated"`, `id="filter-last-seen"`
+- [ ] Create `dash_app/components/chart_card.py` — `make_chart_card()` function
+  - Card header with title + dynamic subtitle (hierarchy label: "Trust → Directorate → Drug → Pathway")
+  - Tab row: Icicle (active), Sankey (disabled placeholder), Timeline (disabled placeholder)
+  - `dcc.Graph(id="pathway-chart")` filling the card body
+  - CSS classes: `.chart-card`, `.chart-card__header`, `.chart-card__tabs`, `.chart-tab`
+- **Checkpoint**: All three components render with correct layout and styling
 
-### 4.3 Validate Reflex UI
-- [x] Run `python -m reflex compile` to verify app compiles (compiled in 16.6s)
-- [x] Verify chart type toggle still works (no code changes to UI, toggle mechanism unchanged)
-- [x] Verify indication chart shows correct hierarchy (42 unique search_terms at level 2 for all_6mo)
+### 2.3 Footer + full page assembly
+- [ ] Create `dash_app/components/footer.py` — `make_footer()` function
+  - CSS class `.page-footer`, same text as 01_nhs_classic.html
+- [ ] Update `dash_app/app.py` to assemble full page layout:
+  - `dmc.MantineProvider(children=[header, sidebar, main_content])`
+  - Main content: KPI row → filter bar → chart card → footer
+  - Add 3 `dcc.Store` components: `id="app-state"`, `id="chart-data"`, `id="reference-data"`
+  - Wrap main content in `html.Main(className="main")`
+- **Checkpoint**: Full page renders at localhost:8050, layout matches 01_nhs_classic.html visually
+
+---
+
+## Phase 3: Core Callbacks
+
+### 3.1 Reference data loading + filter state management
+- [ ] Create `dash_app/callbacks/filters.py`:
+  - `load_reference_data` callback: fires on page load, calls `queries.load_initial_data()`, populates `reference-data` store + header indicators
+  - `update_app_state` callback: fires when chart-type toggle or date dropdowns change, computes `date_filter_id` (e.g., `"all_6mo"`), updates `app-state` store
+  - Chart type toggle: use `callback_context` to determine which button was clicked, set active class via `className`
+- [ ] Create `dash_app/callbacks/__init__.py` with `register_callbacks(app)` that imports and registers all callback modules
+- [ ] Wire `register_callbacks(app)` in `app.py`
+- **Checkpoint**: Page loads reference data, filter dropdowns update app-state store (verify via browser dev tools → dcc.Store)
+
+### 3.2 Pathway data loading callback
+- [ ] Create `dash_app/callbacks/chart.py` (or add to filters.py):
+  - `load_pathway_data` callback: Input=`app-state` store, Output=`chart-data` store
+  - Calls `queries.load_pathway_data(filter_id, chart_type, selected_drugs, selected_directorates)`
+  - Runs on page load AND whenever `app-state` changes
+- **Checkpoint**: Changing date filter updates chart-data store with new pathway nodes
+
+### 3.3 KPI update callback
+- [ ] Create `dash_app/callbacks/kpi.py`:
+  - `update_kpis` callback: Input=`chart-data` store, Output=KPI card values (4 outputs)
+  - Extracts `unique_patients`, `total_drugs`, `total_cost` from chart-data
+  - Formats numbers: patients with commas, cost as "£XXX.XM", drugs as plain number
+- **Checkpoint**: KPIs update when date filters change
+
+### 3.4 Icicle chart rendering callback
+- [ ] Add a `create_icicle_from_nodes(nodes: list[dict], title: str) -> go.Figure` function to `src/visualization/plotly_generator.py`:
+  - Accepts list-of-dicts (the format stored in `chart-data` dcc.Store / returned by `load_pathway_data`)
+  - Same 10-field customdata, colorscale, texttemplate, hovertemplate as the existing Reflex `icicle_figure` (pathways_app.py lines 769-920)
+  - The existing `create_icicle_figure(ice_df)` stays untouched — the new function is an additional entry point for dict-based data
+  - Use the NHS blue gradient colorscale from the Reflex version: `[[0.0, "#003087"], [0.25, "#0066CC"], ...]`
+- [ ] Add to `dash_app/callbacks/chart.py`:
+  - `update_chart` callback: Input=`chart-data` store, Output=`pathway-chart` figure
+  - Calls `create_icicle_from_nodes(chart_data["nodes"], title)` from the shared visualization module
+  - Dynamic title based on chart type and filters
+- **Checkpoint**: Real icicle chart renders with SQLite data, filters change the chart, hover shows full statistics
+
+---
+
+## Phase 4: Directorate Card Browser
+
+### 4.1 dmc.Drawer layout
+- [ ] Create `dash_app/components/drawer.py` — `make_drawer()` function:
+  - `dmc.Drawer(id="drug-drawer", position="right", size="480px")`
+  - **Top section**: "All Drugs" card — flat alphabetical list of all drug names from pathway_nodes level 3
+    - Each drug as a `dmc.Chip` or clickable badge, ID pattern: `{"type": "drug-chip", "index": drug_name}`
+  - **Below**: One `dmc.Card` per PrimaryDirectorate from DimSearchTerm.csv
+    - Card title = PrimaryDirectorate name
+    - Inside: `dmc.Accordion` with one item per Search_Term (indication)
+    - Inside each accordion item: drug fragment chips
+  - **Bottom**: `dmc.Button("Clear Filters", id="clear-drug-filters")` — full width
+- **Checkpoint**: Drawer opens with correct layout, all directorates and drugs visible
+
+### 4.2 Drawer callbacks
+- [ ] Create `dash_app/callbacks/drawer.py`:
+  - Open/close drawer: sidebar "Drug Selection" or "Indications" click → open drawer
+  - Drug selection: clicking a drug chip → adds drug to `selected_drugs` in `app-state` → triggers chart reload
+  - Indication selection: clicking an indication accordion item → filters to drugs under that indication
+  - Visual highlights: selected drugs get active styling (e.g., blue background on chips)
+  - Clear filters: resets `selected_drugs` and `selected_directorates` in `app-state`
+  - Use pattern-matching callbacks for dynamic drug chips: `@app.callback(..., Input({"type": "drug-chip", "index": ALL}, "n_clicks"))`
+- **Checkpoint**: Select drug from drawer → chart filters to show that drug → clear resets
+
+---
+
+## Phase 5: Polish & Cleanup
+
+### 5.1 Trust selection
+- [ ] Add trust selection either:
+  - In the dmc.Drawer as a "Trusts" section (preferred — keeps all filters in one place), OR
+  - As sidebar checkboxes
+- [ ] Wire trust selection to `selected_trusts` in `app-state` → pathway data reload
+- **Checkpoint**: Selecting trusts filters the chart correctly
+
+### 5.2 Loading/error/empty states + dynamic hierarchy label
+- [ ] Add `dcc.Loading` wrapper around chart area
+- [ ] Show "No data" message when chart-data is empty
+- [ ] Show error toast/alert when database query fails
+- [ ] Dynamic chart subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway" based on chart type
+- **Checkpoint**: Loading spinner appears during data fetch, empty state shows message
+
+### 5.3 Data freshness indicator
+- [ ] Header shows: green dot + "{N} records" + "Last updated: {relative_time}"
+- [ ] Pull from `pathway_refresh_log` via `queries.load_initial_data()`
+- [ ] Format as relative time (e.g., "2h ago", "yesterday")
+- **Checkpoint**: Header shows correct data freshness
+
+### 5.4 Remove Reflex + final validation
+- [ ] Remove `reflex` from `pyproject.toml` dependencies
+- [ ] Delete or archive `pathways_app/` directory (move to `archive/`)
+- [ ] Delete `pathways_app/styles.py` and any Reflex-specific files
+- [ ] Update project `CLAUDE.md` to document Dash app structure, new run command, callback architecture
+- [ ] Verify: `python run_dash.py` starts cleanly, full end-to-end workflow works
+- [ ] Verify: No Reflex imports anywhere in `dash_app/`
+- **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
 
 ---
 
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
-- [x] App compiles without errors (`reflex compile` succeeds — 16.6s)
-- [x] Both chart types generate pathway data (directory: 1,101, indication: 1,846)
-- [x] Indication charts show drug-specific indication matching (49.3% match rate)
-- [x] Drugs under the same indication for the same patient are in one pathway (validated via SQLite queries)
-- [x] Drugs under different indications for the same patient create separate pathways (42,072 modified UPIDs > 36,628 original)
-- [x] Fallback works for drugs with no indication match (RHEUMATOLOGY/OPHTHALMOLOGY/etc. "(no GP dx)" labels present)
-- [x] Full refresh completes successfully (2,947 records in 738.4s)
-- [x] Existing directory charts are unaffected (1,101 nodes, same count range as previous refresh)
+- [ ] `python run_dash.py` starts cleanly at localhost:8050
+- [ ] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
+- [ ] Icicle chart renders with real SQLite data (pathway_nodes)
+- [ ] Date filters + chart type toggle update chart correctly
+- [ ] dmc.Drawer opens, shows directorate cards with indications/drugs
+- [ ] Selecting a drug from drawer filters the chart
+- [ ] "All Drugs" card allows selecting any drug across all contexts
+- [ ] "Clear Filters" resets all selections
+- [ ] KPIs update dynamically (patients, drugs, cost)
+- [ ] No Reflex imports in `dash_app/`
 
 ---
 
-## Reference
+## Key Reference Files
 
-### DimSearchTerm.csv Structure
-```
-Search_Term,CleanedDrugName,PrimaryDirectorate
-rheumatoid arthritis,ABATACEPT|ADALIMUMAB|ANAKINRA|BARICITINIB|...,RHEUMATOLOGY
-asthma,BENRALIZUMAB|DUPILUMAB|INHALED|MEPOLIZUMAB|OMALIZUMAB|RESLIZUMAB,THORACIC MEDICINE
-```
-
-### Modified UPID Format
-```
-Original:  RMV12345
-Modified:  RMV12345|rheumatoid arthritis
-Fallback:  RMV12345|RHEUMATOLOGY (no GP dx)
-```
-
-### Current vs New Indication Flow
-```
-CURRENT:
-  Patient → GP dx (most recent) → single Search_Term → one pathway
-
-NEW:
-  Patient + Drug A → GP dx matching Drug A → Search_Term X
-  Patient + Drug B → GP dx matching Drug B → Search_Term Y
-  → If X == Y: one pathway under X
-  → If X != Y: two pathways (modified UPIDs)
-```
-
-### Key Files
-
-| File | Changes |
+| File | Purpose |
 |------|---------|
-| `data_processing/diagnosis_lookup.py` | Update query, add drug mapping functions |
-| `data_processing/pathway_pipeline.py` | Possibly minor changes for modified UPIDs |
-| `cli/refresh_pathways.py` | Integrate drug-aware matching into pipeline |
-| `data/DimSearchTerm.csv` | Reference data (read-only) |
-| `analysis/pathway_analyzer.py` | No changes expected (UPID changes are transparent) |
-| `pathways_app/pathways_app.py` | No changes expected |
+| `01_nhs_classic.html` | Design reference — CSS classes, layout structure, visual targets |
+| `pathways_app/pathways_app.py` | Source of truth for data loading logic (lines 407-642) and icicle chart (lines 769-920) |
+| `data/pathways.db` | SQLite database with pre-computed pathway_nodes |
+| `data/DimSearchTerm.csv` | Directorate → Search_Term → drug mapping for card browser |
+| `src/data_processing/diagnosis_lookup.py` | SEARCH_TERM_MERGE_MAP constant for asthma normalization |
+
+## Key Data Patterns
+
+### Date Filter IDs
+| ID | Initiated | Last Seen |
+|----|-----------|-----------|
+| `all_6mo` | All years | Last 6 months (DEFAULT) |
+| `all_12mo` | All years | Last 12 months |
+| `1yr_6mo` | Last 1 year | Last 6 months |
+| `1yr_12mo` | Last 1 year | Last 12 months |
+| `2yr_6mo` | Last 2 years | Last 6 months |
+| `2yr_12mo` | Last 2 years | Last 12 months |
+
+### Pathway Node Columns (from SQLite)
+`parents, ids, labels, level, value, cost, costpp, cost_pp_pa, colour, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, average_administered, avg_days, trust_name, directory, drug_sequence, chart_type, date_filter_id`
+
+### Icicle Chart Customdata (10 fields)
+```
+[0] value          — patient count
+[1] colour         — proportion of parent
+[2] cost           — total cost
+[3] costpp         — cost per patient
+[4] first_seen     — first intervention date
+[5] last_seen      — last intervention date
+[6] first_seen_parent  — earliest date in parent group
+[7] last_seen_parent   — latest date in parent group
+[8] average_spacing    — dosing information string
+[9] cost_pp_pa         — cost per patient per annum
+```

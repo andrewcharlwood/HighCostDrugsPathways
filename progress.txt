@@ -1,401 +1,106 @@
-# Progress Log - Drug-Aware Indication Matching
+# Progress Log — Reflex → Dash Migration
 
 ## Project Context
 
-This project extends the indication-based pathway charts (Phase 1-5 complete) with drug-aware matching.
+Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine Components. Pipeline/analysis logic in `src/` is untouched, but shared utilities (data queries, figure construction) should be added TO `src/` so Dash callbacks call into them rather than duplicating code.
 
-**Previous state**: Patients get ONE indication based on their most recent GP diagnosis match (SNOMED cluster codes). This ignores which drugs the patient is taking.
+**Previous state**: Fully working Reflex app with pre-computed pathway architecture (SQLite), dual chart types (directory + indication), drug-aware indication matching. All pipeline work is done.
 
-**New goal**: Match each drug to an indication by cross-referencing the patient's GP diagnoses AND the drug's Search_Term mapping from DimSearchTerm.csv.
+**New goal**: Replace Reflex with Dash for better control over layout, CSS, and component behavior. Add a dmc.Drawer-based "card browser" for drug/indication selection organized by clinical directorate.
 
-## Key Data/Patterns
+## Key Data Patterns
 
-### DimSearchTerm.csv
+### SQLite pathway_nodes table
+- ~3,600 rows across 12 datasets (6 date filters × 2 chart types)
+- Key columns: `parents, ids, labels, level, value, cost, costpp, cost_pp_pa, colour, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, trust_name, directory, drug_sequence, chart_type, date_filter_id`
+- Level 0 = Root, Level 1 = Trust, Level 2 = Directory/Indication, Level 3 = Drug, Level 4+ = Pathway
+- `chart_type`: "directory" or "indication"
+- `date_filter_id`: "all_6mo" (default), "all_12mo", "1yr_6mo", "1yr_12mo", "2yr_6mo", "2yr_12mo"
+- UNIQUE constraint: (date_filter_id, chart_type, ids)
+
+### DimSearchTerm.csv (for card browser)
 - Located at `data/DimSearchTerm.csv`
-- Columns: Search_Term, CleanedDrugName (pipe-separated), PrimaryDirectorate
-- ~165 rows mapping clinical conditions to drug name fragments
-- Drug fragments are substrings that match standardized drug names from HCD data
-- Some entries have generic fragments: INHALED, CONTINUOUS, STANDARD-DOSE, PEGYLATED
+- Columns: Search_Term, CleanedDrugName (pipe-separated drug fragments), PrimaryDirectorate
+- ~165 rows; some Search_Terms appear twice (e.g., "diabetes" under DIABETIC MEDICINE and OPHTHALMOLOGY)
+- Drug fragments are UPPERCASE substrings matched against standardized drug names
+- SEARCH_TERM_MERGE_MAP in `src/data_processing/diagnosis_lookup.py` merges asthma variants: {"allergic asthma": "asthma", "severe persistent allergic asthma": "asthma"}
 
-### Current get_patient_indication_groups() in diagnosis_lookup.py
-- Uses CLUSTER_MAPPING_SQL as CTE in Snowflake query
-- Returns ONLY the most recent match per patient (QUALIFY ROW_NUMBER() = 1)
-- Needs to return ALL matching Search_Terms per patient (remove QUALIFY)
-- Batches 500 patients per query
+### Data loading logic to extract
+- `pathways_app/pathways_app.py` lines 407-488: `load_data()` — loads available drugs, directorates, indications, total records, last updated from SQLite
+- `pathways_app/pathways_app.py` lines 490-642: `load_pathway_data()` — queries pathway_nodes with date_filter_id + chart_type + optional drug/directory filters
+- `pathways_app/pathways_app.py` lines 769-920: `icicle_figure` — builds go.Icicle with 10-field customdata, NHS colorscale, texttemplate, hovertemplate
 
-### Modified UPID approach
-- Current: UPID = Provider Code[:3] + PersonKey (e.g., "RMV12345")
-- New: UPID = original + "|" + search_term (e.g., "RMV12345|rheumatoid arthritis")
-- The pipe delimiter "|" is safe because existing UPIDs are alphanumeric
-- generate_icicle_chart_indication() treats UPID as an opaque identifier — modified UPIDs work transparently
-- The " - " delimiter in pathway ids is used for hierarchy levels, not within UPIDs
+### CSS from 01_nhs_classic.html
+- Lines 8-314 contain the full CSS (copy to dash_app/assets/nhs.css)
+- Google Fonts: `Source Sans 3` weights 300,400,600,700,900
+- CSS variables: `--nhs-blue: #005EB8`, `--nhs-dark-blue: #003087`, `--nhs-light-blue: #41B6E6`, etc.
+- Key classes: `.top-header`, `.sidebar`, `.main`, `.kpi-row`, `.kpi-card`, `.filter-bar`, `.toggle-pill`, `.chart-card`, `.chart-tab`, `.page-footer`
+- Remove `.icicle`, `.icicle__row`, `.icicle__cell`, `.lvl-*` classes — those are mock chart CSS, Plotly handles the real chart
 
-### PseudoNHSNoLinked mapping
-- HCD data has PseudoNHSNoLinked column that matches PatientPseudonym in GP records
-- PersonKey is provider-specific local ID — do NOT use for GP matching
-- One PseudoNHSNoLinked can map to multiple UPIDs (multi-provider patients)
-- GP match lookup: PseudoNHSNoLinked → list of matched Search_Terms
+### Dash-specific patterns
+- State via `dcc.Store`: 3 stores (app-state, chart-data, reference-data)
+- Callbacks: unidirectional flow (filter change → app-state → chart-data → UI components)
+- DMC components: `dmc.MantineProvider` wraps everything, `dmc.Drawer` for card browser
+- Pattern-matching callbacks: `{"type": "drug-chip", "index": drug_name}` for dynamic drug chip selection
+- Assets auto-served from `dash_app/assets/` directory
 
-### Drug matching logic
-- For each HCD row (UPID + Drug Name):
-  1. Get patient's GP-matched Search_Terms with code_frequency (via PseudoNHSNoLinked)
-  2. Get which Search_Terms list this drug (from DimSearchTerm.csv)
-  3. Intersection = valid indications
-  4. If 1: use it. If multiple: pick highest code_frequency (most GP coding = most likely indication). If 0: fallback to directory.
-- Modified UPID groups drugs under same indication together naturally
-- code_frequency = COUNT(*) of matching SNOMED codes per Search_Term per patient in GP records
-- GP code time range: only count codes from MIN(Intervention Date) onwards (the HCD data window)
-  - Reduces noise from old/irrelevant diagnoses, makes frequency more meaningful
-  - Pass earliest_hcd_date as parameter to get_patient_indication_groups()
-- Tiebreaker rationale: 47 RA codes vs 2 crohn's codes → RA is clearly the active condition
+### Database path from dash_app/
+- From `dash_app/data/queries.py`: `Path(__file__).resolve().parents[2] / "data" / "pathways.db"`
+- From `dash_app/data/card_browser.py`: same pattern for `data/DimSearchTerm.csv`
 
-### Known edge cases
-- Some DimSearchTerm drug fragments are generic (INHALED, ORAL, CONTINUOUS)
-  - These could match broadly but are constrained by GP diagnosis requirement
-- A patient visiting multiple providers has multiple UPIDs
-  - Each UPID gets its own drug-indication matching independently
-- Same Search_Term appears twice in DimSearchTerm.csv with different directorates
-  - e.g., "diabetes" → DIABETIC MEDICINE and OPHTHALMOLOGY
-  - For indication charts, we use Search_Term not directorate, so this is fine
+### Existing src/ code to build on (not duplicate)
+- `src/visualization/plotly_generator.py` already has `create_icicle_figure(ice_df, title)` that takes a DataFrame with columns like `"First seen"`, `"Last seen (Parent)"` (with spaces). The Reflex AppState `icicle_figure` (pathways_app.py:769) takes list-of-dicts with keys like `first_seen`, `last_seen_parent` (underscores). For Dash, add a NEW function `create_icicle_from_nodes(nodes, title)` that accepts list-of-dicts. Don't modify the existing DataFrame-based function.
+- `src/data_processing/database.py` has `DatabaseManager` class. Add standalone query functions here (or a new `pathway_queries.py`) so Dash and Reflex share the same SQL.
+- The existing `create_icicle_figure` uses Viridis colorscale; the Reflex version uses NHS blue gradient. The Dash version should use the NHS blue gradient from pathways_app.py.
+
+### Architecture decision: shared code in src/
+- Pipeline/analysis logic is OFF LIMITS: pathway_pipeline.py, transforms.py, diagnosis_lookup.py (matching), pathway_analyzer.py, statistics.py, refresh_pathways.py
+- Shared utilities are ENCOURAGED to add to src/: plotly_generator.py (new dict-based function), database.py (query functions)
+- dash_app/data/queries.py should be a thin wrapper that calls into src/
 
 ## Iteration Log
 
-## Iteration 1 — 2026-02-05
-### Task: 1.3 — Build drug-to-Search_Term lookup from DimSearchTerm.csv
+## Iteration 1 — 2026-02-06
+### Task: Phase 0 — Tasks 0.1 + 0.2 (Project Scaffolding + CSS Extraction)
 ### Why this task:
-- First iteration, chose Phase 1 foundations. Task 1.2 (CSV loading) is self-contained and testable locally without Snowflake.
-- Task 1.1 (Snowflake query update) can't be verified without a live connection — better to do 1.2 first.
-- Both 1.1 and 1.2 are independent, so order doesn't matter for dependencies.
+- This is the first iteration. Phase 0 scaffolding is the foundation everything else depends on.
+- Tasks 0.1 and 0.2 are tightly coupled (CSS needs the assets dir from 0.1), so both done together.
 ### Status: COMPLETE
 ### What was done:
-- Added `load_drug_indication_mapping()` to `diagnosis_lookup.py`:
-  - Loads `data/DimSearchTerm.csv`, builds two dicts:
-    - `fragment_to_search_terms`: drug fragment (UPPER) → list of Search_Terms
-    - `search_term_to_fragments`: search_term → list of drug fragments (UPPER)
-  - Handles duplicate Search_Terms (e.g., "diabetes" rows combined)
-  - Result: 164 Search_Terms, 346 drug fragments
-- Added `get_search_terms_for_drug()` to `diagnosis_lookup.py`:
-  - Returns all Search_Terms whose drug fragments are substrings of the drug name (case-insensitive)
-  - Named differently from plan's `drug_matches_search_term()` — returns all matches at once rather than single boolean, more practical for Phase 2
-- Updated `__all__` exports
+- Created `dash_app/` directory with subdirectories: `assets/`, `data/`, `components/`, `callbacks/`, `utils/`
+- Created `__init__.py` in all packages
+- Created `run_dash.py` entry point at project root
+- Updated `pyproject.toml` with `dash>=2.14.0` and `dash-mantine-components>=0.14.0`
+- Ran `uv sync` — installed Dash 4.0.0 and DMC 2.5.1 (newer than plan expected)
+- Created `dash_app/app.py` with `MantineProvider` wrapper, 3 `dcc.Store` components (app-state, chart-data, reference-data), and placeholder layout
+- Extracted CSS from `01_nhs_classic.html` into `dash_app/assets/nhs.css` (7.5KB)
+  - Added Google Fonts `@import` for Source Sans 3
+  - Removed mock icicle chart CSS (`.icicle`, `.icicle__row`, `.icicle__cell`, `.lvl-*`)
+  - Kept all real component CSS: header, sidebar, KPI, filter bar, chart card, footer, responsive
 ### Validation results:
-- Tier 1 (Code): py_compile passed, import check passed
-- Tier 2 (Data): ADALIMUMAB → 7 indications (including axial spondyloarthritis, rheumatoid arthritis), OMALIZUMAB → 4 indications (asthma, allergic asthma, etc.), PEGYLATED LIPOSOMAL DOXORUBICIN → 4 matches via substring, "ADALIMUMAB 40MG" matches correctly with dosage info, diabetes fragments combined from 2 CSV rows
-- Tier 3 (Functional): N/A (no UI changes)
+- Tier 1 (Code): `python -c "from dash_app.app import app"` — OK, layout type is MantineProvider
+- Tier 1 (App starts): `python run_dash.py` — serves at http://127.0.0.1:8050/
+- CSS: nhs.css (7,491 bytes) found in Dash assets folder, auto-served
 ### Files changed:
-- data_processing/diagnosis_lookup.py (added load_drug_indication_mapping, get_search_terms_for_drug)
-- IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
-### Committed: 0779df7 "feat: add drug-to-indication mapping from DimSearchTerm.csv (Task 1.3)"
+- `pyproject.toml` — added dash + dmc dependencies
+- `run_dash.py` — new entry point
+- `dash_app/__init__.py` — new package
+- `dash_app/app.py` — new app with MantineProvider + stores + placeholder
+- `dash_app/assets/nhs.css` — extracted from 01_nhs_classic.html
+- `dash_app/data/__init__.py` — empty package
+- `dash_app/components/__init__.py` — empty package
+- `dash_app/callbacks/__init__.py` — empty package
+- `dash_app/utils/__init__.py` — empty package
+### Committed: (see below)
 ### Patterns discovered:
-- DimSearchTerm.csv has 164 unique Search_Terms (not 165 as noted) because diabetes appears twice with different directorates but same Search_Term
-- Some drug fragments are very generic: INHALED, CONTINUOUS, ORAL, STANDARD-DOSE, INTRAVENOUS, PEGYLATED, ROUTINE, INDUCTION — these will match broadly but are constrained by the GP diagnosis requirement in Phase 2
-- Function signatures for Phase 2: `get_search_terms_for_drug(drug_name, search_term_to_fragments)` returns list[str] — use this to get candidate indications per drug
+- Dash 4.0.0 and DMC 2.5.1 installed (plan said 2.x and 0.14.x). The API is compatible — `MantineProvider`, `Drawer`, `Accordion`, `Chip` all available. DMC 2.x is based on Mantine v7.
+- `dmc.MantineProvider(children=[...])` works for wrapping the layout in both DMC versions.
+- `suppress_callback_exceptions=True` needed in Dash app since callbacks reference IDs not yet in layout during phased development.
 ### Next iteration should:
-- Work on Task 1.2: Merge asthma Search_Terms in CLUSTER_MAPPING_SQL and load_drug_indication_mapping()
-  - Merge "allergic asthma", "asthma", "severe persistent allergic asthma" → "asthma"
-  - Keep "urticaria" separate
-  - This is self-contained and testable locally
-- OR work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
-  - The current query at line ~1352 of diagnosis_lookup.py uses `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1` — this must be replaced with GROUP BY + COUNT(*)
-  - Add `earliest_hcd_date` parameter to restrict GP codes to HCD data window
-  - Return columns: PatientPseudonym, Search_Term, code_frequency (not EventDateTime)
-- OR if Snowflake isn't available to test 1.1, skip to Task 2.1 (assign_drug_indications function) which can be built and tested with mock data
-### Blocked items:
-- None
-
-## Iteration 2 — 2026-02-05
-### Task: 1.2 — Merge related asthma Search_Terms in CLUSTER_MAPPING_SQL
-### Why this task:
-- Previous iteration recommended this as the next task (self-contained, testable locally)
-- Both CLUSTER_MAPPING_SQL and load_drug_indication_mapping() need consistent Search_Term names
-- Must be done before Task 1.1 (Snowflake query) to ensure GP lookups return "asthma" not "allergic asthma"
-### Status: COMPLETE
-### What was done:
-- Updated CLUSTER_MAPPING_SQL: changed 'allergic asthma' → 'asthma' (AST_COD) and 'severe persistent allergic asthma' → 'asthma' (SEVAST_COD)
-  - Now 3 rows for 'asthma': AST_COD, eFI2_Asthma, SEVAST_COD
-  - urticaria (XSAL_COD) stays separate
-- Added SEARCH_TERM_MERGE_MAP constant: {"allergic asthma": "asthma", "severe persistent allergic asthma": "asthma"}
-- Updated load_drug_indication_mapping() to apply SEARCH_TERM_MERGE_MAP when loading CSV
-  - Normalizes Search_Term before accumulating fragments
-  - Drug fragments from all 3 original rows combined under "asthma" key
-- Exported SEARCH_TERM_MERGE_MAP in __all__
-### Validation results:
-- Tier 1 (Code): py_compile passed, import check passed
-- Tier 2 (Data):
-  - "asthma" fragments: OMALIZUMAB, BENRALIZUMAB, DUPILUMAB, INHALED, MEPOLIZUMAB, RESLIZUMAB (complete combined list)
-  - "allergic asthma" no longer exists as separate key
-  - "severe persistent allergic asthma" no longer exists as separate key
-  - "urticaria" → ['OMALIZUMAB'] — correctly separate
-  - OMALIZUMAB maps to: ['asthma', 'urticaria'] — correct
-  - Total Search_Terms: 162 (was 164, 3 asthma entries → 1)
-  - Total fragments: 346 (unchanged)
-- Tier 3 (Functional): N/A (no UI changes)
-### Files changed:
-- data_processing/diagnosis_lookup.py (CLUSTER_MAPPING_SQL, SEARCH_TERM_MERGE_MAP, load_drug_indication_mapping)
-- IMPLEMENTATION_PLAN.md (marked 1.2 subtasks [x])
-### Committed: b0a8a9d "feat: merge asthma Search_Term variants in CLUSTER_MAPPING_SQL and drug mapping (Task 1.2)"
-### Patterns discovered:
-- SEARCH_TERM_MERGE_MAP is reusable: any future module that receives Search_Terms from Snowflake can apply the same normalization
-- The merge approach (normalize at load time) is cleaner than post-hoc deduplication
-### Next iteration should:
-- Work on Task 1.1: Update `get_patient_indication_groups()` to return ALL matches with code_frequency
-  - The current query at ~line 1467 uses `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1`
-  - Replace with GROUP BY + COUNT(*) for code_frequency
-  - Add `earliest_hcd_date` parameter to restrict GP codes to HCD data window
-  - Return columns: PatientPseudonym, Search_Term, code_frequency
-  - Empty DataFrame columns should match new return type
-  - This requires Snowflake connectivity to fully test, but code changes can be verified with py_compile and import checks
-- OR work on Task 2.1: Create assign_drug_indications() — can be built and tested with mock data
-  - This is independent of Task 1.1 if you mock the gp_matches_df input
-### Blocked items:
-- None
-
-## Iteration 3 — 2026-02-05
-### Task: 1.1 — Update get_patient_indication_groups() to return ALL matches with code_frequency
-### Why this task:
-- Previous iteration recommended this as the next task
-- This is the last remaining Phase 1 dependency — Tasks 2.1/2.2 need the GP matches data in the right format (multiple rows per patient with code_frequency)
-- Task 1.1 changes the query fundamentals; better to do this before building assign_drug_indications() which consumes the output
-### Status: COMPLETE
-### What was done:
-- Modified `get_patient_indication_groups()` in `diagnosis_lookup.py`:
-  1. **Removed** `QUALIFY ROW_NUMBER() OVER (PARTITION BY pc."PatientPseudonym" ORDER BY pc."EventDateTime" DESC) = 1`
-  2. **Replaced** with `GROUP BY pc."PatientPseudonym", aic.Search_Term` + `COUNT(*) AS "code_frequency"`
-  3. **Added** `earliest_hcd_date: Optional[str] = None` parameter
-  4. **Added** optional `AND pc."EventDateTime" >= %s` when earliest_hcd_date is provided
-  5. **Updated** return columns from `(PatientPseudonym, Search_Term, EventDateTime)` to `(PatientPseudonym, Search_Term, code_frequency)`
-  6. **Updated** all empty DataFrame returns to use new column names
-  7. **Updated** logging to show multiple-rows-per-patient stats (avg indications per patient)
-  8. **Updated** docstring to describe new behavior and parameters
-- Backward compatible: `earliest_hcd_date` defaults to `None`, existing callers still work
-- Note: caller in `refresh_pathways.py` (line 424-428) does `dict(zip(...))` which will only keep last match per patient with new multi-row format — this will be updated in Task 3.1
-### Validation results:
-- Tier 1 (Code): py_compile PASSED, import check PASSED, function signature verified
-- Tier 2 (Data): Empty DataFrame returns correct columns ['PatientPseudonym', 'Search_Term', 'code_frequency']; live Snowflake test deferred to Phase 3/4
-- Tier 3 (Functional): N/A (no UI changes)
-### Files changed:
-- data_processing/diagnosis_lookup.py (modified get_patient_indication_groups function)
-- IMPLEMENTATION_PLAN.md (marked 1.1 subtasks [x])
-### Committed: c93417f "feat: return ALL GP matches with code_frequency in get_patient_indication_groups (Task 1.1)"
-### Patterns discovered:
-- The `earliest_hcd_date` parameter is passed as a string in ISO format (YYYY-MM-DD) via Snowflake %s placeholder — Snowflake handles string-to-timestamp comparison implicitly
-- The GROUP BY approach naturally deduplicates SNOMED codes within the same Search_Term — a patient with the same SNOMED code recorded 5 times gets code_frequency=5 (reflecting clinical activity intensity)
-- params list is built dynamically: `batch_pseudonyms + [earliest_hcd_date]` only when date filter is active
-### Next iteration should:
-- Work on Task 2.1: Create `assign_drug_indications()` function
-  - This is now unblocked since 1.1 is complete (return format is known)
-  - Input: HCD df, gp_matches_df (PatientPseudonym, Search_Term, code_frequency), drug_mapping from load_drug_indication_mapping()
-  - Output: (modified_df with UPID|search_term, indication_df mapping modified_UPID → Search_Term)
-  - Can be built and tested with mock data (no Snowflake needed)
-  - Key logic: for each UPID+Drug pair, intersect drug's Search_Terms with patient's GP matches, pick highest code_frequency as tiebreaker
-  - The function needs PseudoNHSNoLinked to look up GP matches, so the df must have that column
-  - Task 2.2 (tiebreaker logic) can be done within 2.1 or as a follow-up
-- The final Phase 1 subtask (1.1 verify with live Snowflake) will be tested during Phase 3/4 integration
-### Blocked items:
-- Task 1.1 final subtask "Verify: Query returns more rows" requires live Snowflake — verified in Iteration 7 (537,794 rows)
-
-## Iteration 4 — 2026-02-05
-### Task: 2.1 + 2.2 — Create assign_drug_indications() with tiebreaker logic
-### Why this task:
-- All Phase 1 dependencies complete (1.1 query returns ALL matches, 1.2 asthma merged, 1.3 drug mapping loaded)
-- Task 2.1 is the core matching function needed before Phase 3 pipeline integration
-- Task 2.2 (tiebreaker) is naturally part of 2.1 — implemented together
-- Can be built and tested with mock data (no Snowflake needed)
-### Status: COMPLETE
-### What was done:
-- Added `assign_drug_indications()` to `diagnosis_lookup.py`:
-  - Input: HCD df (with UPID, Drug Name, PseudoNHSNoLinked, Directory), gp_matches_df, search_term_to_fragments
-  - Output: (modified_df with UPID|search_term, indication_df mapping modified_UPID → Search_Term)
-  - Builds GP lookup: PseudoNHSNoLinked → {Search_Term: code_frequency}
-  - Caches drug→Search_Term lookups to avoid recomputing per row
-  - For each (UPID, Drug Name) pair:
-    - Intersects drug's Search_Terms with patient's GP matches
-    - Single match: use it
-    - Multiple matches: highest code_frequency wins, alphabetical tiebreak
-    - No match: fallback to "{Directory} (no GP dx)"
-  - Applies modified UPIDs via df.apply() (vectorized lookup from cache)
-  - Builds indication_df with unique modified UPID → Directory column
-  - Comprehensive logging: match rate, tiebreaker count, fallback count, top 5 indications
-- Updated __all__ exports
-### Validation results:
-- Tier 1 (Code): py_compile PASSED, import check PASSED
-- Tier 2 (Data): Mock data tests ALL PASSED:
-  - ADALIMUMAB + GP dx (RA + asthma) → matched to RA (drug mapping intersection)
-  - OMALIZUMAB + GP dx (RA + asthma) → matched to asthma (drug mapping intersection)
-  - ADALIMUMAB + GP dx (RA 3 freq + crohn's 2 freq) → tiebreaker picks RA
-  - ADALIMUMAB + GP dx (psoriatic 5 freq + RA 5 freq) → alphabetical tiebreak picks psoriatic arthritis
-  - Higher frequency (47 RA vs 3 psoriatic) → RA wins
-  - No GP match → fallback to directory
-  - Empty GP DataFrame → all fallback
-  - Different drugs with different indications → different modified UPIDs
-- Tier 3 (Functional): N/A (no UI changes yet)
-### Files changed:
-- data_processing/diagnosis_lookup.py (added assign_drug_indications, updated __all__)
-- IMPLEMENTATION_PLAN.md (marked 2.1 and 2.2 subtasks [x])
-### Committed: 408976e "feat: add assign_drug_indications() for drug-aware indication matching (Task 2.1 + 2.2)"
-### Patterns discovered:
-- Function signature takes `search_term_to_fragments` (the second element from load_drug_indication_mapping()) — NOT the full tuple. Callers must destructure: `_, st_to_frags = load_drug_indication_mapping()`
-- The function uses df.apply() to set modified UPIDs — for large DataFrames (656K rows), this could be slow. If performance is an issue in Phase 3, could vectorize with merge operations instead. But apply with cached lookup dict should be OK.
-- "crohn's disease" is NOT in ADALIMUMAB's DimSearchTerm mapping (ADALIMUMAB maps to: ankylosing spondylitis, axial spondyloarthritis, plaque psoriasis, psoriatic arthritis, rheumatoid arthritis, ulcerative colitis, uveitis). Initial test assumption was wrong.
-- indication_df has 'Directory' column (not 'Search_Term') for compatibility with generate_icicle_chart_indication() which expects indication_df.loc[upid, 'Directory']
-### Next iteration should:
-- Work on Task 3.1: Update `refresh_pathways.py` indication processing to use assign_drug_indications()
-  - The current code at lines 424-428 uses `dict(zip(...))` which only keeps LAST match per patient — this must be replaced
-  - Key changes in the `elif current_chart_type == "indication":` block:
-    1. Load drug mapping: `_, st_to_frags = load_drug_indication_mapping()`
-    2. Pass `earliest_hcd_date=df['Intervention Date'].min().strftime('%Y-%m-%d')` to get_patient_indication_groups()
-    3. Call `assign_drug_indications(df, gp_matches_df, st_to_frags)` to get (modified_df, indication_df)
-    4. Use modified_df (not original df) for pathway processing
-    5. indication_df is already in the right format (indexed by modified UPID, 'Directory' column)
-    6. Remove the old match_lookup/dict(zip) code and the manual indication_df building
-  - Import assign_drug_indications and load_drug_indication_mapping at top of file
-  - This replaces ~50 lines of the old approach with ~10 lines using the new function
-  - Can verify with py_compile; full Snowflake test via --dry-run
-### Blocked items:
-- None
-
-## Iteration 5 — 2026-02-05
-### Task: 3.1 — Update refresh_pathways.py indication processing to use assign_drug_indications()
-### Why this task:
-- All Phase 1 & 2 dependencies complete (query returns all matches, drug mapping loaded, assign_drug_indications() exists)
-- Task 3.1 is the pipeline integration step — wires the new drug-aware matching into the actual refresh pipeline
-- Must be done before Task 3.2 (dry run test) which validates the integrated pipeline
-### Status: COMPLETE
-### What was done:
-- Updated imports at top of `cli/refresh_pathways.py`:
-  - Added `assign_drug_indications` and `load_drug_indication_mapping` from `data_processing.diagnosis_lookup`
-- Replaced the entire indication processing block (old ~90 lines → new ~60 lines):
-  - **Old approach**: `dict(zip(gp_matches_df['PatientPseudonym'], gp_matches_df['Search_Term']))` — only kept LAST match per patient, no drug awareness
-  - **New approach**:
-    1. `load_drug_indication_mapping()` → `search_term_to_fragments`
-    2. Compute `earliest_hcd_date` from `df['Intervention Date'].min()` as ISO string
-    3. `get_patient_indication_groups(earliest_hcd_date=earliest_hcd_date_str)` → all GP matches with code_frequency
-    4. `assign_drug_indications(df, gp_matches_df, search_term_to_fragments)` → `(modified_df, indication_df)`
-    5. Pass `modified_df` (not original `df`) to `process_indication_pathway_for_date_filter()`
-    6. `indication_df` already indexed by modified UPID with 'Directory' column — directly compatible
-- Removed: old `match_lookup`, `upid_lookup`, manual `indication_records` building, `indication_df_for_chart` renaming
-- Kept: Snowflake availability check, PseudoNHSNoLinked column check, error handling, date filter loop
-### Validation results:
-- Tier 1 (Code): py_compile PASSED, individual imports PASSED, full module import PASSED
-- Tier 2 (Data): N/A — requires live Snowflake for dry run test (Task 3.2)
-- Tier 3 (Functional): N/A — no UI changes
-### Files changed:
-- cli/refresh_pathways.py (updated imports, replaced indication processing block)
-- IMPLEMENTATION_PLAN.md (marked 3.1 subtasks [x])
-### Committed: 920570b "feat: integrate drug-aware indication matching into refresh pipeline (Task 3.1)"
-### Patterns discovered:
-- `assign_drug_indications()` returns `indication_df` already indexed by modified UPID with 'Directory' column — no need for intermediate renaming/reindexing steps that the old code required
-- `earliest_hcd_date` must be converted via `pd.Timestamp(...).strftime('%Y-%m-%d')` because `df['Intervention Date'].min()` may return a Timestamp or string depending on data source
-- The old code had a "stats['diagnosis_coverage']" tracking block — this is now handled internally by `assign_drug_indications()` logging. If stats tracking in the return dict is needed later, can add it back.
-### Next iteration should:
-- Work on Task 3.2: Run `python -m cli.refresh_pathways --chart-type indication --dry-run -v`
-  - This requires a live Snowflake connection
-  - Verify: modified UPIDs appear in logs, match rates logged, pathway nodes generated
-  - If dry run passes, move to Phase 4 (full refresh + validation)
-- Key things to check in dry run output:
-  - "Drug-aware indication matching complete" log message with match/fallback counts
-  - "Modified UPIDs" count should be HIGHER than unique patient count (patients with multiple drugs for different indications)
-  - Pathway node counts for indication charts should be in same ballpark as before (~300 per date filter)
-  - No errors in indication pathway processing
-### Blocked items:
-- None
-
-## Iteration 6 — 2026-02-05
-### Task: 3.2 — Test with dry run
-### Why this task:
-- All Phase 1-3.1 dependencies complete (query, drug mapping, matching function, pipeline integration)
-- 3.2 validates the integrated pipeline end-to-end before Phase 4 (full refresh)
-- Must pass before moving to production refresh
-### Status: COMPLETE
-### What was done:
-- **Discovered**: GP lookup queries were timing out at 30 seconds — every batch failed
-  - Root cause: `connection_timeout=30` in config/snowflake.toml sets Snowflake Python client `network_timeout`
-  - This kills any query taking >30s, regardless of server-side STATEMENT_TIMEOUT (300s)
-  - The GROUP BY + COUNT(*) query takes ~40s per batch (even for 5 patients)
-  - The old QUALIFY ROW_NUMBER() query took ~20s (borderline but usually OK with caching)
-- **Fixed timeout**: Changed `connection_timeout` from 30 → 600 in snowflake.toml and config/__init__.py fallback
-  - Safe because query_timeout (300s) still controls server-side statement limits
-  - All existing queries still work fine (activity data fetch: 7s, chunked)
-- **Optimized batch size**: Changed from 500 → 5000 patients per batch
-  - Query time is ~constant regardless of batch size (~40s) — bottleneck is CTE compilation, not data volume
-  - 500-patient batches: 74 batches × 40s = ~50 minutes for GP lookup
-  - 5000-patient batches: 8 batches × 45s = ~6 minutes for GP lookup
-  - Updated both default in get_patient_indication_groups() and caller in refresh_pathways.py
-- **Dry run results** (successful):
-  - GP Lookup: 36,628 patients, 33,642 matched (91.8%), 8 batches in ~5.5 min
-  - Drug-Indication Matching: 50,797 UPID-Drug pairs → 25,059 matched (49.3%), 15,238 tiebreakers, 25,738 fallback
-  - Modified UPIDs: 42,072 (up from 36,628 original patients — some patients split across indications)
-  - Pathway nodes per date filter: all_6mo=438, all_12mo=484, 1yr_6mo=181, 1yr_12mo=199, 2yr_6mo=257, 2yr_12mo=287
-  - Total: 1,846 indication nodes across 6 date filters
-  - No errors during pathway processing
-### Validation results:
-- Tier 1 (Code): py_compile PASSED for diagnosis_lookup.py, refresh_pathways.py, config/__init__.py
-- Tier 2 (Data): Dry run completed successfully with correct log output:
-  - Modified UPIDs appear (42,072 unique)
-  - Match/fallback rates logged (49.3% / 50.7%)
-  - Tiebreaker count logged (15,238)
-  - Top indications: macular degeneration, diabetes, rheumatoid arthritis
-  - Pathway node counts reasonable (181-484 per date filter)
-- Tier 3 (Functional): Dry run completed, no insertion (as expected)
-### Files changed:
-- config/snowflake.toml (connection_timeout 30 → 600)
-- config/__init__.py (fallback connection_timeout 30 → 600)
-- data_processing/diagnosis_lookup.py (batch_size default 500 → 5000)
-- cli/refresh_pathways.py (batch_size 500 → 5000)
-- IMPLEMENTATION_PLAN.md (marked 3.2 subtasks [x])
-### Committed: c6e426e "fix: increase network timeout and batch size for GP lookup queries (Task 3.2)"
-### Patterns discovered:
-- Snowflake Python connector `network_timeout` (set via connection_timeout in config) controls client-side wait time for ALL query responses, not just connection establishment. Must be high enough for slow queries.
-- PrimaryCareClinicalCoding query performance is dominated by CTE compilation (~40s fixed cost), not by patient count. Larger batches (5000 vs 500) are dramatically more efficient.
-- 49.3% match rate means about half of UPID-Drug pairs have both a drug mapping in DimSearchTerm AND matching GP diagnosis. The 50.7% fallback is expected since not all HCD drugs are in DimSearchTerm.csv.
-### Next iteration should:
-- Work on Task 4.1: Full refresh with both chart types
-  - Run `python -m cli.refresh_pathways --chart-type all` (no --dry-run)
-  - This will insert ~1,846 indication nodes + ~1,800 directory nodes into pathway_nodes table
-  - Verify both chart types generate data, directory charts unchanged
-  - Takes ~15 minutes total (7s Snowflake + 6min transforms + 6min GP lookup + 2min pathways)
-- After 4.1, Tasks 4.2 and 4.3 can be done together:
-  - 4.2: Validate indication chart correctness (spot-check drug grouping)
-  - 4.3: Validate Reflex UI compiles and chart type toggle works
-### Blocked items:
-- None
-
-## Iteration 7 — 2026-02-06
-### Task: 4.1 + 4.2 + 4.3 — Full refresh, validation, and Reflex compile
-### Why this task:
-- All Phase 1-3 complete; Phase 4 is the final validation step
-- Task 4.1 (full refresh) must run before 4.2/4.3 which validate the results
-- Combined all three since they're sequential validation steps, not independent development work
-### Status: COMPLETE
-### What was done:
-- **Task 4.1**: Ran `python -m cli.refresh_pathways --chart-type all` — full refresh completed in 738.4 seconds
-  - Directory charts: 1,101 nodes (293-329 per date filter)
-  - Indication charts: 1,846 nodes (181-484 per date filter)
-  - Total: 2,947 nodes inserted (cleared 3,633 old nodes first)
-  - GP lookup: 36,628 patients, 33,642 matched (91.8%), 8 batches in ~30s
-  - Drug-indication matching: 50,797 UPID-Drug pairs → 25,059 matched (49.3%), 15,238 tiebreakers, 25,738 fallback
-  - Modified UPIDs: 42,072 (up from 36,628 original patients)
-- **Task 4.2**: Validated indication chart correctness via SQLite queries:
-  - RA drugs under RA: ADALIMUMAB (578 patients), RITUXIMAB (55), BARICITINIB (23), CERTOLIZUMAB PEGOL (22), TOCILIZUMAB (22)
-  - Asthma drugs under asthma: DUPILUMAB (58), OMALIZUMAB (9)
-  - Fallback nodes present: RHEUMATOLOGY (no GP dx) (725), OPHTHALMOLOGY (no GP dx) (410), etc.
-  - Top indications clinically realistic: macular degeneration (906), rheumatoid arthritis (736), diabetes (512), crohn's disease (412)
-  - Hierarchy levels correct: 0=Root (6), 1=Trust (38), 2=Indication (558), 3=Drug (1,009), 4+=Pathway (235)
-  - Directory charts unchanged: 1,101 nodes with expected distribution
-- **Task 4.3**: Ran `python -m reflex compile` — compiled successfully in 16.6 seconds
-### Validation results:
-- Tier 1 (Code): N/A (no code changes this iteration)
-- Tier 2 (Data): Full refresh produced correct data — both chart types populated, indication drugs match expected clinical groupings, fallbacks work, directory charts unaffected
-- Tier 3 (Functional): Reflex compiles without errors
-### Files changed:
-- IMPLEMENTATION_PLAN.md (marked all Phase 4 tasks [x], marked completion criteria [x])
-- data/pathways.db (refreshed with 2,947 pathway nodes)
-### Committed: [see below]
-### Patterns discovered:
-- GP lookup queries fast with 5000-patient batches: 8 batches × ~4s each = ~30s total
-- Total pipeline time ~12 minutes: Snowflake fetch 7s → transforms ~6 min → GP lookup ~30s → pathway processing ~5 min → insertion <1s
-- Top GP indications before drug matching: sepsis (32,382), drug misuse (31,536), influenza (28,550) — high-frequency GP codes that don't match HCD drugs, filtered out by drug-indication intersection as intended
-### Next iteration should:
-- ALL TASKS ARE COMPLETE. Output the completion signal.
+- Start Phase 1: Task 1.1 — Create shared data access functions
+- Read `pathways_app/pathways_app.py` lines 407-642 to extract `load_data()` and `load_pathway_data()` logic
+- Create shared functions in `src/data_processing/pathway_queries.py` (database.py is already used for DatabaseManager)
+- Create thin wrapper `dash_app/data/queries.py` that calls the shared functions
+- Verify with `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"`
 ### Blocked items:
 - None
