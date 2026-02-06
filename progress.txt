@@ -665,3 +665,66 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - ALTERNATIVE: Skip 5.1 for now and do 5.2 (loading/error/empty states) which is more impactful for UX polish. Trust selection is less critical since there are few trusts.
 ### Blocked items:
 - None
+
+## Iteration 13 — 2026-02-06
+### Task: Phase 5 — Task 5.1 (Trust selection)
+### Why this task:
+- Phases 0-4 complete. Phase 5 is the final polish phase.
+- Task 5.1 is the first task in Phase 5 and adds the last major filter dimension (trust).
+- Previous iteration (12) recommended this as the next task.
+### Status: COMPLETE
+### What was done:
+- Added `available_trusts` to `load_initial_data()` in `src/data_processing/pathway_queries.py`:
+  - Queries `SELECT DISTINCT trust_name FROM pathway_nodes WHERE level = 1` — returns 7 trusts
+  - Updated both error return paths to include `available_trusts: []`
+- Added `selected_trusts` parameter to `load_pathway_nodes()`:
+  - Trust WHERE clause: `trust_name IN (...) OR trust_name IS NULL OR trust_name = ''`
+  - The NULL/empty check keeps root nodes (level 0) which have no trust_name
+- Updated `dash_app/data/queries.py` wrapper to pass `selected_trusts` through
+- Added `get_all_trusts()` to `dash_app/data/card_browser.py` (same pattern as `get_all_drugs()`)
+- Added trust ChipGroup to drawer (`dash_app/components/drawer.py`):
+  - `dmc.ChipGroup(id="trust-chips", multiple=True)` with 7 trust chips
+  - New "Trusts" section between "All Drugs" and "By Directorate" with dividers
+- Updated sidebar (`dash_app/components/sidebar.py`):
+  - "Trust Selection" item now has `item_id="sidebar-trust-selection"` for drawer open callback
+- Updated callbacks:
+  - `drawer.py`: Added `sidebar-trust-selection` as Input to `open_drawer`; added `trust-chips.value` as second Output to `handle_fragment_or_clear` (clear button resets both drug and trust chips)
+  - `filters.py`: Added `trust-chips.value` as 6th Input to `update_app_state`; added `selected_trusts` to app-state dict
+  - `chart.py`: Passes `selected_trusts` to query function; includes trusts in chart title
+- Updated `app.py`: Added `selected_trusts: []` to default app-state
+### Validation results:
+- Tier 1 (Code): All imports pass, 7 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - `load_initial_data()`: 7 trusts returned
+  - Unfiltered: 293 nodes, 11,118 patients
+  - One trust (NNUH): 107 nodes, 33 drugs — correct reduction
+  - Two trusts: 181 nodes — correct intermediate reduction
+  - Indication + trust filter: 158 nodes — works across chart types
+  - Chart figure renders correctly from filtered nodes (107 labels)
+  - Trust chips in drawer: 7 chips, multiple=True
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added: available_trusts query + selected_trusts filter
+- `dash_app/data/queries.py` — Updated: pass selected_trusts parameter
+- `dash_app/data/card_browser.py` — Added: get_all_trusts()
+- `dash_app/components/drawer.py` — Added: trust ChipGroup section
+- `dash_app/components/sidebar.py` — Updated: Trust Selection gets item_id for drawer open
+- `dash_app/callbacks/drawer.py` — Updated: trust sidebar opens drawer; clear resets trust chips
+- `dash_app/callbacks/filters.py` — Updated: trust-chips.value as Input + selected_trusts in state
+- `dash_app/callbacks/chart.py` — Updated: pass selected_trusts to query; trusts in chart title
+- `dash_app/app.py` — Updated: selected_trusts in default app-state
+- `IMPLEMENTATION_PLAN.md` — Task 5.1 marked [x]
+### Committed: f0505ee "feat: add trust selection to drawer with filter wiring (Task 5.1)"
+### Patterns discovered:
+- Trust filtering needs `trust_name IS NULL OR trust_name = ''` in the WHERE clause to keep root nodes (level 0) and the "Total" parent that have empty trust_name. Without this, the icicle chart would lose its root.
+- Adding a second Output (`trust-chips.value`) to `handle_fragment_or_clear` requires returning `no_update` for the trust output on fragment clicks (only the clear button affects trusts). All return paths must return a tuple of 2 values.
+- The `get_all_trusts()` / `get_all_drugs()` pattern delegates to `load_initial_data()` to avoid duplicating SQL queries. This means only one SQLite connection for all reference data.
+### Next iteration should:
+- Start Task 5.2 — Loading/error/empty states + dynamic hierarchy label
+- Add `dcc.Loading` wrapper around the chart card's `dcc.Graph` component
+- Show a "No data" message when chart-data has no nodes (e.g., after filtering to a trust with no matching drugs)
+- Show error feedback when database query fails
+- Note: Dynamic chart subtitle is ALREADY implemented (Task 3.4 added `chart-subtitle` Output). Check if 5.2's subtitle bullet can be marked done.
+- Consider: `dcc.Loading(type="circle", color="#005EB8")` wrapping the `dcc.Graph` for a loading spinner during SQLite queries
+### Blocked items:
+- None
