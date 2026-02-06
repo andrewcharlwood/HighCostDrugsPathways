@@ -131,17 +131,17 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Components render in browser with correct NHS styling ✓
 
 ### 2.2 Main content area: KPI row + filter bar + chart card
-- [ ] Create `dash_app/components/kpi_row.py` — `make_kpi_row()` function
+- [x] Create `dash_app/components/kpi_row.py` — `make_kpi_row()` function
   - 4 KPI cards: Unique Patients, Drug Types, Total Cost, Indication Match Rate
   - Each card value has an ID for callback updates: `id="kpi-patients"`, `id="kpi-drugs"`, `id="kpi-cost"`, `id="kpi-match"`
   - CSS classes: `.kpi-row`, `.kpi-card`, `.kpi-card__label`, `.kpi-card__value`, `.kpi-card__sub`
-- [ ] Create `dash_app/components/filter_bar.py` — `make_filter_bar()` function
+- [x] Create `dash_app/components/filter_bar.py` — `make_filter_bar()` function
   - Chart type toggle pills ("By Directory" / "By Indication") — use `html.Button` with `.toggle-pill` CSS
   - Initiated dropdown: All years, Last 2 years, Last 1 year — use `dcc.Dropdown` or `html.Select` with `.filter-select`
   - Last seen dropdown: Last 6 months, Last 12 months
   - NO drug/directorate dropdowns here (those are in the drawer)
   - Component IDs: `id="chart-type-directory"`, `id="chart-type-indication"`, `id="filter-initiated"`, `id="filter-last-seen"`
-- [ ] Create `dash_app/components/chart_card.py` — `make_chart_card()` function
+- [x] Create `dash_app/components/chart_card.py` — `make_chart_card()` function
   - Card header with title + dynamic subtitle (hierarchy label: "Trust → Directorate → Drug → Pathway")
   - Tab row: Icicle (active), Sankey (disabled placeholder), Timeline (disabled placeholder)
   - `dcc.Graph(id="pathway-chart")` filling the card body

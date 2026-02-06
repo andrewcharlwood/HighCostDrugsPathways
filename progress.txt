@@ -239,3 +239,66 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Filter IDs: `id="filter-initiated"`, `id="filter-last-seen"`
 ### Blocked items:
 - None
+
+## Iteration 5 — 2026-02-06
+### Task: Phase 2 — Task 2.2 (Main content area: KPI row + filter bar + chart card)
+### Why this task:
+- Phase 2.1 (header + sidebar) complete. Task 2.2 fills the main content area with actual components.
+- Previous iteration (4) explicitly recommended this as the next task.
+- The main area was a placeholder — this task adds the three core content sections.
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/components/kpi_row.py` with `make_kpi_row()`:
+  - 4 KPI cards in a grid: Unique Patients, Drug Types, Total Cost, Indication Match
+  - Fourth card has `.kpi-card--green` modifier for green top border
+  - Each value has an ID for callback updates: `kpi-patients`, `kpi-drugs`, `kpi-cost`, `kpi-match`
+  - Default value is "—" (em dash) — populated by callbacks in Phase 3
+  - Helper `_kpi_card()` builds individual cards with CSS classes from nhs.css
+- Created `dash_app/components/filter_bar.py` with `make_filter_bar()`:
+  - Chart type toggle pills: "By Directory" (active) / "By Indication" with `.toggle-pill` CSS
+  - Button IDs: `chart-type-directory`, `chart-type-indication` with `n_clicks=0` for callbacks
+  - Initiated dropdown via `dcc.Dropdown`: All years (default), Last 2 years, Last 1 year
+  - Last seen dropdown via `dcc.Dropdown`: Last 6 months (default), Last 12 months
+  - Used `dcc.Dropdown` (not `html.Select`) for native Dash callback compatibility
+  - Drug/directorate dropdowns omitted — those go in the drawer (Phase 4)
+  - Added `.filter-dropdown` CSS to nhs.css for dcc.Dropdown sizing within filter bar
+- Created `dash_app/components/chart_card.py` with `make_chart_card()`:
+  - Card header with title "Patient Pathway Visualization" and dynamic subtitle (`id="chart-subtitle"`)
+  - Default subtitle: "Trust → Directorate → Drug → Patient Pathway"
+  - Tab row: Icicle (active), Sankey (disabled), Timeline (disabled)
+  - `dcc.Graph(id="pathway-chart")` with min-height 500px and display config
+  - Sankey/Timeline tabs are `disabled=True` placeholders for future expansion
+- Updated `dash_app/app.py`:
+  - Added imports for `make_kpi_row`, `make_filter_bar`, `make_chart_card`
+  - Main content area now: `[make_kpi_row(), make_filter_bar(), make_chart_card()]`
+  - Removed placeholder text
+### Validation results:
+- Tier 1 (Code): All imports pass — kpi_row, filter_bar, chart_card, app all import OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): Verified programmatically:
+  - MantineProvider has 6 children (3 stores + header + sidebar + main)
+  - Main has 3 children: Section(kpi-row), Section(filter-bar), Section(chart-card)
+  - All 13 expected IDs found: app-state, chart-data, reference-data, kpi-patients, kpi-drugs, kpi-cost, kpi-match, chart-type-directory, chart-type-indication, filter-initiated, filter-last-seen, pathway-chart, chart-subtitle
+### Files changed:
+- `dash_app/components/kpi_row.py` — NEW: 4 KPI cards with callback-updatable values
+- `dash_app/components/filter_bar.py` — NEW: toggle pills + date filter dropdowns
+- `dash_app/components/chart_card.py` — NEW: chart header + tabs + dcc.Graph
+- `dash_app/app.py` — Updated: imports and assembles new components in main area
+- `dash_app/assets/nhs.css` — Added: `.filter-dropdown` CSS for dcc.Dropdown styling
+- `IMPLEMENTATION_PLAN.md` — Task 2.2 items marked [x]
+### Committed: [pending]
+### Patterns discovered:
+- `dcc.Dropdown` must be used instead of `html.Select` for Dash callback compatibility. `html.Select` doesn't have a `value` property that triggers callbacks. `dcc.Dropdown` renders its own React-Select widget that needs CSS customization to match the `.filter-select` styling from the HTML concept.
+- `html.Button` with `n_clicks=0` works for toggle pills — callbacks can use `callback_context.triggered_id` to determine which button was clicked.
+- `dcc.Graph` accepts a `config` dict for mode bar customization (removing lasso/select, hiding logo).
+- Unicode arrow `\u2192` (→) used in chart subtitle for cross-platform compatibility.
+### Next iteration should:
+- Start Task 2.3 — Footer + full page assembly
+- Create `dash_app/components/footer.py` with `make_footer()` using `.page-footer` CSS class
+- Add footer to the main content area in `app.py` (below chart card)
+- Verify full page layout matches `01_nhs_classic.html` visually
+- The 3 dcc.Store components are already in place (added in Phase 0), so 2.3's store bullet is already done
+- After 2.3, Phase 2 will be complete — Phase 3 (Core Callbacks) is next
+- Phase 3.1 will need: reference data loading callback (on page load), filter state management callback (toggle pills + dropdowns → app-state), and `register_callbacks(app)` wiring
+### Blocked items:
+- None

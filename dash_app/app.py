@@ -4,6 +4,9 @@ import dash_mantine_components as dmc
 
 from dash_app.components.header import make_header
 from dash_app.components.sidebar import make_sidebar
+from dash_app.components.kpi_row import make_kpi_row
+from dash_app.components.filter_bar import make_filter_bar
+from dash_app.components.chart_card import make_chart_card
 
 app = Dash(
     __name__,
@@ -30,11 +33,9 @@ app.layout = dmc.MantineProvider(
         html.Main(
             className="main",
             children=[
-                html.H1("HCD Analysis", style={"color": "#003087"}),
-                html.P(
-                    "Layout scaffolding with header and sidebar. "
-                    "KPIs, filter bar, and chart card will be added in Task 2.2."
-                ),
+                make_kpi_row(),
+                make_filter_bar(),
+                make_chart_card(),
             ],
         ),
     ],
