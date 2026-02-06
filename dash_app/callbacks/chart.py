@@ -1,10 +1,15 @@
-"""Callbacks for pathway data loading and icicle chart rendering."""
+"""Callbacks for tab switching, pathway data loading, and chart rendering."""
 import logging
 
-from dash import Input, Output, no_update
+from dash import Input, Output, State, ctx, no_update
 import plotly.graph_objects as go
 
+from dash_app.components.chart_card import TAB_DEFINITIONS
+
 log = logging.getLogger(__name__)
+
+# Tab IDs for callback inputs
+_TAB_IDS = [f"tab-{tab_id}" for tab_id, _ in TAB_DEFINITIONS]
 
 
 def _empty_figure(message):
@@ -78,8 +83,44 @@ def _generate_chart_title(app_state):
 
 
 def register_chart_callbacks(app):
-    """Register pathway data loading and chart rendering callbacks."""
+    """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
+    # --- Tab switching callback ---
+    tab_inputs = [Input(tid, "n_clicks") for tid in _TAB_IDS]
+    tab_outputs = [Output(tid, "className") for tid in _TAB_IDS]
+
+    @app.callback(
+        Output("active-tab", "data"),
+        *tab_outputs,
+        *tab_inputs,
+        State("active-tab", "data"),
+        prevent_initial_call=True,
+    )
+    def switch_tab(*args):
+        """Handle tab button clicks — update active-tab store and CSS classes."""
+        n_tabs = len(_TAB_IDS)
+        # args layout: n_clicks_0..n_clicks_N-1, current_active_tab
+        current_tab = args[-1] or "icicle"
+
+        triggered_id = ctx.triggered_id
+        if not triggered_id:
+            return (no_update,) * (1 + n_tabs)
+
+        # Determine new active tab from triggered button ID
+        new_tab = current_tab
+        for tab_id, (short_id, _) in zip(_TAB_IDS, TAB_DEFINITIONS):
+            if triggered_id == tab_id:
+                new_tab = short_id
+                break
+
+        # Build CSS class outputs
+        base = "chart-tab"
+        active = f"{base} chart-tab--active"
+        classes = [active if short_id == new_tab else base for short_id, _ in TAB_DEFINITIONS]
+
+        return (new_tab, *classes)
+
+    # --- Pathway data loading callback ---
     @app.callback(
         Output("chart-data", "data"),
         Input("app-state", "data"),
@@ -115,15 +156,19 @@ def register_chart_callbacks(app):
                 "error": "Database query failed. Check logs for details.",
             }
 
+    # --- Chart rendering callback ---
     @app.callback(
         Output("pathway-chart", "figure"),
         Output("chart-subtitle", "children"),
         Input("chart-data", "data"),
+        Input("active-tab", "data"),
         Input("app-state", "data"),
     )
-    def update_chart(chart_data, app_state):
-        """Render icicle chart from chart-data nodes."""
+    def update_chart(chart_data, active_tab, app_state):
+        """Render the active tab's chart from chart-data nodes."""
+        active_tab = active_tab or "icicle"
         chart_type = (app_state or {}).get("chart_type", "directory")
+
         if chart_type == "indication":
             subtitle = "Trust \u2192 Indication \u2192 Drug \u2192 Patient Pathway"
         else:
@@ -142,9 +187,15 @@ def register_chart_callbacks(app):
                 "Try adjusting your filters."
             ), subtitle
 
-        from visualization.plotly_generator import create_icicle_from_nodes
+        # Lazy rendering — only compute the active tab's chart
+        if active_tab == "icicle":
+            from visualization.plotly_generator import create_icicle_from_nodes
 
-        title = _generate_chart_title(app_state) if app_state else ""
-        fig = create_icicle_from_nodes(chart_data["nodes"], title)
+            title = _generate_chart_title(app_state) if app_state else ""
+            fig = create_icicle_from_nodes(chart_data["nodes"], title)
+        else:
+            # Placeholder for charts not yet implemented
+            tab_label = dict(TAB_DEFINITIONS).get(active_tab, active_tab)
+            fig = _empty_figure(f"{tab_label} chart — coming soon")
 
         return fig, subtitle

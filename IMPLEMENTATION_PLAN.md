@@ -326,6 +326,129 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - [x] ensure filters update the KPI cards at the top to reflect the icicle chart visible
 ---
 
+## Phase 9: Additional Analytics Charts
+
+### Design Approach
+- Replace sidebar chart view selection with a **tab bar inside `chart_card.py`**
+- Each tab renders its chart in the same `dcc.Graph` area
+- Only the active tab's chart is computed (lazy rendering)
+- Store `active_tab` in `app-state` (default: "icicle")
+- All new charts respond to existing filters (date, chart type, trust, drug, directorate)
+- New query functions go in `src/data_processing/pathway_queries.py` (shared, not in dash_app/)
+- New parsing utilities go in `src/data_processing/pathway_queries.py` (or a new `parsing.py` if large)
+- New figure-building functions go in `src/visualization/` (shared, callable from Dash callbacks)
+- New callback files in `dash_app/callbacks/` — one per chart type
+
+### 9.1 Parsing utilities + tab infrastructure
+- [x] Create parsing utility functions (in new `src/data_processing/parsing.py`):
+  - `parse_average_spacing(spacing_html: str) -> list[dict]` — extract drug_name, dose_count, weekly_interval, total_weeks from HTML string
+  - `parse_pathway_drugs(ids: str, level: int) -> list[str]` — extract ordered drug list from ids column at level 4+
+  - `calculate_retention_rate(nodes: list[dict]) -> dict` — for each N-drug pathway, calculate % not escalating to N+1 drugs
+- [x] Update `dash_app/components/chart_card.py`:
+  - Add tab bar with 8 tabs: Icicle, Market Share, Cost Effectiveness, Cost Waterfall, Sankey, Dosing, Heatmap, Duration
+  - Plain HTML buttons with existing `.chart-tab` / `.chart-tab--active` CSS classes
+  - Single `dcc.Graph` shared across all tabs (lazy rendering)
+  - `active_tab` stored in separate `dcc.Store(id="active-tab")`
+- [x] Update `dash_app/components/sidebar.py`:
+  - Remove "Chart Views" section (Icicle/Sankey/Timeline items) — chart selection moves to tab bar
+  - Keep "Overview" section with "Pathway Overview"
+- [x] Update `dash_app/callbacks/chart.py`:
+  - Tab switching callback: 8 tab button Inputs → `active-tab` store + CSS class Outputs
+  - `update_chart` checks `active-tab` store and dispatches to correct figure builder
+  - Icicle renders normally; other tabs show "coming soon" placeholder
+- **Checkpoint**: App starts, tab bar renders with all 8 tabs, icicle tab still works, other tabs show placeholder "Coming soon" messages ✓
+
+### 9.2 Query functions for all chart types
+- [ ] Add to `src/data_processing/pathway_queries.py`:
+  - `get_drug_market_share(db_path, date_filter_id, chart_type, directory=None, trust=None)` — Level 3 nodes grouped by directory, returning drug, value, colour
+  - `get_pathway_costs(db_path, date_filter_id, chart_type, directory=None)` — Level 4+ nodes with cost_pp_pa, parsed pathway labels, patient counts
+  - `get_cost_waterfall(db_path, date_filter_id, chart_type, trust=None)` — Level 2 nodes with cost_pp_pa per directorate/indication
+  - `get_drug_transitions(db_path, date_filter_id, chart_type, directory=None)` — Level 3+ nodes parsed into source→target drug transitions with patient counts
+  - `get_dosing_intervals(db_path, date_filter_id, chart_type, drug=None)` — Level 3 nodes for a specific drug, parsed average_spacing by trust/directory
+  - `get_drug_directory_matrix(db_path, date_filter_id, chart_type)` — Level 3 nodes pivoted as directory × drug with value/cost metrics
+  - `get_treatment_durations(db_path, date_filter_id, chart_type, directory=None)` — Level 3 nodes with avg_days by drug within a directorate
+- [ ] Add thin wrappers in `dash_app/data/queries.py` for each new function (resolve DB_PATH and delegate)
+- **Checkpoint**: All 7 query functions return correct data via manual Python tests (`python -c "..."`)
+
+### 9.3 First-Line Market Share chart (Tab 2)
+- [ ] Create `dash_app/callbacks/market_share.py`:
+  - Build horizontal grouped bar chart from `get_drug_market_share()` data
+  - One cluster per directorate/indication (top N), bars within = drugs, length = % of patients
+  - Sorted by total patients desc, NHS blue palette
+  - Responds to all existing filters
+- [ ] Create figure function in `src/visualization/` (e.g., `create_market_share_figure(data)`)
+- [ ] Wire into tab switching in `update_chart` callback
+- **Checkpoint**: Market Share tab renders real data, responds to filters, icicle still works
+
+### 9.4 Pathway Cost Effectiveness chart (Tab 3)
+- [ ] Create `dash_app/callbacks/pathway_costs.py`:
+  - Build horizontal lollipop chart from `get_pathway_costs()` data
+  - Y-axis = pathway label (e.g., "Adalimumab → Secukinumab → Rituximab"), X-axis = £ per patient per annum
+  - Dot size = patient count, colour gradient: green (cheap) → amber → red (expensive)
+  - Uses `parse_pathway_drugs()` to extract pathway labels
+- [ ] Add retention rate annotations using `calculate_retention_rate()`
+  - Show as secondary annotation: "Drug B retains 72% of patients"
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Cost Effectiveness tab renders with lollipop dots and retention annotations
+
+### 9.5 Cost Waterfall chart (Tab 4)
+- [ ] Create `dash_app/callbacks/cost_waterfall.py`:
+  - Build Plotly waterfall chart from `get_cost_waterfall()` data
+  - Each bar = one directorate's average cost_pp_pa, sorted highest to lowest
+  - NHS colours, responds to chart_type toggle, date filter, trust filter
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Cost Waterfall tab renders real data, responds to filters
+
+### 9.6 Drug Switching Sankey chart (Tab 5)
+- [ ] Create `dash_app/callbacks/sankey.py`:
+  - Build Plotly Sankey diagram from `get_drug_transitions()` data
+  - Left nodes = 1st-line drugs, middle = 2nd-line, right = 3rd-line
+  - Link width = patient count, colour by drug or directorate
+  - Uses `parse_pathway_drugs()` to extract drug transitions from `ids` column
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Sankey tab renders real drug transition flows
+
+### 9.7 Dosing Interval Comparison chart (Tab 6)
+- [ ] Create `dash_app/callbacks/dosing.py`:
+  - Build horizontal grouped bar chart from `get_dosing_intervals()` data
+  - Uses `parse_average_spacing()` to extract weekly interval numbers
+  - Y-axis = trust or directorate, X-axis = weekly interval
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Dosing tab renders real data with parsed interval numbers
+
+### 9.8 Directorate × Drug Heatmap chart (Tab 7)
+- [ ] Create `dash_app/callbacks/heatmap.py`:
+  - Build Plotly heatmap from `get_drug_directory_matrix()` data
+  - Rows = directorates (sorted by total patients), columns = drugs (sorted by frequency)
+  - Cell colour = patient count or cost, hover shows details
+  - Toggle between patient count / cost / cost_pp_pa colouring (additional control in tab)
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Heatmap tab renders matrix with correct colour mapping
+
+### 9.9 Treatment Duration chart (Tab 8)
+- [ ] Create `dash_app/callbacks/duration.py`:
+  - Build horizontal bar chart from `get_treatment_durations()` data
+  - Y-axis = drug, X-axis = average days, colour intensity by patient count
+  - Directorate filter drives which drugs are shown
+- [ ] Create figure function in `src/visualization/`
+- [ ] Wire into tab switching
+- **Checkpoint**: Duration tab renders real data, responds to directorate filter
+
+### 9.10 Final integration + polish
+- [ ] Verify all 8 tabs switch smoothly with no unnecessary recomputation
+- [ ] Verify each chart responds to filter changes (date, chart type, trust, directorate, drug)
+- [ ] Test with both "directory" and "indication" chart types
+- [ ] Verify icicle chart still works correctly (no regressions)
+- [ ] Update CLAUDE.md with new chart types, callback files, and query functions
+- **Checkpoint**: All tabs work, all filters work, no regressions, documentation updated
+
+---
+
 ## Completion Criteria
 
 All tasks marked `[x]` AND:
@@ -342,6 +465,21 @@ All tasks marked `[x]` AND:
 - [x] No duplicate component ID errors on first load
 - [x] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
 - [x] Filter bar has drug/trust/directorate trigger buttons with selection count badges
+
+### Phase 9 Completion Criteria
+- [ ] 8 chart tabs render in the chart card (Icicle + 7 new)
+- [ ] Tab switching is smooth — only active tab's chart is computed
+- [ ] All 7 new charts render real data from SQLite
+- [ ] All charts respond to existing filters (date, chart type, trust, drug, directorate)
+- [ ] Market Share shows grouped bars by directorate with drug breakdown
+- [ ] Cost Effectiveness shows lollipop chart with retention annotations
+- [ ] Cost Waterfall shows directorate cost_pp_pa bars
+- [ ] Sankey shows drug switching flows across treatment lines
+- [ ] Dosing shows parsed interval comparisons
+- [ ] Heatmap shows directorate × drug matrix
+- [ ] Treatment Duration shows avg_days bars
+- [ ] Icicle chart has no regressions
+- [ ] `python run_dash.py` starts cleanly with all tabs
 
 ---
 

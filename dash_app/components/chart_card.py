@@ -1,19 +1,50 @@
-"""Chart card component — header and dcc.Graph for icicle chart."""
+"""Chart card component — tab bar, header, and dcc.Graph for charts."""
 from dash import html, dcc
 
 
+TAB_DEFINITIONS = [
+    ("icicle", "Icicle"),
+    ("market-share", "Market Share"),
+    ("cost-effectiveness", "Cost Effectiveness"),
+    ("cost-waterfall", "Cost Waterfall"),
+    ("sankey", "Sankey"),
+    ("dosing", "Dosing"),
+    ("heatmap", "Heatmap"),
+    ("duration", "Duration"),
+]
+
+
 def make_chart_card():
-    """Return a chart card matching 01_nhs_classic.html structure.
+    """Return a chart card with tab bar and dcc.Graph.
 
     Contains:
-    - Header with title and dynamic subtitle (hierarchy label)
+    - Tab bar with 8 chart tabs (Icicle active by default)
+    - Header with title and dynamic subtitle
     - dcc.Loading wrapper around dcc.Graph for loading spinner
-    Chart view selection (icicle/sankey/timeline) is in the sidebar.
     """
+    tab_buttons = []
+    for tab_id, label in TAB_DEFINITIONS:
+        is_active = tab_id == "icicle"
+        class_name = "chart-tab chart-tab--active" if is_active else "chart-tab"
+        tab_buttons.append(
+            html.Button(
+                label,
+                id=f"tab-{tab_id}",
+                className=class_name,
+                n_clicks=0,
+            )
+        )
+
     return html.Section(
         className="chart-card",
         **{"aria-label": "Patient pathway chart"},
         children=[
+            # Tab bar
+            html.Div(
+                className="chart-card__tabs",
+                role="tablist",
+                children=tab_buttons,
+            ),
             # Card header
             html.Div(
                 className="chart-card__header",

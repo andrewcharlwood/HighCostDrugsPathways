@@ -29,6 +29,7 @@ app.layout = dmc.MantineProvider(
         }),
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),
+        dcc.Store(id="active-tab", storage_type="memory", data="icicle"),
         dcc.Location(id="url", refresh=False),
 
         # Page structure
