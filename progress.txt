@@ -2239,3 +2239,70 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Reference-data store already has `available_directorates` (14) and `available_indications` (32+) from `load_initial_data()`
 ### Blocked items:
 - None
+
+## Iteration 39 — 2026-02-06
+### Task: 10.7 — Trust Comparison landing page + directorate selector
+### Why this task:
+- Task 10.6 (trust-comparison query functions) was completed in iteration 38
+- Progress.txt from iteration 38 explicitly recommended Task 10.7 as next
+- This builds the UI for the Trust Comparison view landing page (directorate selector grid + dashboard shell)
+### Status: COMPLETE
+### What was done:
+- **Added `get_directorate_summary()` query function** to `src/data_processing/pathway_queries.py`:
+  - Queries level 2 nodes for patient counts and level 3 for drug counts per directorate/indication
+  - Returns sorted list of dicts: `[{"name": "OPHTHALMOLOGY", "patients": 4042, "drugs": 8}, ...]`
+  - Works for both chart types: 13 directorates (directory mode), 39 indications (indication mode)
+  - Added thin wrapper in `dash_app/data/queries.py`
+- **Created `dash_app/components/trust_comparison.py`** with two layout functions:
+  - `make_tc_landing()` — landing page with header, description, and dynamically-populated grid of directorate cards
+  - `make_tc_dashboard()` — 6-chart dashboard with back button, title, and 2×3 grid of `dcc.Graph` cells (initially hidden)
+  - Helper `_tc_chart_cell()` for each chart cell (title + `dcc.Loading` + `dcc.Graph`)
+- **Updated `dash_app/app.py`** — replaced inline TC placeholder with `make_tc_landing()` + `make_tc_dashboard()` components
+- **Updated `dash_app/callbacks/filters.py`** — added pattern-matching `tc-selector` clicks and `tc-back-btn` as Inputs to `update_app_state`:
+  - TC card click → sets `selected_comparison_directorate` to the card's directorate name
+  - Back button → clears `selected_comparison_directorate` (returns to landing)
+  - Chart type toggle change → clears `selected_comparison_directorate` (per guardrails)
+- **Created `dash_app/callbacks/trust_comparison.py`** with 3 callback groups:
+  1. `populate_landing_grid` — reads app-state, calls `get_directorate_summary()`, generates card buttons with patient/drug stats, adapts grid class (3-col for directory, 4-col for indication)
+  2. `toggle_tc_subviews` — shows landing or dashboard based on `selected_comparison_directorate` in app-state
+  3. 6 placeholder chart callbacks — return empty figures with "Chart will be implemented in Task 10.8" annotation
+- **Added CSS** to `dash_app/assets/nhs.css`:
+  - `.tc-landing`, `.tc-landing__header/title/desc/grid`, `.tc-landing__grid--wide`
+  - `.tc-card`, `.tc-card:hover`, `.tc-card__name/stats/stat/dot`
+  - `.tc-dashboard`, `.tc-dashboard__header/back/title`, `.tc-dashboard__grid`
+  - `.tc-chart-cell`, `.tc-chart-cell__title`
+  - Responsive: 2-col grid at 1200px, 1-col at 768px
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 1 (Callbacks): 20 callbacks registered total (6 TC chart placeholders + 2 TC nav + existing)
+- Tier 3 (Functional): `get_directorate_summary()` returns 13 directorates (directory) and 39 indications (indication). All card IDs unique in both modes. Pattern-matching IDs for tc-selector correctly integrated into update_app_state.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Added `get_directorate_summary()` function
+- `dash_app/data/queries.py` — Added thin wrapper + import
+- `dash_app/components/trust_comparison.py` — New: `make_tc_landing()` + `make_tc_dashboard()`
+- `dash_app/app.py` — Replaced inline TC placeholder with component functions
+- `dash_app/callbacks/filters.py` — Added tc-selector and tc-back-btn as Inputs, chart type change clears directorate
+- `dash_app/callbacks/trust_comparison.py` — New: landing grid population, subview toggle, 6 placeholder charts
+- `dash_app/callbacks/__init__.py` — Register trust_comparison callbacks
+- `dash_app/assets/nhs.css` — Added TC landing + dashboard CSS
+- `IMPLEMENTATION_PLAN.md` — Task 10.7 marked [x]
+### Committed: 10739ca "feat: Trust Comparison landing page + directorate selector (Task 10.7)"
+### Patterns discovered:
+- The indication list in `ref_drug_indication_clusters` uses title case (e.g., "Rheumatoid arthritis") but pathway_nodes level 2 uses lowercase (e.g., "rheumatoid arthritis") and includes fallback labels like "RHEUMATOLOGY (no GP dx)". The landing page cards should use data from pathway_nodes (via `get_directorate_summary`) not from reference-data, since those are the actual values the trust-comparison queries will filter on.
+- The `SUM(value)` for level 2 is needed because multiple trusts can have the same directorate — the level 2 node is per-trust-per-directorate (parent is a trust node). This means "RHEUMATOLOGY" appears once per trust at level 2.
+- Pattern-matching callbacks with `ALL` work fine for dynamically-created components when `suppress_callback_exceptions=True` is set. The `update_app_state` callback receives `_tc_selector_clicks` as a list, but `ctx.triggered_id` gives the specific dict ID that fired.
+- Dashboard charts use `prevent_initial_call=True` to avoid rendering on page load when no directorate is selected.
+### Next iteration should:
+- Start Task 10.8 — Trust Comparison 6-chart dashboard
+- Key sub-steps:
+  1. Replace the 6 placeholder chart callbacks in `trust_comparison.py` with real implementations
+  2. Each chart calls the corresponding trust-comparison query wrapper (from `dash_app/data/queries.py`) and visualization function (from `src/visualization/plotly_generator.py`)
+  3. May need new visualization functions for trust-comparison perspective (e.g., `create_trust_market_share_figure`, `create_trust_heatmap_figure`) or parameterize existing ones
+  4. All 6 charts should respond to date_filter_id and chart_type from app-state
+  5. Cost Effectiveness uses existing `get_pathway_costs(directory=selected)` — not trust-split
+  6. Read `AdditionalAnalytics.md` for chart specifications
+  7. Read `src/visualization/plotly_generator.py` for existing figure functions to understand patterns
+- The query wrappers are ready: `get_trust_market_share`, `get_trust_cost_waterfall`, `get_trust_dosing`, `get_trust_heatmap`, `get_trust_durations`, and existing `get_pathway_costs`
+### Blocked items:
+- None
