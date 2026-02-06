@@ -149,9 +149,9 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: All three components render with correct layout and styling
 
 ### 2.3 Footer + full page assembly
-- [ ] Create `dash_app/components/footer.py` — `make_footer()` function
+- [x] Create `dash_app/components/footer.py` — `make_footer()` function
   - CSS class `.page-footer`, same text as 01_nhs_classic.html
-- [ ] Update `dash_app/app.py` to assemble full page layout:
+- [x] Update `dash_app/app.py` to assemble full page layout:
   - `dmc.MantineProvider(children=[header, sidebar, main_content])`
   - Main content: KPI row → filter bar → chart card → footer
   - Add 3 `dcc.Store` components: `id="app-state"`, `id="chart-data"`, `id="reference-data"`

@@ -302,3 +302,48 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 - Phase 3.1 will need: reference data loading callback (on page load), filter state management callback (toggle pills + dropdowns → app-state), and `register_callbacks(app)` wiring
 ### Blocked items:
 - None
+
+## Iteration 6 — 2026-02-06
+### Task: Phase 2 — Task 2.3 (Footer + full page assembly)
+### Why this task:
+- Tasks 2.1 and 2.2 complete. Task 2.3 is the final piece of Phase 2.
+- Previous iteration (5) explicitly recommended this as the next task.
+- Completing this marks Phase 2 done, enabling Phase 3 (Core Callbacks).
+### Status: COMPLETE
+### What was done:
+- Created `dash_app/components/footer.py` with `make_footer()`:
+  - Returns `html.Footer(className="page-footer")` matching 01_nhs_classic.html line 520
+  - Text: "NHS Norfolk and Waveney ICB — High Cost Drugs Analysis"
+- Updated `dash_app/app.py`:
+  - Added `make_footer` import
+  - Added `make_footer()` as 4th child in main content area (after chart card)
+- Full page layout now complete: MantineProvider → [3 stores, Header, Sidebar, Main(KPIs, Filter bar, Chart card, Footer)]
+- Note: dcc.Store components and page assembly were already done in earlier iterations. Task 2.3 effectively just needed the footer component.
+### Validation results:
+- Tier 1 (Code): `from dash_app.components.footer import make_footer` — OK, returns Footer with className="page-footer"
+- Tier 1 (App starts): `from dash_app.app import app` — OK, no errors
+- Tier 2 (Layout): Verified programmatically:
+  - MantineProvider: 6 children (3 stores + Header(top-header) + Nav(sidebar) + Main(main))
+  - Main: 4 children (Section(kpi-row), Section(filter-bar), Section(chart-card), Footer(page-footer))
+  - All component IDs present and correct
+### Files changed:
+- `dash_app/components/footer.py` — NEW: footer component
+- `dash_app/app.py` — Updated: import + added footer to main area
+- `IMPLEMENTATION_PLAN.md` — Task 2.3 marked [x]
+### Committed: [pending]
+### Patterns discovered:
+- Phase 2 was incrementally built across iterations 4-6. The layout assembly (app.py) evolved naturally — each iteration added its components. No "big bang" assembly step was needed.
+### Next iteration should:
+- Start Phase 3: Task 3.1 — Reference data loading + filter state management
+- Create `dash_app/callbacks/filters.py` with two callbacks:
+  1. `load_reference_data`: fires on page load, calls `queries.load_initial_data()`, populates `reference-data` store + header record count + header last updated
+  2. `update_app_state`: fires when chart-type toggle buttons or date dropdowns change, computes `date_filter_id` from initiated+last_seen combo, updates `app-state` store, manages toggle pill active classes
+- Create `dash_app/callbacks/__init__.py` with `register_callbacks(app)` function
+- Wire `register_callbacks(app)` call in `app.py` after layout definition
+- Key IDs to use as inputs: `chart-type-directory`, `chart-type-indication` (n_clicks), `filter-initiated` (value), `filter-last-seen` (value)
+- Key IDs to use as outputs: `app-state` (data), `reference-data` (data), `header-record-count` (children), `header-last-updated` (children)
+- Date filter ID mapping: initiated "all"/"2yr"/"1yr" + last_seen "6mo"/"12mo" → e.g. "all_6mo", "1yr_12mo"
+- For toggle pills, use Output for className to toggle `toggle-pill--active` class
+- Read pathways_app/pathways_app.py lines 407-488 to understand the reference data structure
+### Blocked items:
+- None
