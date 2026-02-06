@@ -1010,3 +1010,49 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Verify: select a drug → chart renders correctly with full hierarchy intact
 ### Blocked items:
 - None
+
+## Iteration 19 — 2026-02-06
+### Task: Phase 7 — Task 7.2 (Fix drug filter breaking icicle chart)
+### Why this task:
+- Task 7.1 complete in iteration 18. Task 7.2 is next in Phase 7 dependency order.
+- Progress.txt from iteration 18 explicitly recommended this task.
+- Critical bug — selecting ANY drug made the chart go blank with "multiple implied roots" error.
+### Status: COMPLETE
+### What was done:
+- Diagnosed root cause in `src/data_processing/pathway_queries.py:load_pathway_nodes()`:
+  - Levels 0-2 have `drug_sequence = ''` (empty string), NOT `drug_sequence IS NULL`
+  - The drug filter's `OR drug_sequence IS NULL` check didn't match empty strings
+  - Same bug existed for directorate filter: `directory = ''` at levels 0-1, but check was `OR directory IS NULL`
+  - Trust filter was already correct (had `OR trust_name = ''`)
+- Fixed drug filter: `(level < 3 OR drug_sequence LIKE ...)` — levels 0-2 always included
+- Fixed directorate filter: `(level < 2 OR directory IN (...) OR directory IS NULL OR directory = '')` — levels 0-1 always included
+- Verified all filter combinations preserve single-root hierarchy:
+  - Drug only (ADALIMUMAB): 120 nodes, root present
+  - Directorate only (RHEUMATOLOGY): 94 nodes, root present
+  - Trust only (NNUH): 107 nodes, root present
+  - Drug + Trust combined: 45 nodes, root present
+  - Indication chart + drug: 195 nodes, root present
+- Verified icicle charts render correctly from all filtered datasets
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 7 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` — serves at http://127.0.0.1:8050/ — no errors
+- Tier 3 (Functional): All 5 filter combinations produce valid hierarchy with single root node; icicle charts render correctly
+### Files changed:
+- `src/data_processing/pathway_queries.py` — Fixed: drug and directorate WHERE clauses use level-based gating
+- `IMPLEMENTATION_PLAN.md` — Task 7.2 marked [x], completion criterion for drug filter marked [x]
+### Committed: 00627a7 "fix: preserve ancestor nodes in drug/directorate filters to prevent broken icicle hierarchy (Task 7.2)"
+### Patterns discovered:
+- `drug_sequence` and `directory` columns use empty string `''` (not NULL) for ancestor nodes (levels 0-2). The `IS NULL` check is insufficient — must use level-based gating (`level < N`) to unconditionally include ancestor nodes.
+- Level-based gating is cleaner than checking for NULL/empty: `(level < 3 OR drug_filter_condition)` clearly expresses the intent that ancestors are always kept.
+- Trust filter already worked because it had `OR trust_name = ''` in addition to `OR trust_name IS NULL`.
+### Next iteration should:
+- Start Task 7.3 — Restructure sidebar: remove placeholder items, add chart view buttons
+- Read `dash_app/components/sidebar.py` to see current items
+- Remove: "Cost Analysis", "Export Data" (no functionality)
+- Remove: "Drug Selection", "Trust Selection", "Directory Selection", "Indications" (these become filter bar buttons in Task 7.5)
+- Add: chart view buttons — "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled)
+- Keep: "Pathway Overview" as the top active item
+- Remove the tab row from `dash_app/components/chart_card.py` (chart view selection moves to sidebar)
+- Update sidebar IDs and any callbacks that reference removed IDs (e.g., `sidebar-drug-selection`, `sidebar-trust-selection`, `sidebar-indications` are used in drawer.py `open_drawer` callback)
+### Blocked items:
+- None
