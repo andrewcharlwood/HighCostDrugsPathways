@@ -2075,3 +2075,62 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - The existing filter_bar.py has both global controls (chart type, dates) and view-specific controls (drug/trust/directorate buttons). Task 10.4 extracts the global controls into a sub-header; the view-specific buttons stay temporarily until Task 10.9 relocates them.
 ### Blocked items:
 - None
+
+## Iteration 36 — 2026-02-06
+### Task: Phase 10 — Task 10.4 (Global filter sub-header bar)
+### Why this task:
+- Task 10.3 (header fraction KPIs) complete in iteration 35
+- Progress.txt from iteration 35 explicitly recommended Task 10.4 as next
+- The sub-header is a prerequisite for proper two-view layout — global controls must be separated from view-specific controls
+### Status: COMPLETE
+### What was done:
+- **Created `dash_app/components/sub_header.py`**:
+  - New `make_sub_header()` function returning a fixed-position bar below the header
+  - Contains chart type toggle pills (By Directory / By Indication) and date filter dropdowns (Initiated, Last Seen)
+  - Uses CSS classes from design spec: `.sub-header`, `.sub-header__group`, `.sub-header__label`, `.sub-header__divider`
+  - Same component IDs as before: `chart-type-directory`, `chart-type-indication`, `filter-initiated`, `filter-last-seen`
+- **Updated `dash_app/components/filter_bar.py`**:
+  - Removed chart type toggle, date filter dropdowns, and associated dividers
+  - Now contains ONLY: drug/trust/directorate filter buttons + "Clear All" button
+  - Removed `dcc` import (no longer needed — only `html` used)
+- **Updated `dash_app/app.py`**:
+  - Added `from dash_app.components.sub_header import make_sub_header`
+  - Inserted `make_sub_header()` between `make_header()` and `make_sidebar()` in layout
+  - Sub-header is outside the view container — constant across both views
+- **Added CSS to `dash_app/assets/nhs.css`**:
+  - `.sub-header` — fixed position, top: 56px (below header), left: sidebar width, z-index: 150, height: 44px, background: #E8F0FE, border-bottom: #C5D4E8
+  - `.sub-header__group`, `.sub-header__label`, `.sub-header__divider` — layout/typography per design spec
+  - Updated `.main` margin-top from 56px → 100px (56px header + 44px sub-header)
+  - Updated `.main` min-height from calc(100vh - 56px) → calc(100vh - 100px)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - 11 critical IDs verified in layout: chart-type-directory, chart-type-indication, filter-initiated, filter-last-seen, open-drug-modal, open-trust-modal, open-directorate-modal, clear-all-filters, drug-count-badge, trust-count-badge, directorate-count-badge — all FOUND
+  - Sub-header component renders between header and sidebar in layout tree
+- Tier 3 (Functional):
+  - 12 callbacks registered (same count as before — no regression)
+  - All callback chains intact: app-state, chart-data, reference-data, KPIs, navigation
+  - Toggle pill IDs and date filter IDs unchanged — callbacks reference them by ID regardless of parent container
+### Files changed:
+- `dash_app/components/sub_header.py` — NEW: global filter sub-header component
+- `dash_app/components/filter_bar.py` — Stripped to drug/trust/directorate buttons only
+- `dash_app/app.py` — Added sub_header import and make_sub_header() call
+- `dash_app/assets/nhs.css` — Added sub-header CSS, updated .main margin-top to 100px
+- `IMPLEMENTATION_PLAN.md` — Task 10.4 marked [x]
+### Committed: 7e0c851 "feat: add global filter sub-header bar (Task 10.4)"
+### Patterns discovered:
+- Moving components between containers doesn't break Dash callbacks — IDs are resolved globally, not by parent hierarchy. As long as the component IDs stay the same, callbacks just work.
+- The sub-header uses `position: fixed` with `left: var(--sidebar-w)` to sit right of the sidebar. The `.main` content area pushes down with `margin-top: 100px` to avoid overlap.
+### Next iteration should:
+- Start Task 10.5 — Patient Pathways view: reduce to Icicle + Sankey tabs only
+- Key sub-steps:
+  1. Read `dash_app/components/chart_card.py` to see current 8-tab structure
+  2. Remove 6 tabs from Patient Pathways view: Market Share, Cost Waterfall, Cost Effectiveness, Dosing, Heatmap, Duration
+  3. Keep only Icicle and Sankey tabs in the tab bar
+  4. The 6 removed chart types will reappear in Trust Comparison (Task 10.8)
+  5. Update the chart callback in `dash_app/callbacks/chart.py` to only handle icicle and sankey for Patient Pathways view
+  6. Verify icicle and sankey still work with all existing filters
+- Important: the removed tabs' callback logic should NOT be deleted — it will be reused in Task 10.8 (Trust Comparison 6-chart dashboard). Just remove them from the Patient Pathways tab bar. The chart callback may need a guard to only render icicle/sankey when active_view is patient-pathways.
+### Blocked items:
+- None
