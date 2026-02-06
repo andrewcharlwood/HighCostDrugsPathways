@@ -73,13 +73,15 @@ def register_filter_callbacks(app):
         Input("filter-last-seen", "value"),
         Input("all-drugs-chips", "value"),
         Input("trust-chips", "value"),
+        Input("nav-patient-pathways", "n_clicks"),
+        Input("nav-trust-comparison", "n_clicks"),
         State("app-state", "data"),
     )
     def update_app_state(
         _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs,
-        selected_trusts, current_state
+        selected_trusts, _nav_pp_clicks, _nav_tc_clicks, current_state
     ):
-        """Update app-state when chart type toggle, date filters, drug chips, or trust chips change."""
+        """Update app-state when chart type toggle, date filters, drug/trust chips, or sidebar nav change."""
         if not current_state:
             current_state = {
                 "chart_type": "directory",
@@ -89,6 +91,8 @@ def register_filter_callbacks(app):
                 "selected_drugs": [],
                 "selected_directorates": [],
                 "selected_trusts": [],
+                "active_view": "patient-pathways",
+                "selected_comparison_directorate": None,
             }
 
         triggered_id = ctx.triggered_id
@@ -99,6 +103,13 @@ def register_filter_callbacks(app):
             chart_type = "directory"
         elif triggered_id == "chart-type-indication":
             chart_type = "indication"
+
+        # Determine active view from sidebar nav
+        active_view = current_state.get("active_view", "patient-pathways")
+        if triggered_id == "nav-patient-pathways":
+            active_view = "patient-pathways"
+        elif triggered_id == "nav-trust-comparison":
+            active_view = "trust-comparison"
 
         # Compute date_filter_id from dropdown values
         date_filter_id = f"{initiated}_{last_seen}"
@@ -112,12 +123,13 @@ def register_filter_callbacks(app):
             "date_filter_id": date_filter_id,
             "selected_drugs": selected_drugs or [],
             "selected_trusts": selected_trusts or [],
+            "active_view": active_view,
         }
 
         # Toggle pill CSS classes
         base = "toggle-pill"
-        active = f"{base} toggle-pill--active"
-        dir_class = active if chart_type == "directory" else base
-        ind_class = active if chart_type == "indication" else base
+        active_cls = f"{base} toggle-pill--active"
+        dir_class = active_cls if chart_type == "directory" else base
+        ind_class = active_cls if chart_type == "indication" else base
 
         return updated_state, dir_class, ind_class

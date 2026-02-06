@@ -469,16 +469,16 @@ Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-
 - **Checkpoint**: Design mockups/specifications ready for all 5 areas above
 
 ### 10.2 State management + sidebar restructure
-- [ ] Add `active_view` to `app-state`: `"patient-pathways"` (default) or `"trust-comparison"`
-- [ ] Add `selected_comparison_directorate` to `app-state`: `null` (landing page) or directorate name
-- [ ] Update `dash_app/components/sidebar.py`:
+- [x] Add `active_view` to `app-state`: `"patient-pathways"` (default) or `"trust-comparison"`
+- [x] Add `selected_comparison_directorate` to `app-state`: `null` (landing page) or directorate name
+- [x] Update `dash_app/components/sidebar.py`:
   - Rename "Pathway Overview" → "Patient Pathways"
   - Add "Trust Comparison" nav item below it
   - Active state tracks `active_view`
-- [ ] Add callback: sidebar clicks → update `active_view` in app-state
-- [ ] Main content area switches between Patient Pathways view and Trust Comparison view based on `active_view`
-- [ ] Date filter + chart type toggle remain in global sub-header (visible in both views)
-- **Checkpoint**: Sidebar switches between two views, active state highlights correctly, app starts without errors
+- [x] Add callback: sidebar clicks → update `active_view` in app-state
+- [x] Main content area switches between Patient Pathways view and Trust Comparison view based on `active_view`
+- [x] Date filter + chart type toggle remain in global sub-header (visible in both views)
+- **Checkpoint**: Sidebar switches between two views, active state highlights correctly, app starts without errors ✓
 
 ### 10.3 Header redesign — remove KPI row, add fraction KPIs
 - [ ] Remove `dash_app/components/kpi_row.py` (or gut it)

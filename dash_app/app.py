@@ -26,6 +26,8 @@ app.layout = dmc.MantineProvider(
             "selected_drugs": [],
             "selected_directorates": [],
             "selected_trusts": [],
+            "active_view": "patient-pathways",
+            "selected_comparison_directorate": None,
         }),
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),
@@ -39,9 +41,55 @@ app.layout = dmc.MantineProvider(
         html.Main(
             className="main",
             children=[
-                make_kpi_row(),
-                make_filter_bar(),
-                make_chart_card(),
+                # View container — switched by active_view in app-state
+                html.Div(
+                    id="view-container",
+                    children=[
+                        # Patient Pathways view (default, visible)
+                        html.Div(
+                            id="patient-pathways-view",
+                            children=[
+                                make_kpi_row(),
+                                make_filter_bar(),
+                                make_chart_card(),
+                            ],
+                        ),
+                        # Trust Comparison view (hidden initially)
+                        html.Div(
+                            id="trust-comparison-view",
+                            style={"display": "none"},
+                            children=[
+                                html.Div(
+                                    className="tc-landing",
+                                    id="trust-comparison-landing",
+                                    children=[
+                                        html.Div(
+                                            className="tc-landing__header",
+                                            children=[
+                                                html.H2(
+                                                    "Trust Comparison",
+                                                    className="tc-landing__title",
+                                                ),
+                                                html.P(
+                                                    "Select a directorate to compare drug usage across trusts.",
+                                                    className="tc-landing__desc",
+                                                    id="tc-landing-desc",
+                                                ),
+                                            ],
+                                        ),
+                                        html.Div(
+                                            className="tc-landing__grid",
+                                            id="tc-landing-grid",
+                                            children=[
+                                                # Populated by callback in later task
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
                 make_footer(),
             ],
         ),

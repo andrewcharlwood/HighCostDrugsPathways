@@ -19,6 +19,7 @@ def _svg_icon(svg_body):
 # SVG icon bodies (Feather-style)
 _ICONS = {
     "pathway": '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+    "compare": '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
 }
 
 
@@ -28,15 +29,20 @@ def make_sidebar():
         className="sidebar",
         **{"aria-label": "Main navigation"},
         children=[
-            # Overview section
             html.Div(
                 className="sidebar__section",
                 children=[
-                    html.Div("Overview", className="sidebar__label"),
-                    _sidebar_item("Pathway Overview", "pathway", active=True),
+                    html.Div("Analysis", className="sidebar__label"),
+                    _sidebar_item(
+                        "Patient Pathways", "pathway",
+                        active=True, item_id="nav-patient-pathways",
+                    ),
+                    _sidebar_item(
+                        "Trust Comparison", "compare",
+                        active=False, item_id="nav-trust-comparison",
+                    ),
                 ],
             ),
-            # Footer
             html.Div(
                 className="sidebar__footer",
                 children=[
