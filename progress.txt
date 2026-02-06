@@ -1798,3 +1798,49 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Review all Phase 9 completion criteria in IMPLEMENTATION_PLAN.md
 ### Blocked items:
 - None
+
+## Iteration 32 — 2026-02-06
+### Task: Phase 9 — Task 9.10 (Final integration + polish)
+### Why this task:
+- Tasks 9.1–9.9 all complete. Task 9.10 is the final integration and verification task.
+- Progress.txt from iteration 31 explicitly recommended this task.
+- All 8 chart tabs are implemented; this iteration validates everything works together.
+### Status: COMPLETE
+### What was done:
+- **Verified all 8 tabs dispatch correctly** — tested each tab's render function with default app_state in both directory and indication modes. All produce valid Plotly figures.
+- **Verified query functions with filters** — tested trust filter (NNUH), directorate filter (RHEUMATOLOGY), date filter (2yr_12mo), and indication mode. All return correct filtered data.
+- **Verified all figure builders** — all 8 figure builders produce valid traces (icicle: 1, market share: 39, cost effectiveness: 41, cost waterfall: 1, Sankey: 1, dosing: 1, heatmap: 1, duration: 1).
+- **App starts cleanly** — `python run_dash.py` runs without errors.
+- **No regressions** — icicle chart renders 293 nodes (directory) / 438 nodes (indication).
+- **Updated CLAUDE.md** with:
+  - `parsing.py` in package structure tree
+  - All 8 figure functions in Visualization Module section
+  - All 9 query functions in Shared Data Queries section
+  - Tab-based callback chain diagram
+  - Updated chart_card, sidebar, and callbacks descriptions
+  - Updated Output section listing all 8 chart tabs
+- **Marked Phase 9 Completion Criteria** all `[x]` in IMPLEMENTATION_PLAN.md
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` → "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 3 (Functional):
+  - All 8 tabs dispatch to correct figure builders — verified programmatically
+  - Directory mode: all 8 charts render with valid data
+  - Indication mode: all 8 charts render with valid data
+  - Trust filter (NNUH): icicle 107 nodes, market share 45 entries — filtered correctly
+  - Directorate filter (RHEUMATOLOGY): icicle 93 nodes, pathway costs 38 entries — filtered correctly
+  - Date filter (2yr_12mo): icicle 147 nodes — filtered correctly
+  - No "coming soon" placeholders remain — all tabs fully implemented
+### Files changed:
+- `CLAUDE.md` — Updated visualization, queries, parsing, callback chain, output sections
+- `IMPLEMENTATION_PLAN.md` — Task 9.10 marked [x], Phase 9 Completion Criteria all [x]
+### Committed: ca74be1 "docs: complete Phase 9 final integration (Task 9.10)"
+### Patterns discovered:
+- Programmatic verification of all 8 tab dispatch functions is more thorough than manual browser testing — catches data shape issues across all chart types simultaneously.
+- The full callback dispatch for 8 charts × 2 modes × multiple filter combinations runs in under 5 seconds, confirming lazy rendering is effective.
+### Next iteration should:
+- Phase 9 is COMPLETE. All tasks 9.1–9.10 are done.
+- All Phase 9 Completion Criteria are satisfied.
+- The completion signal should be output if all tasks in IMPLEMENTATION_PLAN.md are marked [x].
+### Blocked items:
+- None

@@ -440,12 +440,12 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - **Checkpoint**: Duration tab renders real data, responds to directorate filter
 
 ### 9.10 Final integration + polish
-- [ ] Verify all 8 tabs switch smoothly with no unnecessary recomputation
-- [ ] Verify each chart responds to filter changes (date, chart type, trust, directorate, drug)
-- [ ] Test with both "directory" and "indication" chart types
-- [ ] Verify icicle chart still works correctly (no regressions)
-- [ ] Update CLAUDE.md with new chart types, callback files, and query functions
-- **Checkpoint**: All tabs work, all filters work, no regressions, documentation updated
+- [x] Verify all 8 tabs switch smoothly with no unnecessary recomputation
+- [x] Verify each chart responds to filter changes (date, chart type, trust, directorate, drug)
+- [x] Test with both "directory" and "indication" chart types
+- [x] Verify icicle chart still works correctly (no regressions)
+- [x] Update CLAUDE.md with new chart types, callback files, and query functions
+- **Checkpoint**: All tabs work, all filters work, no regressions, documentation updated ✓
 
 ---
 
@@ -467,19 +467,19 @@ All tasks marked `[x]` AND:
 - [x] Filter bar has drug/trust/directorate trigger buttons with selection count badges
 
 ### Phase 9 Completion Criteria
-- [ ] 8 chart tabs render in the chart card (Icicle + 7 new)
-- [ ] Tab switching is smooth — only active tab's chart is computed
-- [ ] All 7 new charts render real data from SQLite
-- [ ] All charts respond to existing filters (date, chart type, trust, drug, directorate)
-- [ ] Market Share shows grouped bars by directorate with drug breakdown
-- [ ] Cost Effectiveness shows lollipop chart with retention annotations
-- [ ] Cost Waterfall shows directorate cost_pp_pa bars
-- [ ] Sankey shows drug switching flows across treatment lines
-- [ ] Dosing shows parsed interval comparisons
-- [ ] Heatmap shows directorate × drug matrix
-- [ ] Treatment Duration shows avg_days bars
-- [ ] Icicle chart has no regressions
-- [ ] `python run_dash.py` starts cleanly with all tabs
+- [x] 8 chart tabs render in the chart card (Icicle + 7 new)
+- [x] Tab switching is smooth — only active tab's chart is computed
+- [x] All 7 new charts render real data from SQLite
+- [x] All charts respond to existing filters (date, chart type, trust, drug, directorate)
+- [x] Market Share shows grouped bars by directorate with drug breakdown
+- [x] Cost Effectiveness shows lollipop chart with retention annotations
+- [x] Cost Waterfall shows directorate cost_pp_pa bars
+- [x] Sankey shows drug switching flows across treatment lines
+- [x] Dosing shows parsed interval comparisons
+- [x] Heatmap shows directorate × drug matrix
+- [x] Treatment Duration shows avg_days bars
+- [x] Icicle chart has no regressions
+- [x] `python run_dash.py` starts cleanly with all tabs
 
 ---
 

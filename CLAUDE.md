@@ -96,14 +96,15 @@ The refresh command:
 │   │   ├── snowflake_connector.py  # Snowflake integration
 │   │   ├── cache.py            # Query result caching
 │   │   ├── data_source.py      # Data source fallback chain
-│   │   └── diagnosis_lookup.py # GP diagnosis lookup (SNOMED clusters)
+│   │   ├── diagnosis_lookup.py # GP diagnosis lookup (SNOMED clusters)
+│   │   └── parsing.py          # Parse average_spacing HTML, pathway drugs, retention rates
 │   │
 │   ├── analysis/                # Analysis pipeline
 │   │   ├── pathway_analyzer.py # prepare_data, calculate_statistics, build_hierarchy
 │   │   └── statistics.py       # Statistical calculation functions
 │   │
 │   ├── visualization/           # Chart generation
-│   │   └── plotly_generator.py # create_icicle_figure, create_icicle_from_nodes
+│   │   └── plotly_generator.py # Icicle, market share, cost effectiveness, waterfall, Sankey, dosing, heatmap, duration figures
 │   │
 │   └── cli/                     # CLI tools
 │       └── refresh_pathways.py # Data refresh command
@@ -126,7 +127,7 @@ The refresh command:
 │   ├── callbacks/
 │   │   ├── __init__.py         # register_callbacks(app)
 │   │   ├── filters.py          # Reference data loading + filter state management
-│   │   ├── chart.py            # Pathway data loading + icicle chart rendering
+│   │   ├── chart.py            # Tab switching, pathway data loading, 8-chart dispatch
 │   │   ├── drawer.py           # Drawer open/close + drug/trust selection
 │   │   └── kpi.py              # KPI card value updates
 │   └── utils/
@@ -256,14 +257,34 @@ Refactored from the original 267-line `generate_graph()` function:
 
 - **create_icicle_figure(ice_df)** - Generate Plotly icicle chart from DataFrame (legacy/pipeline use)
 - **create_icicle_from_nodes(nodes, title)** - Generate icicle chart from list-of-dicts (Dash use). Accepts JSON-serializable node dicts from `dcc.Store`. Uses NHS blue gradient colorscale, 10-field customdata, Source Sans 3 font.
+- **create_market_share_figure(data, title)** - Horizontal stacked bar chart: drugs grouped by directorate/indication, bar length = % patients
+- **create_cost_effectiveness_figure(data, retention, title)** - Lollipop chart: pathway cost_pp_pa with dot size = patient count, retention annotations
+- **create_cost_waterfall_figure(data, title)** - Waterfall chart: directorate-level cost_pp_pa sorted highest to lowest
+- **create_sankey_figure(data, title)** - Sankey diagram: drug switching flows across treatment lines (1st → 2nd → 3rd)
+- **create_dosing_figure(data, title, group_by)** - Grouped horizontal bar chart: dosing intervals by drug or trust
+- **create_heatmap_figure(data, title, metric)** - Matrix heatmap: directorate × drug with patient/cost/cost_pp_pa colouring
+- **create_duration_figure(data, title, show_directory)** - Horizontal bar chart: average treatment duration in days per drug
 - **save_figure_html()** - Save interactive HTML file
 - **open_figure_in_browser()** - Open chart in default browser
 
+### Parsing Utilities (`data_processing/parsing.py`)
+
+- **parse_average_spacing(spacing_html)** - Extract drug_name, dose_count, weekly_interval, total_weeks from HTML string
+- **parse_pathway_drugs(ids, level)** - Extract ordered drug list from ids column at level 4+
+- **calculate_retention_rate(nodes)** - For each N-drug pathway, calculate % not escalating to N+1 drugs
+
 ### Shared Data Queries (`data_processing/pathway_queries.py`)
 
-Shared query functions used by both the Dash app and potentially other consumers:
+Shared query functions used by the Dash app (via thin wrappers in `dash_app/data/queries.py`):
 - **load_initial_data(db_path)** - Returns available drugs (42), directorates (14), indications (32), trusts (7), total_patients, last_updated
 - **load_pathway_nodes(db_path, filter_id, chart_type, selected_drugs, selected_directorates, selected_trusts)** - Returns pathway nodes, unique_patients, total_drugs, total_cost, last_updated. Parameterized SQL with optional drug/directorate/trust filters.
+- **get_drug_market_share(db_path, filter_id, chart_type, directory, trust)** - Level 3 nodes grouped by directory, returns drug, value, colour
+- **get_pathway_costs(db_path, filter_id, chart_type, directory, trust)** - Level 4+ nodes with cost_pp_pa, pathway labels, patient counts
+- **get_cost_waterfall(db_path, filter_id, chart_type, trust)** - Level 2 nodes with cost_pp_pa per directorate/indication
+- **get_drug_transitions(db_path, filter_id, chart_type, directory, trust)** - Level 3+ nodes parsed into source→target drug transitions
+- **get_dosing_intervals(db_path, filter_id, chart_type, drug, trust)** - Level 3 nodes with parsed average_spacing intervals
+- **get_drug_directory_matrix(db_path, filter_id, chart_type, trust)** - Level 3 nodes pivoted as directory × drug matrix
+- **get_treatment_durations(db_path, filter_id, chart_type, directory, trust)** - Level 3 nodes with avg_days by drug
 
 ### Dash Application (`dash_app/`)
 
@@ -278,18 +299,19 @@ Page Load → load_reference_data → reference-data store + header indicators
          → update_app_state → app-state store (default filters)
                              → load_pathway_data → chart-data store
                                                   ├→ update_kpis → KPI cards
-                                                  └→ update_chart → dcc.Graph
+                                                  └→ update_chart → dcc.Graph (dispatches by active-tab)
 
 Filter change → update_app_state → app-state → load_pathway_data → (chain above)
 Drawer selection → all-drugs-chips/trust-chips → update_app_state → (chain above)
+Tab click → switch_tab → active-tab store → update_chart → dcc.Graph (lazy: only active tab computed)
 ```
 
 **Key Components:**
 - **Header** (`header.py`): NHS branding, data freshness indicator (patient count + relative time)
-- **Sidebar** (`sidebar.py`): Navigation items with drawer trigger IDs for Drug Selection, Trust Selection, Indications
+- **Sidebar** (`sidebar.py`): Navigation with Pathway Overview link (chart views moved to tab bar in chart_card.py)
 - **Filter Bar** (`filter_bar.py`): Chart type toggle pills (By Directory / By Indication) + date filter dropdowns
 - **KPI Row** (`kpi_row.py`): 4 cards — Unique Patients, Drug Types, Total Cost, Indication Match Rate (~93%)
-- **Chart Card** (`chart_card.py`): Icicle chart with `dcc.Loading` spinner, dynamic subtitle, tab row
+- **Chart Card** (`chart_card.py`): 8-tab chart area (Icicle, Market Share, Cost Effectiveness, Cost Waterfall, Sankey, Dosing, Heatmap, Duration) with `dcc.Loading` spinner, dynamic subtitle, and `dcc.Store(id="active-tab")`
 - **Drawer** (`drawer.py`): `dmc.Drawer` with drug chips (`dmc.ChipGroup`), trust chips, directorate accordion with indication sub-items and drug fragment badges
 - **Footer** (`footer.py`): NHS Norfolk and Waveney ICB branding
 
@@ -471,13 +493,21 @@ The input data (CSV/Parquet) must contain columns including:
 
 ## Output
 
-Interactive Plotly icicle chart with toggleable views:
-- **Directory view**: Trust → Directorate → Drug → Patient Pathway
-- **Indication view**: Trust → GP Diagnosis (Search_Term) → Drug → Patient Pathway
-- Patient counts and percentages at each hierarchy level
-- Total and average costs
-- Treatment duration and dosing frequency information
-- Color gradient based on patient volume
+8 interactive chart tabs in a single Dash application:
+1. **Icicle** — Hierarchical pathway view (Directory: Trust → Directorate → Drug → Pathway; Indication: Trust → GP Diagnosis → Drug → Pathway)
+2. **Market Share** — Horizontal stacked bars showing drug market share by directorate/indication
+3. **Cost Effectiveness** — Lollipop chart of pathway cost per patient per annum with retention annotations
+4. **Cost Waterfall** — Waterfall chart of directorate-level cost_pp_pa
+5. **Sankey** — Drug switching flows across 1st → 2nd → 3rd treatment lines
+6. **Dosing** — Grouped bar chart of dosing intervals by drug or trust
+7. **Heatmap** — Directorate × Drug matrix coloured by patient count, cost, or cost_pp_pa
+8. **Duration** — Horizontal bar chart of average treatment duration per drug
+
+All charts support:
+- Directory / Indication toggle
+- Date filter combinations (6 options)
+- Trust, drug, and directorate filters
+- Lazy rendering (only active tab computed)
 
 ## Testing
 
