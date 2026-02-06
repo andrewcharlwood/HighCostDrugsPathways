@@ -210,9 +210,16 @@ def load_pathway_nodes(
         if not rows:
             return _empty_result(f"No pathway data for filter: {filter_id}")
 
+        # When drug or directorate filters are active, prune ancestor nodes
+        # that have no matching descendants. Without this, the icicle chart
+        # shows empty directorate/trust boxes with no children.
+        if selected_drugs or selected_directorates:
+            rows = _prune_empty_ancestors(rows)
+
         nodes = []
         root_patients = 0
         root_cost = 0.0
+        has_entity_filter = bool(selected_drugs or selected_directorates or selected_trusts)
 
         for row in rows:
             node = {
@@ -244,6 +251,19 @@ def load_pathway_nodes(
                     if drug:
                         unique_drugs.add(drug)
 
+        # When entity filters are active, sum level-3 drug nodes for KPIs
+        # instead of using the root node's pre-computed (unfiltered) totals
+        if has_entity_filter:
+            filtered_patients = sum(
+                row["value"] or 0 for row in rows if row["level"] == 3
+            )
+            filtered_cost = sum(
+                float(row["cost"]) if row["cost"] else 0.0
+                for row in rows if row["level"] == 3
+            )
+            root_patients = filtered_patients
+            root_cost = filtered_cost
+
         # Data freshness
         cursor.execute("""
             SELECT completed_at
@@ -268,6 +288,37 @@ def load_pathway_nodes(
         return _empty_result(f"Database error: {e}")
     finally:
         conn.close()
+
+
+def _prune_empty_ancestors(rows):
+    """Remove ancestor nodes that have no matching descendants.
+
+    When drug/directorate filters are active, levels 0-2 are included
+    unconditionally. This leaves directorate and trust nodes that have no
+    children in the filtered result. Plotly's icicle chart shows these as
+    empty boxes. Prune them by keeping only nodes whose ids appear as a
+    parent of another kept node, or that are leaf nodes (level 3+), or
+    are the root (level 0).
+    """
+    # Collect all parent references from the result set
+    referenced_parents = {row["parents"] for row in rows if row["parents"]}
+    # Keep: root (level 0), any node referenced as a parent, any leaf (level 3+)
+    kept = [
+        row for row in rows
+        if row["level"] == 0
+        or row["level"] >= 3
+        or row["ids"] in referenced_parents
+    ]
+    # Second pass: a trust (level 1) may reference root but itself have no
+    # kept level-2 children. Recheck that level-1 nodes are still parents
+    # of something in the kept set.
+    kept_parents = {row["parents"] for row in kept if row["parents"]}
+    return [
+        row for row in kept
+        if row["level"] == 0
+        or row["level"] >= 3
+        or row["ids"] in kept_parents
+    ]
 
 
 def _empty_result(error: str = "") -> dict:

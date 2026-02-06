@@ -320,6 +320,10 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - [x] Remove drawer-related sidebar callbacks (`open_drawer` in `dash_app/callbacks/drawer.py`)
 - **Checkpoint**: Filter bar has drug/trust/directorate buttons with count badges, each opens correct modal, filter bar is visible across all views.
 
+
+## 8 - Additional notes
+-  [x] When filtering drugs, ensure that any 2nd levels (e.g., directorate) with no children is hidden. For example, if Immunoglobulin is filtered, then directorates with no pathways such ar ophthalmology are hidden.
+- [x] ensure filters update the KPI cards at the top to reflect the icicle chart visible
 ---
 
 ## Completion Criteria
