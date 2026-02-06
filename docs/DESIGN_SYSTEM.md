@@ -187,8 +187,8 @@ All transitions: 150ms ease-out (faster than before)
 }
 ```
 
-### Reflex Implementation
-- Use `height="calc(100vh - 96px)"` for chart container
-- Use `width="100%"` with `padding_x="16px"` for full-width
-- Use `flex="1"` to let chart grow
-- Keep `min_height="500px"` as fallback
+### Dash Implementation
+- Chart container uses `dcc.Loading` wrapper around `dcc.Graph`
+- Full-width layout via CSS class `.chart-card` in `dash_app/assets/nhs.css`
+- Minimum height set via CSS: `min-height: 500px`
+- Margins controlled in `create_icicle_from_nodes()`: `t:40, l:8, r:8, b:24`

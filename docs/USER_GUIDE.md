@@ -6,15 +6,11 @@ This guide explains how to use the NHS High-Cost Drug Patient Pathway Analysis T
 
 1. [Getting Started](#getting-started)
 2. [Interface Overview](#interface-overview)
-3. [Selecting Your Data Source](#selecting-your-data-source)
-4. [Configuring Analysis Filters](#configuring-analysis-filters)
-5. [Selecting Drugs, Trusts, and Directories](#selecting-drugs-trusts-and-directories)
-6. [Running the Analysis](#running-the-analysis)
-7. [Understanding the Pathway Chart](#understanding-the-pathway-chart)
-8. [Exporting Results](#exporting-results)
-9. [GP Indication Validation](#gp-indication-validation)
-10. [Keyboard Navigation and Accessibility](#keyboard-navigation-and-accessibility)
-11. [Troubleshooting](#troubleshooting)
+3. [Filtering Data](#filtering-data)
+4. [Using the Drug Browser](#using-the-drug-browser)
+5. [Understanding the Pathway Chart](#understanding-the-pathway-chart)
+6. [GP Indication Matching](#gp-indication-matching)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -25,371 +21,229 @@ This guide explains how to use the NHS High-Cost Drug Patient Pathway Analysis T
 Start the application by running:
 
 ```bash
-reflex run
+python run_dash.py
 ```
 
-Then open your browser to **http://localhost:3000**
+Then open your browser to **http://localhost:8050**
 
-The application will automatically load reference data (drugs, trusts, directories) when you first access it.
+The application automatically loads pre-computed pathway data from SQLite on startup. No additional setup is needed to view existing data.
 
-### First-Time Setup
+### Data Freshness
 
-1. Click **Load Reference Data** on the Home page to populate the filter options
-2. Select your preferred data source (SQLite, File Upload, or Snowflake)
-3. Configure your date range and other filters
-4. Click **Run Analysis** to generate your first pathway chart
+The header bar shows when data was last refreshed:
+- **Patient count**: Total patients in the dataset (e.g., "11,118 patients")
+- **Last updated**: Relative time since the last data refresh (e.g., "2h ago")
+
+To refresh the data, run the CLI command (requires Snowflake access):
+
+```bash
+python -m cli.refresh_pathways --chart-type all
+```
 
 ---
 
 ## Interface Overview
 
-The application has four main pages, accessible from the sidebar navigation:
+The application is a single-page layout with the following components:
 
-| Page | Purpose |
-|------|---------|
-| **Home** | Main analysis dashboard with data source selection, filters, and chart display |
-| **Drug Selection** | Select which high-cost drugs to include in the analysis |
-| **Trust Selection** | Filter by specific NHS trusts |
-| **Directory Selection** | Filter by medical directories/specialties |
+### Header
+- NHS branding and application title ("HCD Analysis")
+- Green status dot with patient count and last-updated time
 
-### Navigation
+### Sidebar (Left)
+Navigation items including:
+- **Pathway Overview** — main view (always active)
+- **Drug Selection** — opens the drug browser drawer
+- **Trust Selection** — opens the drawer with trust chips
+- **Indications** — opens the drawer with directorate browser
 
-- **Desktop**: Use the sidebar on the left to switch between pages
-- **Mobile**: Use the top navigation bar
-- **Keyboard**: Press Tab to navigate, Enter to select
+### KPI Row
+Four summary cards that update dynamically:
+- **Unique Patients** — number of distinct patients matching current filters
+- **Drug Types** — number of distinct drugs in filtered data
+- **Total Cost** — total cost of treatments in the filtered dataset
+- **Indication Match** — GP diagnosis match rate (~93% for indication charts, shown as "—" for directory charts)
 
----
+### Filter Bar
+- **Chart type toggle**: "By Directory" / "By Indication" pills
+- **Treatment Initiated**: All years, Last 2 years, or Last 1 year
+- **Last Seen**: Last 6 months or Last 12 months
 
-## Selecting Your Data Source
-
-The application supports three data sources:
-
-### 1. SQLite Database (Recommended)
-
-Pre-loaded patient data stored locally for fast performance.
-
-**Advantages:**
-- Fastest analysis performance
-- Works offline
-- No authentication required
-
-**To use:** Click "Use SQLite" in the Data Source section
-
-### 2. File Upload
-
-Upload CSV or Parquet files directly.
-
-**Supported formats:**
-- CSV files (.csv)
-- Apache Parquet files (.parquet, .pq)
-
-**To use:**
-1. Drag and drop a file, or click the upload area
-2. Wait for the file to process
-3. Click "Use File" to select it as your data source
-
-### 3. Snowflake
-
-Query live data from the NHS data warehouse.
-
-**Requirements:**
-- Snowflake must be configured (see `config/snowflake.toml`)
-- Browser-based NHS SSO authentication
-
-**To use:** Click "Use Snowflake" - you'll be prompted to authenticate via your browser
+### Chart Card
+- Dynamic subtitle showing the current hierarchy (e.g., "Trust → Directorate → Drug → Pathway")
+- Interactive Plotly icicle chart
+- Loading spinner during data fetch
 
 ---
 
-## Configuring Analysis Filters
+## Filtering Data
 
-The Home page provides several filter options:
+### Chart Type
 
-### Date Range
+Toggle between two views using the pills in the filter bar:
 
-| Field | Description |
-|-------|-------------|
-| **Start Date** | Include patients initiated from this date onwards |
-| **End Date** | Include patients initiated until this date |
-| **Last Seen After** | Only include patients with activity after this date (excludes patients who haven't been seen recently) |
+| View | Hierarchy | Best For |
+|------|-----------|----------|
+| **By Directory** | Trust → Directorate → Drug → Pathway | Understanding treatment by medical specialty |
+| **By Indication** | Trust → GP Diagnosis → Drug → Pathway | Understanding treatment by patient condition |
 
-**Tip:** The default range is the last 12 months.
+### Date Filters
 
-### Minimum Patients
+Two dropdowns control the time window:
 
-Filter out pathways with fewer patients than the threshold you set.
+| Filter | Options | Effect |
+|--------|---------|--------|
+| **Treatment Initiated** | All years, Last 2 years, Last 1 year | When patients started treatment |
+| **Last Seen** | Last 6 months, Last 12 months | Most recent activity window |
 
-- Use the slider for quick adjustment (0-100)
-- Or type a specific number in the text field
-- Set to 0 to show all pathways regardless of patient count
+The default is "All years / Last 6 months" — showing all patients who have been active in the last 6 months.
 
-### Custom Title
+### Drug and Trust Selection
 
-Override the automatically generated chart title with your own text.
+Open the drawer (right panel) by clicking "Drug Selection" or "Trust Selection" in the sidebar:
 
-- Leave empty to use the default title: "Patients initiated [start date] to [end date]"
-- Useful for specific reports or presentations
+- **Drug chips**: Click to select/deselect specific drugs. Selected drugs filter the chart.
+- **Trust chips**: Click to select/deselect specific NHS trusts.
+- **Clear All Filters**: Button at the bottom resets all drug and trust selections.
 
----
-
-## Selecting Drugs, Trusts, and Directories
-
-Each selection page works the same way:
-
-### Navigation
-
-1. Click "Drug Selection", "Trust Selection", or "Directory Selection" in the sidebar
-2. The page shows all available options with checkboxes
-
-### Search
-
-Type in the search box to filter the list. The list updates as you type.
-
-### Selection Actions
-
-| Button | Action |
-|--------|--------|
-| **Select All** | Check all visible items |
-| **Clear All** | Uncheck all items |
-| **Select Defaults** | (Drugs only) Select pre-configured default drugs (Include=1 in include.csv) |
-
-### Selection Behavior
-
-- **No items selected** = Include ALL items in analysis
-- **Some items selected** = Include ONLY the selected items
-
-This means leaving a filter empty is equivalent to "select all".
+**No selections = show everything.** Leaving chips unselected is the same as selecting all.
 
 ---
 
-## Running the Analysis
+## Using the Drug Browser
 
-### Steps
+The drawer contains three sections:
 
-1. Ensure your data source is selected and configured
-2. Set your date range and other filters
-3. Select desired drugs, trusts, and directories (or leave empty for all)
-4. Click the green **Run Analysis** button
+### All Drugs
+A flat list of all 42 available drugs as selectable chips. Click one or more to filter the chart to those drugs only.
 
-### During Analysis
+### Trusts
+A list of 7 NHS trusts as selectable chips. Click to filter by specific organizations.
 
-- The button shows a spinner while analysis is running
-- Status messages appear below the button
-- The interface remains responsive - you can review settings
+### By Directorate
+An accordion browser organized by clinical directorate:
 
-### After Analysis
+1. Click a **directorate** (e.g., "CARDIOLOGY") to expand it
+2. Inside, click an **indication** (e.g., "heart failure") to expand further
+3. Each indication shows **drug fragment badges** (e.g., "SACUBITRIL", "IVABRADINE")
+4. Clicking a drug fragment badge selects all full drug names that contain that fragment
 
-- The pathway chart appears in the chart section
-- Export buttons become available
-- GP indication validation results appear (if Snowflake is connected)
+For example, clicking the "ADALIMUMAB" badge would select "ADALIMUMAB" in the drug chips above.
+
+### Fragment Matching
+
+Drug fragments are substrings, not exact matches. The fragment "INHALED" would match drugs like "INHALED BECLOMETASONE" and "INHALED FLUTICASONE".
+
+Clicking a fragment toggles its matching drugs:
+- **First click**: Selects all matching drugs
+- **Second click**: Deselects all matching drugs (if all were already selected)
 
 ---
 
 ## Understanding the Pathway Chart
 
-The analysis generates an interactive **icicle chart** showing patient treatment pathways.
-
 ### Hierarchy Structure
 
-The chart displays a hierarchical structure:
+The icicle chart displays a hierarchical breakdown:
 
+**Directory view:**
 ```
-N&WICS (Regional Total)
-  └─ Trust Name (e.g., "Norfolk and Norwich University Hospitals")
-      └─ Directory (e.g., "Rheumatology", "Gastroenterology")
-          └─ Drug Name (e.g., "ADALIMUMAB", "INFLIXIMAB")
+Root (Regional Total)
+  └─ Trust (e.g., "Norfolk and Norwich University Hospitals")
+      └─ Directorate (e.g., "RHEUMATOLOGY")
+          └─ Drug (e.g., "ADALIMUMAB")
+              └─ Pathway (e.g., "ADALIMUMAB → INFLIXIMAB")
+```
+
+**Indication view:**
+```
+Root (Regional Total)
+  └─ Trust
+      └─ GP Diagnosis (e.g., "rheumatoid arthritis")
+          └─ Drug
+              └─ Pathway
 ```
 
 ### Reading the Chart
 
 - **Width** of each section indicates relative patient count
-- **Color intensity** indicates proportion of patients at that level
-- **Labels** show the category name and patient count
+- **Color intensity** (NHS blue gradient) indicates proportion of parent group
+- **Labels** show the name and patient count
 
 ### Interacting with the Chart
 
 | Action | Effect |
 |--------|--------|
 | **Click** a section | Zoom in to show details for that branch |
-| **Click** the root | Zoom out to show full hierarchy |
-| **Hover** over a section | See tooltip with patient count |
-| Use the **toolbar** | Reset, download image, pan, zoom |
+| **Click** the parent/root | Zoom back out |
+| **Hover** over a section | See tooltip with patient count, cost, dosing frequency, dates |
 
-### Plotly Toolbar
+### Hover Tooltip Information
 
-The chart includes a Plotly toolbar (top right) with:
-
-- **Download as PNG** - Save static image
-- **Zoom controls** - Zoom in/out
-- **Pan** - Click and drag to move
-- **Reset** - Return to original view
-
----
-
-## Exporting Results
-
-Two export options are available after running an analysis:
-
-### Export HTML
-
-Creates an interactive HTML file that can be opened in any browser.
-
-- **Output**: `data/exports/pathway_chart_[timestamp].html`
-- **Use case**: Sharing interactive charts via email or file share
-- **Features**: Full interactivity, no software required to view
-
-### Export CSV
-
-Exports the underlying data as a spreadsheet.
-
-- **Output**: `data/exports/pathway_data_[timestamp].csv`
-- **Use case**: Further analysis in Excel, importing to other tools
-- **Includes**: Patient IDs, drugs, dates, costs, directories, indication validation status
-
-### Export Location
-
-All exports are saved to the `data/exports/` directory with timestamped filenames to prevent overwriting.
+When hovering over a chart section, you'll see:
+- Patient count and percentage of parent
+- Total cost and cost per patient
+- First and last seen dates
+- Treatment dosing frequency (for drug nodes)
+- Cost per patient per annum
 
 ---
 
-## GP Indication Validation
+## GP Indication Matching
 
-When connected to Snowflake, the application validates whether patients have appropriate GP diagnoses for their prescribed drugs.
+When viewing "By Indication" charts, the application uses pre-computed GP diagnosis matches:
 
-### What It Does
+### How It Works
 
-1. Looks up the drug's licensed indications (e.g., ADALIMUMAB for rheumatoid arthritis)
-2. Finds corresponding SNOMED codes for those indications
-3. Checks each patient's GP records for matching diagnoses
-4. Reports the match rate per drug
+1. During data refresh, each patient's NHS pseudonym is queried against GP primary care records
+2. SNOMED cluster codes map clinical conditions to drug indications
+3. The most recent GP diagnosis match is used for each patient
+4. ~93% of patients are matched to a GP diagnosis
 
-### Understanding Results
+### Unmatched Patients
 
-After analysis, a table shows:
+Patients without a GP diagnosis match appear under their directorate with a "(no GP dx)" suffix (e.g., "RHEUMATOLOGY (no GP dx)").
 
-| Column | Meaning |
-|--------|---------|
-| **Drug Name** | The high-cost drug |
-| **Total Patients** | Number of patients prescribed this drug |
-| **With GP Indication** | Patients with matching GP diagnosis |
-| **Match Rate** | Percentage with valid indication |
-
-### Match Rate Interpretation
-
-| Rate | Meaning | Color |
-|------|---------|-------|
-| **80%+** | Good coverage - most patients have GP diagnoses | Green |
-| **50-79%** | Moderate coverage - investigate missing cases | Orange |
-| **<50%** | Low coverage - may indicate data quality issues or off-label use | Red |
-
-### Why Rates May Be Low
-
-Low match rates don't necessarily indicate problems:
-
-- **Cross-provider treatment**: Patient's GP is outside the data coverage
-- **Recent diagnoses**: Diagnosis not yet recorded in GP system
-- **Specialist-only conditions**: Some conditions are only managed in secondary care
-- **Off-label prescribing**: Legitimate use for indications not in the mapping
-
-### Enabling/Disabling
-
-Indication validation is enabled by default when Snowflake is connected. It requires:
-- Active Snowflake connection
-- Drug-to-cluster mappings in the database
-
----
-
-## Keyboard Navigation and Accessibility
-
-The application is designed to be accessible:
-
-### Skip Link
-
-Press **Tab** when the page loads to reveal a "Skip to main content" link that bypasses navigation.
-
-### Keyboard Navigation
-
-| Key | Action |
-|-----|--------|
-| **Tab** | Move to next interactive element |
-| **Shift+Tab** | Move to previous element |
-| **Enter** | Activate buttons, links, checkboxes |
-| **Space** | Toggle checkboxes |
-| **Arrow keys** | Adjust sliders |
-
-### Screen Reader Support
-
-- All buttons and inputs have descriptive labels
-- Status messages announce via ARIA live regions
-- Charts include figure descriptions
-
-### Theme Toggle
-
-A dark/light mode toggle is available at the bottom of the sidebar for visual preference.
+Reasons for unmatched patients:
+- GP is outside the data coverage area
+- Diagnosis not yet recorded in GP system
+- Condition managed only in secondary care
+- Off-label prescribing
 
 ---
 
 ## Troubleshooting
 
-### "No data available" Error
+### No data showing
 
-**Cause**: No data matches your current filter settings
+1. Check the filter bar — are filters too restrictive?
+2. Try clearing all drug/trust selections in the drawer
+3. Widen the date range (e.g., "All years / Last 12 months")
 
-**Solutions:**
-1. Check your date range - is it too narrow?
-2. Verify your data source has data loaded
-3. Check if selected trusts/drugs have any matching records
-4. Try clearing all selections (to include everything)
+### Chart shows "No matching pathways found"
 
-### Chart Not Displaying
+The current filter combination matches zero patients. Adjust filters or click "Clear All Filters" in the drawer.
 
-**Cause**: Analysis completed but no data met the minimum patients threshold
+### App won't start
 
-**Solutions:**
-1. Lower the minimum patients threshold
-2. Expand your date range
-3. Select more drugs or trusts
+```bash
+# Ensure dependencies are installed
+uv sync
 
-### Snowflake Connection Failed
+# Ensure src/ is on Python path
+uv run python setup_dev.py
 
-**Cause**: Unable to connect to Snowflake
+# Run with uv
+uv run python run_dash.py
+```
 
-**Solutions:**
-1. Check that `config/snowflake.toml` exists and is configured
-2. Complete browser authentication when prompted
-3. Verify your network allows Snowflake connections
-4. Try using SQLite as an alternative data source
+### Stale data
 
-### File Upload Failed
+Data is as fresh as the last CLI refresh. Check the header's "Last updated" indicator. To refresh:
 
-**Cause**: File format or content issue
-
-**Solutions:**
-1. Ensure file is CSV or Parquet format
-2. Check file isn't corrupted or empty
-3. Verify file contains required columns
-4. Try a smaller file to test
-
-### Slow Performance
-
-**Cause**: Large data volume or complex filtering
-
-**Solutions:**
-1. Use SQLite instead of file upload for large datasets
-2. Narrow your date range
-3. Select fewer drugs/trusts to analyze
-4. Increase minimum patients threshold to reduce chart complexity
-
-### Reference Data Not Loading
-
-**Cause**: Missing or corrupted reference files
-
-**Solutions:**
-1. Click "Load Reference Data" to retry
-2. Check that `data/` directory contains required CSV files:
-   - `include.csv`
-   - `defaultTrusts.csv`
-   - `directory_list.csv`
-3. Verify files aren't empty or malformed
+```bash
+python -m cli.refresh_pathways --chart-type all
+```
 
 ---
 
@@ -397,7 +251,7 @@ A dark/light mode toggle is available at the bottom of the sidebar for visual pr
 
 If you encounter issues not covered in this guide:
 
-1. Check the [README](../README.md) for installation and setup information
+1. Check the [README](../README.md) for installation and setup
 2. Review [DEPLOYMENT.md](./DEPLOYMENT.md) for server configuration
 3. Consult [CLAUDE.md](../CLAUDE.md) for technical architecture details
-4. Contact your local support team for NHS-specific questions
+4. Contact the Medicines Intelligence team for NHS-specific questions

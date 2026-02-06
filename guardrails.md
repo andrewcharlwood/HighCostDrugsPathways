@@ -5,129 +5,145 @@ If you discover a new failure pattern during your work, add it to this file.
 
 ---
 
-## Drug-Indication Matching Guardrails
+## Backend Isolation
 
-### Match drugs to indications, not just patients to indications
-- **When**: Building the indication mapping for pathway charts
-- **Rule**: Each drug must be validated against BOTH the patient's GP diagnoses AND the drug-to-indication mapping from DimSearchTerm.csv. A patient being diagnosed with rheumatoid arthritis does NOT mean all their drugs are for rheumatoid arthritis.
-- **Why**: The previous approach assigned ONE indication per patient (most recent GP dx), ignoring which drugs actually treat which conditions. This produced misleading pathways.
+### Do NOT modify pipeline/analysis logic in src/
+- **When**: Building Dash integration
+- **Rule**: Do NOT change the logic in these files — they are the data pipeline and must stay as-is:
+  - `data_processing/pathway_pipeline.py`, `transforms.py`, `diagnosis_lookup.py` (matching/query logic)
+  - `analysis/pathway_analyzer.py`, `statistics.py`
+  - `cli/refresh_pathways.py`
+  - `data_processing/schema.py`, `reference_data.py`, `cache.py`, `data_source.py`
+- **Why**: The pipeline is complete and tested. Changing it risks breaking the data refresh workflow.
 
-### Use DimSearchTerm.csv for drug-to-Search_Term mapping
-- **When**: Determining which Search_Term a drug belongs to
-- **Rule**: Load `data/DimSearchTerm.csv`. The `CleanedDrugName` column has pipe-separated drug name fragments. Match HCD drug names against these fragments using substring matching (case-insensitive).
-- **Why**: This CSV is the authoritative mapping of which drugs are used for which clinical indications.
+### DO use shared utilities in src/ rather than duplicating
+- **When**: The Dash app needs data loading or figure construction
+- **Rule**: Dash callbacks should CALL INTO `src/`, not duplicate the code. Shared functions:
+  - `data_processing/pathway_queries.py` — `load_initial_data()` and `load_pathway_nodes()` for all SQLite queries
+  - `visualization/plotly_generator.py` — `create_icicle_from_nodes()` for icicle chart from list-of-dicts
+  - `dash_app/data/queries.py` — thin wrapper that resolves DB path and delegates to shared functions
+- **Why**: Duplicating SQL queries and figure logic creates copies that drift apart. Shared code in `src/` is the cleaner architecture.
 
-### Use substring matching for drug fragments
-- **When**: Matching HCD drug names against DimSearchTerm CleanedDrugName fragments
-- **Rule**: Check if any fragment from DimSearchTerm is a SUBSTRING of the HCD drug name (case-insensitive). E.g., "PEGYLATED" should match "PEGYLATED LIPOSOMAL DOXORUBICIN".
-- **Why**: DimSearchTerm contains both full drug names (ADALIMUMAB) and partial fragments (PEGYLATED, INHALED). Exact match would miss the partial ones.
-
-### Modified UPID uses pipe delimiter
-- **When**: Creating indication-aware UPIDs
-- **Rule**: Format is `{original_UPID}|{search_term}`. Use pipe `|` as delimiter. Do NOT use ` - ` (hyphen with spaces) as that's used for pathway hierarchy levels in the `ids` column.
-- **Why**: The `ids` column uses " - " to separate hierarchy levels (e.g., "N&WICS - NNUH - rheumatoid arthritis - ADALIMUMAB"). Using the same delimiter in UPIDs would break hierarchy parsing.
-
-### Return ALL GP matches per patient, not just most recent
-- **When**: Querying Snowflake for patient GP diagnoses
-- **Rule**: Remove `QUALIFY ROW_NUMBER() OVER (PARTITION BY ... ORDER BY EventDateTime DESC) = 1`. Return ALL matching Search_Terms per patient with `GROUP BY + COUNT(*)` for code_frequency.
-- **Why**: A patient may have GP diagnoses for both rheumatoid arthritis AND asthma. We need ALL matches to cross-reference with their drugs.
-
-### Restrict GP code lookup to HCD data window
-- **When**: Building the WHERE clause for the GP record query
-- **Rule**: Add `AND pc."EventDateTime" >= :earliest_hcd_date` where `earliest_hcd_date` is `MIN(Intervention Date)` from the HCD DataFrame. Pass this as a parameter to `get_patient_indication_groups()`.
-- **Why**: Old GP codes from years before treatment started add noise. A diagnosis coded 10 years ago may no longer be relevant. Restricting to the HCD window ensures code_frequency reflects recent clinical activity for the conditions being actively treated.
-
-### Tiebreaker: highest GP code frequency when a drug matches multiple indications
-- **When**: A single drug maps to multiple Search_Terms AND the patient has GP dx for multiple
-- **Rule**: Use `code_frequency` (COUNT of matching SNOMED codes per Search_Term per patient) from the GP query. The Search_Term with the most matching codes in the patient's GP record wins. If tied, use alphabetical Search_Term for determinism.
-- **Why**: E.g., ADALIMUMAB is listed under rheumatoid arthritis, crohn's disease, psoriatic arthritis, etc. A patient with 47 RA codes and 2 crohn's codes is almost certainly on ADALIMUMAB for RA. Frequency of GP coding is a much stronger signal of clinical intent than recency — a recent one-off asthma check doesn't mean ADALIMUMAB is for asthma.
-
-### Same patient, different indications = separate modified UPIDs
-- **When**: A patient's drugs map to different Search_Terms
-- **Rule**: Create separate modified UPIDs for each indication. E.g., `RMV12345|rheumatoid arthritis` and `RMV12345|asthma`. These are treated as separate "patients" by the pathway analyzer.
-- **Why**: This is the core design — drugs for different indications should create separate treatment pathways, even for the same physical patient.
-
-### Fallback to directory for unmatched drugs
-- **When**: A drug doesn't match any Search_Term OR the patient has no GP dx for any of the drug's Search_Terms
-- **Rule**: Use fallback format: `{UPID}|{Directory} (no GP dx)`. The indication_df maps this to `"{Directory} (no GP dx)"`.
-- **Why**: Maintains consistent behavior with the previous approach for patients/drugs without GP diagnosis matches.
-
-### Merge asthma Search_Terms but keep urticaria separate
-- **When**: Working with asthma-related Search_Terms from CLUSTER_MAPPING_SQL or DimSearchTerm.csv
-- **Rule**: Merge "allergic asthma", "asthma", and "severe persistent allergic asthma" into a single "asthma" Search_Term. Keep "urticaria" as a separate Search_Term — do NOT merge it with asthma.
-- **Why**: These are clinically the same condition at different severity levels. Splitting them fragments the data. Urticaria is a distinct dermatological condition that happens to share OMALIZUMAB.
-
-### Don't modify directory chart processing
-- **When**: Making changes to the indication matching logic
-- **Rule**: Only modify the indication chart path (`elif current_chart_type == "indication":`). Directory charts use unmodified UPIDs and directory-based grouping.
-- **Why**: Directory charts work correctly and should not be affected by indication matching changes.
+### Do NOT modify pathways.db schema or data
+- **When**: Querying the database from Dash callbacks
+- **Rule**: Read-only access. Use `sqlite3.connect(db_path)` with SELECT queries only. Never INSERT, UPDATE, DELETE, or ALTER.
+- **Why**: pathways.db is populated by `python -m cli.refresh_pathways`. The Dash app is a read-only consumer.
 
 ---
 
-## Snowflake Query Guardrails
+## CSS & Design Fidelity
 
-### Use PseudoNHSNoLinked for GP record matching
-- **When**: Querying GP records (PrimaryCareClinicalCoding) for patient diagnoses
-- **Rule**: Use `PseudoNHSNoLinked` column from HCD data, NOT `PersonKey` (LocalPatientID)
-- **Why**: PersonKey is provider-specific local ID. Only PseudoNHSNoLinked matches PatientPseudonym in GP records.
+### Use className matching 01_nhs_classic.html, not inline styles
+- **When**: Building any Dash HTML component
+- **Rule**: Use `className="css-class-name"` referencing classes from `dash_app/assets/nhs.css`. Do NOT use inline `style={}` dicts for layout/visual styling. Only use inline styles for truly dynamic values (e.g., `style={"flex": patient_count}` for proportional widths).
+- **Why**: CSS fidelity to the HTML concept is a primary goal. Inline styles drift from the design and are harder to maintain.
 
-### Embed cluster query as CTE in Snowflake
-- **When**: Looking up patient indications during data refresh
-- **Rule**: Use the `CLUSTER_MAPPING_SQL` content as a WITH clause in the patient lookup query
-- **Why**: This ensures we always use the complete cluster mapping and don't need local storage
+### nhs.css is the single source of CSS truth
+- **When**: Adding or modifying styles
+- **Rule**: All styles go in `dash_app/assets/nhs.css`. If the concept HTML doesn't have a class for something, add it to nhs.css with the same naming convention (`.component__element--modifier`).
+- **Why**: Dash auto-serves files from `assets/`. Keeping CSS in one file matches the design source (01_nhs_classic.html) and avoids style fragmentation.
 
-### Quote mixed-case column aliases in Snowflake SQL
-- **When**: Writing SELECT queries that return results to Python code
-- **Rule**: Use `AS "ColumnName"` (quoted) for any column alias you'll access by name in Python
-- **Why**: Snowflake uppercases unquoted identifiers. `SELECT foo AS Search_Term` returns `SEARCH_TERM`, so `row.get('Search_Term')` returns None. Fix: `SELECT foo AS "Search_Term"`
-
-### Build indication_df from all unique UPIDs, not PseudoNHSNoLinked
-- **When**: Creating the indication mapping DataFrame for pathway processing
-- **Rule**: Use `df.drop_duplicates(subset=['UPID'])` not `drop_duplicates(subset=['PseudoNHSNoLinked'])`
-- **Why**: A patient visiting multiple providers has multiple UPIDs. Using unique PseudoNHSNoLinked only maps one UPID per patient, leaving others as NaN.
+### Read 01_nhs_classic.html when building UI components
+- **When**: Creating any component in `dash_app/components/`
+- **Rule**: Read `01_nhs_classic.html` first to see the exact HTML structure, CSS classes, and element hierarchy for that component. Match it as closely as possible.
+- **Why**: The HTML concept IS the design spec. Deviating creates visual inconsistency.
 
 ---
 
-## Data Processing Guardrails
+## Callback Architecture
 
-### Copy DataFrames in functions that modify columns
-- **When**: Writing functions like `prepare_data()` that modify DataFrame columns
-- **Rule**: Always `df = df.copy()` at the start of any function that modifies column values on the input DataFrame
-- **Why**: `prepare_data()` mapped Provider Code → Name in-place. When called multiple times on the same DataFrame, only the first call worked. The fix: `df.copy()` prevents destructive mutation.
+### No circular callback dependencies
+- **When**: Writing Dash callbacks
+- **Rule**: Callbacks must flow unidirectionally: filter inputs → `app-state` store → `chart-data` store → UI components. Never have a component that is both Input and Output in the same callback chain without an intermediate store.
+- **Why**: Dash raises `DuplicateCallback` errors for circular dependencies, and they're extremely hard to debug.
 
-### Include chart_type in UNIQUE constraints for pathway_nodes
-- **When**: Creating or modifying the pathway_nodes table schema
-- **Rule**: The UNIQUE constraint MUST include `chart_type`: `UNIQUE(date_filter_id, chart_type, ids)`
-- **Why**: Without `chart_type`, `INSERT OR REPLACE` silently overwrites directory chart nodes when indication chart nodes are inserted.
+### Use dcc.Store for all state, not server-side globals
+- **When**: Managing application state (selected filters, chart data, reference data)
+- **Rule**: ALL state lives in `dcc.Store` components. Never use module-level globals, class variables, or `flask.g` for state. The 3 stores are: `app-state` (session), `chart-data` (memory), `reference-data` (session).
+- **Why**: Dash is stateless per request. Server-side state breaks with multiple users and causes subtle bugs during development.
 
-### Handle NaN in Directory when building fallback labels
-- **When**: Creating fallback indication labels for patients without GP diagnosis match
-- **Rule**: Check `pd.notna(directory)` before concatenating to string. Use `"UNKNOWN (no GP dx)"` for NaN cases.
-- **Why**: NaN handling prevents TypeError and ensures meaningful fallback labels.
+### Use callback_context for multi-input callbacks
+- **When**: A callback has multiple Inputs and needs to know which one triggered it
+- **Rule**: Use `dash.callback_context.triggered` (or `ctx.triggered_id` in Dash 2.x) to determine the triggering input.
+- **Why**: Without this, the callback runs for every input change and you can't distinguish which filter changed.
 
-### Use parameterized queries for SQLite
-- **When**: Building WHERE clauses with user-selected filters
-- **Rule**: Use `?` placeholders and pass params tuple — never string interpolation
-- **Why**: Prevents SQL injection and handles special characters in drug/directory names
-
-### Use existing pathway_analyzer functions
-- **When**: Processing pathway data for the icicle chart
-- **Rule**: Reuse functions from `analysis/pathway_analyzer.py` — don't reinvent
-- **Why**: The existing code handles edge cases (empty groups, statistics calculation, color mapping)
+### Pattern-matching callbacks for dynamic drug chips
+- **When**: Building the card browser drawer with clickable drug chips
+- **Rule**: Use `{"type": "drug-chip", "index": drug_name}` pattern for chip IDs. Register callbacks with `Input({"type": "drug-chip", "index": ALL}, "n_clicks")`. Access triggered chip via `ctx.triggered_id["index"]`.
+- **Why**: The number of drug chips is dynamic (changes per directorate/indication). Pattern-matching callbacks handle this without hardcoding IDs.
 
 ---
 
-## Reflex Guardrails
+## Plotly Figure
 
-### Use .to() methods for Var operations in rx.foreach
-- **When**: Working with items inside `rx.foreach` render functions
-- **Rule**: Use `item.to(int)` for numeric comparisons, `item.to_string()` for text operations
-- **Why**: Items from rx.foreach are Var objects, not plain Python values.
+### Preserve create_icicle_from_nodes() in src/visualization/plotly_generator.py
+- **When**: Modifying the icicle chart
+- **Rule**: `create_icicle_from_nodes(nodes, title)` in `src/visualization/plotly_generator.py` is the shared icicle chart function. It accepts list-of-dicts from dcc.Store. Key properties:
+  - 10-field customdata structure (value, colour, cost, costpp, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, cost_pp_pa)
+  - NHS colorscale: `[[0.0, "#003087"], [0.25, "#0066CC"], [0.5, "#1E88E5"], [0.75, "#4FC3F7"], [1.0, "#E3F2FD"]]`
+  - `maxdepth=3`, `branchvalues="total"`, `sort=False`
+  - Layout: transparent background, reduced margins, autosize
+- **Why**: The icicle chart is tested and correct. The Dash callback in `dash_app/callbacks/chart.py` calls this function.
 
-### Use rx.cond for conditional rendering, not Python if
-- **When**: Conditionally showing/hiding components or changing styles based on state
-- **Rule**: Use `rx.cond(condition, true_component, false_component)` — not Python `if`
-- **Why**: Python `if` evaluates at definition time; `rx.cond` evaluates reactively at render time
+### Chart data is a list of dicts
+- **When**: Passing data between `chart-data` store and chart callback
+- **Rule**: `chart-data` store holds `{"nodes": [...], "unique_patients": int, "total_drugs": int, "total_cost": float}`. Each node is a dict with keys matching the SQLite columns needed for the figure: `parents, ids, labels, value, cost, costpp, colour, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, cost_pp_pa`.
+- **Why**: `dcc.Store` serializes to JSON. Keep the same dict structure that `pathways_app.py` uses for `chart_data` so the figure callback works identically.
+
+---
+
+## Data Extraction
+
+### Keep data logic in shared src/ functions, not dash_app/ duplicates
+- **When**: Adding or modifying data loading functions
+- **Rule**: SQL queries and data logic live in `src/data_processing/pathway_queries.py`. The `dash_app/data/queries.py` is a thin wrapper that resolves the DB path and delegates. Do not duplicate queries in `dash_app/`.
+- **Why**: Shared code in `src/` prevents query drift and keeps the single source of truth for data access.
+
+### DimSearchTerm.csv fragments are substrings
+- **When**: Building the card browser or matching drugs to indications
+- **Rule**: `CleanedDrugName` values in DimSearchTerm.csv are drug name FRAGMENTS (e.g., "ADALIMUMAB", "PEGYLATED", "INHALED"). They're matched against full drug names using `drug_name.upper().contains(fragment)`. Don't assume exact match.
+- **Why**: Some fragments are partial (INHALED matches "INHALED BECLOMETASONE", "INHALED FLUTICASONE", etc.).
+
+### Apply SEARCH_TERM_MERGE_MAP when loading DimSearchTerm.csv
+- **When**: Building the directorate tree in `card_browser.py`
+- **Rule**: Import and apply `SEARCH_TERM_MERGE_MAP` from `data_processing.diagnosis_lookup` to normalize "allergic asthma" → "asthma" and "severe persistent allergic asthma" → "asthma". Keep "urticaria" separate.
+- **Why**: The Snowflake query and pathway processing already use merged Search_Terms. The card browser must match.
+
+---
+
+## SQLite Queries
+
+### Use parameterized queries for all filters
+- **When**: Building WHERE clauses with user-selected values
+- **Rule**: Use `?` placeholders and pass params as a list. Never use f-strings or string interpolation for filter values.
+- **Why**: Prevents SQL injection and handles special characters in drug/directory names (e.g., "CROHN'S DISEASE").
+
+### Database path resolution
+- **When**: Connecting to pathways.db from dash_app/
+- **Rule**: Use `Path(__file__).resolve().parents[2] / "data" / "pathways.db"` from files in `dash_app/data/`. This resolves from `dash_app/data/queries.py` → project root → `data/pathways.db`.
+- **Why**: Relative paths break depending on the working directory. Absolute path resolution is reliable.
+
+---
+
+## Dash Framework
+
+### Wrap layout in dmc.MantineProvider
+- **When**: Setting up the app layout in `app.py`
+- **Rule**: The outermost layout element must be `dmc.MantineProvider(children=[...])`. Without this, DMC components (Drawer, Accordion, Chip, etc.) won't render.
+- **Why**: Dash Mantine Components requires the Provider context to function.
+
+### dcc.Store storage_type matters
+- **When**: Creating the 3 store components
+- **Rule**:
+  - `app-state`: `storage_type="session"` — persists across page refreshes within a tab
+  - `chart-data`: `storage_type="memory"` — cleared on page refresh (reloaded from SQLite)
+  - `reference-data`: `storage_type="session"` — loaded once, persists across refreshes
+- **Why**: Wrong storage type causes stale data bugs (memory clears too often) or wasted queries (session persists when it shouldn't).
+
+### Dash assets directory is auto-served
+- **When**: Placing CSS, JS, or images
+- **Rule**: Put static assets in `dash_app/assets/`. Dash serves them automatically. Reference CSS via `className`, not `<link>` tags.
+- **Why**: Dash's asset pipeline handles caching and serving. Manual `<link>` tags are unnecessary and may not work.
 
 ---
 
@@ -148,20 +164,10 @@ If you discover a new failure pattern during your work, add it to this file.
 - **Rule**: The "Next iteration should" section must contain specific, actionable guidance
 - **Why**: The next iteration has zero memory. If you don't write it down, it's lost.
 
-### Check existing code for patterns
-- **When**: Unsure how to implement something
-- **Rule**: Look at `pathways_app/pathways_app.py`, `analysis/pathway_analyzer.py`, `cli/refresh_pathways.py`
-- **Why**: The existing codebase has solved many quirks already
-
-### Snowflake connection_timeout must be high enough for GP lookup queries
-- **When**: GP record queries against PrimaryCareClinicalCoding time out
-- **Rule**: Ensure `connection_timeout` in config/snowflake.toml is at least 600 (currently set to 600). This controls the Python client's `network_timeout`, which is how long the client waits for ANY Snowflake response. Do NOT lower this value.
-- **Why**: GP lookup queries take ~40s per batch due to CTE compilation overhead. With connection_timeout=30, every batch timed out silently (error 000604/57014).
-
-### Use large batch sizes (5000+) for GP record lookups
-- **When**: Calling `get_patient_indication_groups()` with patient batches
-- **Rule**: Use batch_size=5000 or larger. The query time is ~40s regardless of batch size (5 patients ≈ 500 patients ≈ 5000 patients). Smaller batches just multiply the fixed overhead.
-- **Why**: With batch_size=500, 36K patients needed 74 batches × 40s = ~50 min. With batch_size=5000, only 8 batches × 45s = ~6 min. The bottleneck is CTE compilation, not data volume.
+### Validate with `python run_dash.py`
+- **When**: After completing any task
+- **Rule**: Run `python run_dash.py` (or `python -c "from dash_app.app import app"` for import checks). The app must start without errors after EVERY task.
+- **Why**: Broken imports or circular dependencies compound across tasks. Catch them immediately.
 
 <!--
 ADD NEW GUARDRAILS BELOW as failures are observed during the loop.

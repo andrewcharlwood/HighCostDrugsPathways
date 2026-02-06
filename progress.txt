@@ -885,11 +885,46 @@ Migrating the HCD Analysis frontend from Reflex to Dash (Plotly) + Dash Mantine 
 ### Blocked items (iter 16):
 - None
 
-## MIGRATION COMPLETE
-All 20 tasks across 5 phases complete. 16 iterations total.
+## Iteration 17 — 2026-02-06
+### Task: Phase 6 — Update all documentation
+### Why this task:
+- Phases 0-5 complete. Phase 6 (documentation cleanup) was the only remaining work.
+- All non-archive .md files still referenced Reflex (commands, architecture, deployment).
+### Status: COMPLETE
+### What was done:
+- **README.md**: Complete rewrite — replaced `reflex run` with `python run_dash.py`, updated features list (dual charts, pre-computed pathways, drug browser), updated project structure (dash_app/ instead of pathways_app/), updated quick start, usage, troubleshooting
+- **docs/USER_GUIDE.md**: Complete rewrite — new single-page Dash UI guide covering header, sidebar, KPI row, filter bar, chart card, drawer, drug browser, indication matching
+- **docs/DEPLOYMENT.md**: Complete rewrite — Dash/Gunicorn deployment replacing Reflex/FastAPI/Next.js, Docker examples, nginx config, systemd service, single port 8050
+- **docs/DESIGN_SYSTEM.md**: Updated "Reflex Implementation" section → "Dash Implementation" with correct CSS/component references
+- **RALPH_PROMPT.md**: Updated title ("Dash Application Maintenance" not "Reflex → Dash Migration"), updated data reference section to point to src/ shared functions instead of pathways_app/
+- **guardrails.md**: Updated 3 rules to reflect current Dash architecture (shared utilities exist, icicle function exists, data queries exist) instead of migration instructions
+- **IMPLEMENTATION_PLAN.md**: Phase 6 tasks marked [x]
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 7 callbacks registered
+- Grep for Reflex in non-archive .md files: only CLAUDE.md line 140 (archive description — accurate) and IMPLEMENTATION_PLAN.md (historical migration log — accurate)
+### Files changed:
+- README.md — Rewritten for Dash
+- docs/USER_GUIDE.md — Rewritten for Dash
+- docs/DEPLOYMENT.md — Rewritten for Dash
+- docs/DESIGN_SYSTEM.md — Updated implementation section
+- RALPH_PROMPT.md — Updated title and references
+- guardrails.md — Updated 3 rules
+- IMPLEMENTATION_PLAN.md — Phase 6 marked [x]
+- progress.txt — This entry
+### Patterns discovered:
+- archive/ files (IMPROVEMENT_RECOMMENDATIONS.md) retain Reflex references intentionally — they're historical
+- IMPLEMENTATION_PLAN.md retains Reflex references in completed task descriptions — these are accurate migration history
+### Next iteration should:
+- Phase 6 is complete. All tasks across all phases are now [x].
+### Blocked items:
+- None
+
+## ALL PHASES COMPLETE
+All 24 tasks across 6 phases complete. 17 iterations total.
 - Phase 0: Scaffolding (2 tasks) — iteration 1
 - Phase 1: Data Access (2 tasks) — iterations 2-3
 - Phase 2: Static Layout (3 tasks) — iterations 4-6
 - Phase 3: Core Callbacks (4 tasks) — iterations 7-10
 - Phase 4: Drawer (2 tasks) — iterations 11-12
 - Phase 5: Polish & Cleanup (4 tasks) — iterations 13-16
+- Phase 6: Documentation (4 tasks) — iteration 17

@@ -5,24 +5,22 @@ A web-based application for analyzing secondary care patient treatment pathways.
 ## Features
 
 - **Interactive Visualization**: Plotly icicle charts showing patient treatment hierarchies with cost and frequency statistics
-- **Multi-Source Data Loading**: CSV/Parquet files, SQLite database, or direct Snowflake integration
-- **GP Diagnosis Validation**: Validate patient indications against GP SNOMED codes via NHS Snowflake
-- **Modern Web Interface**: Browser-based UI using Reflex framework with NHS branding
+- **Dual Chart Types**: Directory-based (Trust → Directorate → Drug → Pathway) and Indication-based (Trust → GP Diagnosis → Drug → Pathway) views
+- **Pre-computed Pathways**: Treatment pathways pre-processed and stored in SQLite for sub-50ms filter response times
+- **GP Diagnosis Matching**: Patient indications matched from GP records using SNOMED cluster codes (~93% match rate)
+- **Modern Web Interface**: Browser-based UI using Dash (Plotly) + Dash Mantine Components with NHS branding
+- **Drug Browser**: Drawer-based card browser organized by clinical directorate for drug/indication selection
 - **Flexible Filtering**: Filter by date range, NHS trusts, drugs, and medical directories
-- **Export Options**: Export charts as interactive HTML or data as CSV
 
 ## Requirements
 
 - Python 3.10 or higher
-- pip or uv package manager
+- uv package manager (recommended)
 
-### Optional (for Snowflake integration)
-- `snowflake-connector-python` package
+### Optional (for data refresh)
 - Access to NHS Snowflake data warehouse with SSO authentication
 
 ## Installation
-
-### Using pip
 
 ```bash
 # Clone the repository
@@ -30,116 +28,120 @@ git clone <repository-url>
 cd patient-pathway-analysis
 
 # Install dependencies
-pip install -r requirements.txt
-```
-
-### Using uv (recommended)
-
-```bash
-# Install uv if not already installed
-pip install uv
-
-# Sync dependencies
 uv sync
-```
 
-### Install with test dependencies
-
-```bash
-pip install -e ".[test]"
+# One-time dev setup: adds src/ to Python path via .pth file
+uv run python setup_dev.py
 ```
 
 ## Quick Start
 
-### 1. Run the Web Application (Recommended)
+### Run the Web Application
 
 ```bash
-reflex run
+python run_dash.py
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:8050 in your browser.
+
+The application loads pre-computed pathway data from SQLite on startup. No additional configuration is needed for viewing existing data.
+
+### Refresh Pathway Data (requires Snowflake)
+
+```bash
+# Initialize/migrate the database
+python -m data_processing.migrate
+
+# Full refresh — both chart types, all date filters
+python -m cli.refresh_pathways --chart-type all
+
+# Directory charts only (faster, ~5 minutes)
+python -m cli.refresh_pathways --chart-type directory
+
+# Indication charts only (~12 minutes, includes GP lookup)
+python -m cli.refresh_pathways --chart-type indication
+
+# Dry run (test without database changes)
+python -m cli.refresh_pathways --chart-type all --dry-run -v
+```
 
 ## Usage
 
-### Web Interface (Reflex)
+### Interface Overview
 
-1. **Load Data**: On the home page, select your data source:
-   - **SQLite Database**: Uses pre-loaded data from `data/pathways.db`
-   - **File Upload**: Drag and drop a CSV or Parquet file
-   - **Snowflake**: Fetch data directly from NHS Snowflake (requires configuration)
+The application has a single-page layout with:
 
-2. **Configure Filters**:
-   - Set date range (Start Date, End Date, Last Seen After)
-   - Navigate to Drug/Trust/Directory selection pages using the sidebar
-   - Use search boxes to find and select items
-   - Set minimum patient threshold to filter small groups
+| Component | Purpose |
+|-----------|---------|
+| **Header** | NHS branding, data freshness indicator (patient count + relative time) |
+| **Sidebar** | Navigation items with drawer triggers for Drug Selection, Trust Selection, Indications |
+| **KPI Row** | 4 cards: Unique Patients, Drug Types, Total Cost, Indication Match Rate |
+| **Filter Bar** | Chart type toggle (By Directory / By Indication) + date filter dropdowns |
+| **Chart Card** | Interactive Plotly icicle chart with loading spinner |
+| **Drawer** | Right-side panel with drug chips, trust chips, and directorate card browser |
 
-3. **Run Analysis**: Click "Run Analysis" to generate the icicle chart
+### Filtering Data
 
-4. **Export Results**:
-   - **Export HTML**: Save the interactive chart as a standalone HTML file
-   - **Export CSV**: Export the filtered data as a CSV file
+1. **Chart Type**: Toggle between "By Directory" and "By Indication" views
+2. **Date Filters**: Select treatment initiation period and last-seen window
+3. **Drug Selection**: Open the drawer to select specific drugs via chips
+4. **Trust Selection**: Open the drawer to filter by NHS trusts
+5. **Directorate Browser**: Navigate directorates → indications → drug fragments in the drawer
+6. **Clear Filters**: Reset all selections to show full dataset
 
-### Data Migration
+### Understanding the Pathway Chart
 
-To populate the SQLite database from CSV files:
+The icicle chart displays hierarchical treatment pathways:
 
-```bash
-# Initialize database schema
-python -m data_processing.migrate
-
-# Load reference data from CSV files
-python -m data_processing.migrate --reference-data --verify
-
-# Load patient data from a CSV/Parquet file
-python -m data_processing.migrate --load-patient-data path/to/data.csv
+```
+Root (Regional Total)
+  └─ Trust Name (e.g., "Norfolk and Norwich University Hospitals")
+      └─ Directory/Indication (e.g., "Rheumatology" or "rheumatoid arthritis")
+          └─ Drug Name (e.g., "ADALIMUMAB")
+              └─ Treatment Pathway (e.g., "ADALIMUMAB → INFLIXIMAB")
 ```
 
-### Snowflake Configuration
+- **Width**: Relative patient count
+- **Color intensity**: Proportion of parent group
+- **Hover**: Shows cost, dosing frequency, date range, and per-patient statistics
+- **Click**: Zoom into a specific branch
 
-To use Snowflake integration, edit `config/snowflake.toml`:
+### Date Filter Combinations
 
-```toml
-[connection]
-account = "your-account-identifier"
-warehouse = "your-warehouse"
-database = "DATA_HUB"
-schema = "CDM"
-authenticator = "externalbrowser"  # NHS SSO authentication
-```
+| Initiated | Last Seen | Description |
+|-----------|-----------|-------------|
+| All years | Last 6 months | Default — all patients active recently |
+| All years | Last 12 months | Broader activity window |
+| Last 1 year | Last 6 months | Recently initiated, active |
+| Last 1 year | Last 12 months | Recently initiated, any activity |
+| Last 2 years | Last 6 months | Medium history, active |
+| Last 2 years | Last 12 months | Medium history, any activity |
 
 ## Project Structure
 
 ```
 .
-├── core/                    # Core configuration and models
-├── data_processing/         # Data layer (SQLite, Snowflake, loaders)
-├── analysis/                # Analysis pipeline (refactored from generate_graph)
-├── visualization/           # Chart generation (Plotly)
-├── pathways_app/            # Reflex web application
-├── tools/                   # Legacy modules (original analysis engine)
-├── config/                  # Configuration files
-├── data/                    # Reference data and SQLite database
-├── docs/                    # Additional documentation
-└── tests/                   # Test suite
+├── src/                         # All application library code
+│   ├── core/                    # Foundation: paths, models, logging
+│   ├── config/                  # Snowflake connection settings
+│   ├── data_processing/         # Data layer (SQLite, Snowflake, transforms)
+│   ├── analysis/                # Analysis pipeline
+│   ├── visualization/           # Plotly chart generation
+│   └── cli/                     # CLI tools (refresh_pathways)
+├── dash_app/                    # Dash web application
+│   ├── app.py                   # App entry point, layout, stores
+│   ├── assets/nhs.css           # NHS design system CSS
+│   ├── data/                    # Query wrappers + card browser data
+│   ├── components/              # UI components (header, sidebar, etc.)
+│   └── callbacks/               # Dash callbacks (filters, chart, KPI, drawer)
+├── run_dash.py                  # Entry point: python run_dash.py
+├── data/                        # Reference data + SQLite DB (pathways.db)
+├── tests/                       # Test suite (113 tests)
+├── docs/                        # Documentation
+└── archive/                     # Historical/deprecated code
 ```
 
 See `CLAUDE.md` for detailed architecture documentation.
-
-## Documentation
-
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - End-user guide for using the web interface
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment guide (Docker, nginx, cloud)
-- [CLAUDE.md](CLAUDE.md) - Technical architecture documentation for developers
-
-## Deployment
-
-Quick production start:
-
-```bash
-# Run in production mode
-reflex run --env prod
-```
 
 ## Running Tests
 
@@ -150,75 +152,56 @@ python -m pytest tests/ -v
 # Run with coverage
 python -m pytest tests/ -v --cov=core --cov=data_processing --cov=analysis
 
-# Run only fast tests (exclude slow/integration)
+# Run only fast tests
 python -m pytest tests/ -v -m "not slow"
 ```
 
-## Reference Data Files
+## Configuration
 
-The `data/` directory contains essential reference files:
+### Snowflake Connection (`src/config/snowflake.toml`)
 
-| File | Purpose |
-|------|---------|
-| `include.csv` | Drug filter list with default selections |
-| `defaultTrusts.csv` | NHS Trust list for filtering |
-| `directory_list.csv` | Medical specialties/directories |
-| `drugnames.csv` | Drug name standardization mapping |
-| `org_codes.csv` | Provider code to organization name mapping |
-| `drug_directory_list.csv` | Valid drug-to-directory mappings |
-| `drug_indication_clusters.csv` | Drug to SNOMED cluster mappings |
-| `ta-recommendations.xlsx` | NICE TA recommendations |
+```toml
+[snowflake]
+account = "your-account"
+database = "DATA_HUB"
+schema = "CDM"
+warehouse = "your-warehouse"
+authenticator = "externalbrowser"  # Required for NHS SSO
+```
 
 ## Troubleshooting
 
-### Reflex compilation errors
-
-If you encounter compilation errors when running `reflex run`:
+### App won't start
 
 ```bash
-# Clear the build cache and restart
-rm -rf .web
-reflex run
+# Ensure dependencies are installed
+uv sync
+
+# Ensure src/ is on Python path
+uv run python setup_dev.py
+
+# Try running with uv
+uv run python run_dash.py
+```
+
+### Database not found
+
+```bash
+# Check data/pathways.db exists
+python -m data_processing.migrate
 ```
 
 ### Snowflake connection issues
 
-1. Ensure `snowflake-connector-python` is installed:
-   ```bash
-   pip install snowflake-connector-python
-   ```
+1. Ensure `src/config/snowflake.toml` has the correct account identifier
+2. A browser window will open for SSO authentication
+3. Verify your network allows Snowflake connections
 
-2. Check that `config/snowflake.toml` has the correct account identifier
+## Documentation
 
-3. For SSO authentication, a browser window will open automatically
-
-### SQLite database not found
-
-If `data/pathways.db` doesn't exist, create it:
-
-```bash
-python -m data_processing.migrate
-python -m data_processing.migrate --reference-data
-```
-
-## Development
-
-### Code Quality
-
-```bash
-# Type checking
-python -m mypy core/ data_processing/ analysis/ --ignore-missing-imports
-
-# Run tests with coverage report
-python -m pytest tests/ -v --cov=core --cov=data_processing --cov-report=html
-```
-
-### Adding New Reference Data
-
-1. Add CSV file to `data/` directory
-2. Define schema in `data_processing/schema.py`
-3. Create migration function in `data_processing/reference_data.py`
-4. Add path to `PathConfig` in `core/config.py`
+- [CLAUDE.md](CLAUDE.md) — Technical architecture documentation
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — End-user guide
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Deployment guide
 
 ## License
 

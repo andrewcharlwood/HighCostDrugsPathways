@@ -256,6 +256,14 @@ Drawer selection → update_drug_selection → app-state store → load_pathway_
 - [x] Verify: No Reflex imports anywhere in `dash_app/`
 - **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
 
+
+
+## Phase 6: Update all documentation
+- [x] Remove `reflex` references from all documentation
+- [x] Verify: No Reflex mentions of reflex in any md files (archive/ excluded — historical)
+- [x] Add documentation in readme re how to run dash app
+- [x] Update all claude.md files (CLAUDE.md was updated in Task 5.4)
+- **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
 ---
 
 ## Completion Criteria

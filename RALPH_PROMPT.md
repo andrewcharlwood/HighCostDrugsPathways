@@ -1,128 +1,124 @@
-# Ralph Wiggum Loop - Drug-Aware Indication Matching
+# Ralph Wiggum Loop — Dash Application Maintenance
 
-You are operating inside an automated loop extending a pathway analysis application with drug-aware indication matching. Each iteration you receive fresh context — you have NO memory of previous iterations. Your only memory is the filesystem.
+You are operating inside an automated loop maintaining an NHS patient pathway analysis tool built with Dash (Plotly) + Dash Mantine Components. Each iteration you receive fresh context — you have NO memory of previous iterations. Your only memory is the filesystem.
 
-**Current Focus**: Update indication charts so that patient indications are matched **per drug**, not just per patient. Each drug must be validated against the patient's GP diagnoses AND the drug-to-indication mapping from DimSearchTerm.csv.
+**Current Focus**: Maintain and enhance the Dash application in `dash_app/`. The backend (`src/`) provides shared data access and visualization functions. The design target is `01_nhs_classic.html`.
 
 ## First Actions Every Iteration
 
 Read these files in this order before doing anything else:
 
-1. `progress.txt` — What previous iterations accomplished, what's blocked, and what to do next. The most recent entry is most important.
-2. `IMPLEMENTATION_PLAN.md` — Task list with status markers, project overview, and completion criteria.
+1. `progress.txt` — What previous iterations accomplished, what's blocked, and what to do next.
+2. `IMPLEMENTATION_PLAN.md` — Task list with status markers, architecture overview, and completion criteria.
 3. `guardrails.md` — Known failure patterns to avoid. You MUST read and follow these.
-4. `CLAUDE.md` — Project architecture and code patterns.
+4. `CLAUDE.md` — Project architecture and backend code patterns.
 
 Then run `git log --oneline -5` to see recent commits.
+
+## Reading the Design Reference
+
+**When building ANY UI component**, read `01_nhs_classic.html` first:
+- It contains the exact CSS classes, HTML structure, and visual layout you must replicate
+- CSS lives in the `<style>` block (lines 8-314) — this becomes `dash_app/assets/nhs.css`
+- HTML structure (lines 316-480+) shows the component hierarchy and class usage
+- Match the design as closely as possible — `className` in Dash = `class` in HTML
+
+**When building data loading or chart callbacks**, reference the shared functions in `src/`:
+- `src/data_processing/pathway_queries.py`: `load_initial_data()` and `load_pathway_nodes()` — shared query functions
+- `src/visualization/plotly_generator.py`: `create_icicle_from_nodes()` — icicle chart from list-of-dicts
+- `dash_app/data/queries.py`: Thin wrapper calling shared functions with correct DB path
+- The original logic is archived in `archive/pathways_app/pathways_app.py` for reference.
 
 ## Narration
 
 Narrate your work as you go. Your output is the only visibility the operator has into what's happening. For every significant action, explain what you're doing and why:
 
-- **Reading files**: "Reading progress.txt to check what the last iteration accomplished..."
-- **Creating code**: "Adding assign_drug_indications() function to diagnosis_lookup.py..."
-- **Debugging**: "Drug matching returned 0 results for ADALIMUMAB. Checking DimSearchTerm lookup..."
-- **Testing**: "Running import check to verify the new function is accessible..."
-- **Making decisions**: "The guardrails say to use substring matching for drug fragments."
-- **Committing**: "Committing drug-indication matching logic."
+- **Reading files**: "Reading 01_nhs_classic.html to get CSS classes for the header component..."
+- **Creating code**: "Creating dash_app/components/header.py with make_header() function..."
+- **Debugging**: "Import error for dmc.Drawer — checking dash-mantine-components version..."
+- **Testing**: "Running python run_dash.py to verify the app starts..."
+- **Making decisions**: "The guardrails say to use className from nhs.css, not inline styles."
+- **Committing**: "Committing header and sidebar components."
 
-Do NOT just output a summary at the end. Narrate throughout. Think of this as a live log of your reasoning.
+Do NOT just output a summary at the end. Narrate throughout.
 
 ## Task Selection
-
-You have flexibility to choose which task to work on. Use your judgement, but document your reasoning.
 
 1. Read ALL tasks in IMPLEMENTATION_PLAN.md — understand the full picture
 2. Skip any marked `[x]` (complete) or `[B]` (blocked)
 3. Check progress.txt for guidance — the previous iteration may have recommendations
 4. **Choose a task** based on:
-   - Dependencies (some tasks require others to be done first)
-   - Logical flow (query changes before matching logic, matching before pipeline integration)
-   - Your assessment of what would be most valuable to tackle next
-   - Previous iteration's recommendations (consider but don't blindly follow)
-5. **Document your reasoning**: Before starting work, briefly explain WHY you chose this task over others
+   - Dependencies (scaffolding before components, components before callbacks)
+   - Logical flow (Phase 0 → 1 → 2 → 3 → 4 → 5)
+   - Previous iteration's recommendations
+5. **Document your reasoning**: Before starting, explain WHY you chose this task
 6. Mark your chosen task `[~]` (in progress) in IMPLEMENTATION_PLAN.md
 
-If your chosen task turns out to be blocked during work:
-- Mark it `[B]` with a reason in IMPLEMENTATION_PLAN.md
+If your chosen task is blocked:
+- Mark it `[B]` with a reason
 - Document the blocker in progress.txt
-- Move to a different ready task within this same iteration
+- Move to a different ready task
 
 ## Development
 
 Work on ONE task per iteration. Build incrementally and verify as you go.
 
-### Key Concepts
+### Key Technologies
 
-**Drug-Indication Matching Flow:**
-1. Get patient's GP-matched Search_Terms from Snowflake (ALL matches, not just most recent, with code_frequency)
-   - Only count GP codes from MIN(Intervention Date) onwards (the HCD data window)
-2. Load DimSearchTerm.csv to get which drugs belong to which Search_Terms
-3. For each patient-drug pair: intersection of (Search_Terms listing this drug) AND (patient's GP matches)
-   - If multiple matches: pick highest code_frequency (most GP coding = most likely indication)
-4. Modify UPID to include matched indication: `{UPID}|{search_term}`
-5. Drugs sharing the same indication for the same patient → same modified UPID → same pathway
-6. Drugs under different indications → different modified UPIDs → separate pathways
+- **Dash 2.x**: `from dash import Dash, html, dcc, Input, Output, State, callback_context, ALL`
+- **Dash Mantine Components 0.14.x**: `import dash_mantine_components as dmc` — needs `dmc.MantineProvider` wrapping the layout
+- **Plotly**: `import plotly.graph_objects as go` — for the icicle chart
+- **SQLite**: `import sqlite3` — read-only access to `data/pathways.db`
+- **CSS**: All in `dash_app/assets/nhs.css` — auto-served by Dash
 
-**DimSearchTerm.csv:**
-- `Search_Term`: Clinical condition (e.g., "rheumatoid arthritis")
-- `CleanedDrugName`: Pipe-separated drug fragments (e.g., "ADALIMUMAB|GOLIMUMAB|...")
-- `PrimaryDirectorate`: The directorate for this condition
-- Drug matching: check if any fragment is a substring of the HCD drug name (case-insensitive)
+### Dash Component Patterns
 
-**Modified UPID Format:**
-- Original: `RMV12345` (Provider Code[:3] + PersonKey)
-- Modified: `RMV12345|rheumatoid arthritis`
-- Fallback: `RMV12345|RHEUMATOLOGY (no GP dx)`
-- The existing pathway analyzer treats UPID as an opaque identifier — this works transparently
-
-### Code Patterns
-
-- **Snowflake queries**: Use parameterized queries, embed the cluster CTE from CLUSTER_MAPPING_SQL
-- **GP record matching**: Return ALL matches per patient (not just most recent)
-- **Drug mapping**: Load from `data/DimSearchTerm.csv`, match drug name fragments
-- **Pathway pipeline**: Use existing functions — modified UPIDs flow through naturally
-- **Reflex state**: No changes expected — indication charts already work, just with better matching
-
-### Key Data Structures
-
-**GP Matches (from Snowflake) — updated to return ALL matches with frequency:**
 ```python
-# Multiple rows per patient (one per matched Search_Term)
-# code_frequency = COUNT of matching SNOMED codes (used as tiebreaker)
-# Only counts codes from MIN(Intervention Date) onwards
-DataFrame with: PatientPseudonym, Search_Term, code_frequency
+# HTML elements use dash.html
+from dash import html
+html.Div(className="top-header", children=[...])
+
+# Mantine components for rich UI
+import dash_mantine_components as dmc
+dmc.Drawer(id="drug-drawer", position="right", size="480px", children=[...])
+dmc.Accordion(children=[dmc.AccordionItem(...)])
+
+# State management
+dcc.Store(id="app-state", storage_type="session", data={})
+
+# Callbacks
+@app.callback(
+    Output("chart-data", "data"),
+    Input("app-state", "data"),
+)
+def load_pathway_data(app_state):
+    ...
 ```
 
-**Drug-to-Indication Mapping (from DimSearchTerm.csv):**
-```python
-# search_term → list of drug fragments
-{"rheumatoid arthritis": ["ABATACEPT", "ADALIMUMAB", "ANAKINRA", ...]}
-```
+### Database Access Pattern
 
-**Modified HCD Data:**
 ```python
-# Original UPID replaced with indication-aware UPID
-df["UPID"] = "RMV12345|rheumatoid arthritis"  # for matched drugs
-df["UPID"] = "RMV12345|RHEUMATOLOGY (no GP dx)"  # for unmatched drugs
-```
+from pathlib import Path
+import sqlite3
 
-**Indication DataFrame:**
-```python
-# Maps modified UPID → Search_Term (for pathway hierarchy level 2)
-indication_df = pd.DataFrame({
-    'Directory': ['rheumatoid arthritis', 'asthma', 'CARDIOLOGY (no GP dx)']
-}, index=['RMV12345|rheumatoid arthritis', 'RMV12345|asthma', 'RMV67890|CARDIOLOGY (no GP dx)'])
+DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
+
+def load_pathway_data(filter_id, chart_type, selected_drugs=None, selected_directorates=None):
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    # ... query with parameterized WHERE ...
+    conn.close()
+    return result_dict
 ```
 
 ### Verification Steps
 
 After writing code, ALWAYS verify:
 
-1. **Syntax check**: `python -m py_compile <file.py>`
-2. **Import check**: `python -c "from module import function"`
-3. **For database changes**: Test with query against pathways.db
-4. **For Reflex changes**: `python -m reflex compile`
+1. **Import check**: `python -c "from dash_app.app import app"` (or specific module)
+2. **App starts**: `python run_dash.py` — must start without errors
+3. **Visual check** (when building UI): describe what you expect to see at localhost:8050
+4. **For callbacks**: verify the callback chain fires correctly (add temporary `print()` statements if needed)
 
 If any step fails, fix the issue before proceeding.
 
@@ -133,24 +129,23 @@ Every task MUST pass validation before being marked complete:
 ### Tier 1: Code Validation (MANDATORY)
 - Code compiles without Python syntax errors
 - Imports work without errors
-- No TypeErrors, ImportErrors, or AttributeErrors
+- `python run_dash.py` starts without exceptions
 
-### Tier 2: Data Validation (for data/pipeline tasks)
-- Queries return expected row counts
-- Data structures have correct columns/types
-- Drug-indication matching produces valid results
-- Modified UPIDs have correct format
+### Tier 2: Layout Validation (for UI component tasks)
+- Component renders in the browser
+- CSS classes match 01_nhs_classic.html
+- Layout structure matches the HTML concept
 
-### Tier 3: Functional Validation (for UI/integration tasks)
-- Reflex compiles the app without errors
-- State changes trigger expected behavior
-- Both chart types render correctly
+### Tier 3: Functional Validation (for callback tasks)
+- Callbacks fire when inputs change
+- Data flows correctly through dcc.Store chain
+- Chart renders with real data from SQLite
 
 ### Validation Failure
 
 If any tier fails:
 - DO NOT mark the task complete
-- Document the failure details in progress.txt
+- Document the failure in progress.txt
 - Fix the issue within this iteration if possible
 - If you cannot fix it, mark the task `[B]` with details
 
@@ -159,34 +154,33 @@ If any tier fails:
 Before marking ANY task `[x]`, ALL of these must be true:
 
 1. Code is saved to the appropriate file(s)
-2. Tier 1 code validation passed
+2. Tier 1 validation passed (imports + app starts)
 3. Tier 2/3 validation passed (as applicable)
 4. All changes committed to git with a descriptive message
 
-These are non-negotiable. A task that "feels done" but hasn't passed all gates is NOT done.
+These are non-negotiable.
 
 ## Update Progress
 
-After completing your work (whether the task succeeded, failed, or was blocked), append to progress.txt using this format:
+After completing your work, append to progress.txt using this format:
 
 ```
 ## Iteration [N] — [YYYY-MM-DD]
 ### Task: [which task you worked on]
 ### Why this task:
 - [Brief explanation of why you chose this task over others]
-- [What dependencies or logical flow led to this choice]
 ### Status: COMPLETE | BLOCKED | IN PROGRESS
 ### What was done:
 - [Specific actions taken]
 ### Validation results:
-- Tier 1 (Code): [syntax check, import check]
-- Tier 2 (Data): [query results, row counts]
-- Tier 3 (Functional): [reflex compile, UI check]
+- Tier 1 (Code): [import check, app starts]
+- Tier 2 (Layout): [renders correctly, CSS matches]
+- Tier 3 (Functional): [callbacks fire, data flows]
 ### Files changed:
 - [list of files created/modified]
 ### Committed: [git hash] "[commit message]"
 ### Patterns discovered:
-- [Any reusable learnings — query patterns, matching logic quirks]
+- [Any reusable learnings — Dash patterns, DMC quirks, CSS gotchas]
 ### Next iteration should:
 - [Explicit guidance for what the next fresh instance should do first]
 - [Note any context that would be lost without writing it here]
@@ -194,20 +188,20 @@ After completing your work (whether the task succeeded, failed, or was blocked),
 - [Any tasks that are blocked and why]
 ```
 
-If you discover a failure pattern that future iterations should avoid, add it to `guardrails.md`.
+If you discover a failure pattern, add it to `guardrails.md`.
 
 ## Commit Changes
 
 1. Stage changed files
-2. Use a descriptive commit message referencing the task (e.g., "feat: add drug-indication matching function (Task 2.1)")
-3. Commit after your task is validated and complete — one commit per logical unit of work
+2. Use a descriptive commit message referencing the task (e.g., "feat: create dash_app skeleton with nhs.css (Task 0.1 + 0.2)")
+3. Commit after your task is validated and complete
 4. If you updated progress.txt with a blocked status, commit that too
 
 ## Completion Check
 
 If ALL tasks in IMPLEMENTATION_PLAN.md are marked `[x]`:
 
-1. Run `reflex compile` to verify app compiles
+1. Run `python run_dash.py` to verify app starts cleanly
 2. Verify all completion criteria at the bottom of IMPLEMENTATION_PLAN.md are satisfied
 3. Only then output the completion signal on its own line:
 
@@ -217,20 +211,19 @@ If ALL tasks in IMPLEMENTATION_PLAN.md are marked `[x]`:
 
 DO NOT output this string under any other circumstances.
 DO NOT output it if any task is still `[ ]` or `[B]` or `[~]`.
-DO NOT paraphrase, vary, or conditionally output this string.
 
 ## Rules
 
 - Complete ONE task per iteration, then update progress and stop
 - ALWAYS read progress.txt, guardrails.md before starting work
-- **Match drugs to indications** — not just patients to indications
-- **Use DimSearchTerm.csv** for drug-to-Search_Term mapping
-- **Return ALL GP matches** — not just most recent (remove QUALIFY ROW_NUMBER = 1)
-- **Modified UPID format**: `{UPID}|{search_term}` — pipe delimiter is safe
-- **Use PseudoNHSNoLinked** — NOT PersonKey for GP record matching
-- **Substring matching** for drug fragments from DimSearchTerm.csv
+- **Read 01_nhs_classic.html** when building ANY visual component
+- **Read src/data_processing/pathway_queries.py and src/visualization/plotly_generator.py** when building data logic or chart callbacks
+- **DO NOT modify pipeline/analysis logic** in src/ (pathway_pipeline, transforms, diagnosis_lookup, pathway_analyzer, refresh_pathways)
+- **DO add shared utilities** to src/ (visualization/plotly_generator.py, data_processing/database.py) rather than duplicating logic in dash_app/
+- **Use className from nhs.css** — not inline styles
+- **dcc.Store for state** — no server-side globals
+- **Unidirectional callbacks** — app-state → chart-data → UI
+- **Port icicle_figure exactly** — same customdata, colorscale, templates
 - Keep commits atomic and well-described
-- If stuck on the same issue for more than 2 attempts within one iteration, document it in progress.txt and move to the next ready task
-- When in doubt, check existing code for patterns that work
-- **Pipeline before UI** — processing logic before Reflex changes
-- **Don't change directory charts** — only indication chart matching changes
+- If stuck for 2+ attempts, document in progress.txt and move on
+- `python run_dash.py` must work after every task

@@ -1,10 +1,10 @@
-# Reflex Deployment Guide
+# Deployment Guide
 
-This guide covers deployment options for the Patient Pathway Analysis web application built with Reflex.
+This guide covers deployment options for the Patient Pathway Analysis web application built with Dash.
 
 ## Overview
 
-Reflex applications compile to a FastAPI backend and Next.js frontend. This creates two deployment artifacts that can be deployed together or separately depending on your infrastructure requirements.
+The application is a single-process Python Dash app that serves both the frontend and API from one server. It reads pre-computed data from a local SQLite database.
 
 ## Development Mode
 
@@ -12,9 +12,9 @@ For local development:
 
 ```bash
 # Start development server with hot reload
-reflex run
+python run_dash.py
 
-# Access the application at http://localhost:3000
+# Access the application at http://localhost:8050
 ```
 
 ## Production Deployment Options
@@ -24,84 +24,55 @@ reflex run
 The simplest approach for internal deployments:
 
 ```bash
-# Run in production mode (optimized build)
-reflex run --env prod
-```
+# Run with Gunicorn (Linux/macOS)
+gunicorn dash_app.app:server -b 0.0.0.0:8050 --workers 4
 
-This starts:
-- FastAPI backend on port 8000
-- Next.js frontend on port 3000
+# Or directly with Python
+python run_dash.py
+```
 
 For background execution:
 
 ```bash
 # Using nohup (Linux/macOS)
-nohup reflex run --env prod > reflex.log 2>&1 &
+nohup gunicorn dash_app.app:server -b 0.0.0.0:8050 --workers 4 > dash.log 2>&1 &
 
 # Using PowerShell (Windows)
-Start-Process -NoNewWindow -FilePath "reflex" -ArgumentList "run --env prod"
+Start-Process -NoNewWindow -FilePath "python" -ArgumentList "run_dash.py"
 ```
 
-### Option 2: Separate Backend and Frontend
-
-For more control, run backend and frontend separately:
-
-```bash
-# Terminal 1: Start backend only
-reflex run --env prod --backend-only
-
-# Terminal 2: Start frontend only
-reflex run --env prod --frontend-only
-```
-
-### Option 3: Static Export
-
-Export the frontend as static files for deployment on static hosting or CDN:
-
-```bash
-# Export application
-reflex export
-
-# This creates:
-# - frontend.zip (static Next.js build)
-# - backend.zip (Python application source)
-```
-
-Then:
-1. Unzip `frontend.zip` and serve via nginx, Apache, or any static file server
-2. Run the backend separately using uvicorn/gunicorn
-
-### Option 4: Docker Deployment
+### Option 2: Docker Deployment
 
 Create a `Dockerfile` for containerized deployment:
 
 ```dockerfile
-# Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Node.js for Reflex frontend build
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Install uv for fast dependency management
+RUN pip install uv
 
-# Copy requirements and install dependencies
-COPY requirements.txt pyproject.toml ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies
+RUN uv sync --no-dev
 
 # Copy application code
-COPY . .
+COPY src/ src/
+COPY dash_app/ dash_app/
+COPY data/ data/
+COPY run_dash.py setup_dev.py ./
 
-# Initialize Reflex (downloads frontend dependencies)
-RUN reflex init --loglevel debug
+# Set up Python path
+RUN uv run python setup_dev.py
 
-# Expose ports
-EXPOSE 3000 8000
+# Expose port
+EXPOSE 8050
 
-# Start in production mode
-CMD ["reflex", "run", "--env", "prod"]
+# Start the application
+CMD ["uv", "run", "gunicorn", "dash_app.app:server", "-b", "0.0.0.0:8050", "--workers", "4"]
 ```
 
 Build and run:
@@ -111,41 +82,24 @@ Build and run:
 docker build -t pathway-analysis .
 
 # Run the container
-docker run -p 3000:3000 -p 8000:8000 \
+docker run -p 8050:8050 \
   -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config \
   pathway-analysis
 ```
 
-### Option 5: Docker Compose (Recommended for Production)
-
-Create `docker-compose.yml` for multi-container deployment:
+### Option 3: Docker Compose
 
 ```yaml
 version: '3.8'
 
 services:
-  backend:
+  app:
     build: .
-    command: reflex run --env prod --backend-only
     ports:
-      - "8000:8000"
+      - "8050:8050"
     volumes:
       - ./data:/app/data
-      - ./config:/app/config
-    environment:
-      - REFLEX_ENV=prod
-    restart: unless-stopped
-
-  frontend:
-    build: .
-    command: reflex run --env prod --frontend-only
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    environment:
-      - REFLEX_ENV=prod
+      - ./src/config:/app/src/config
     restart: unless-stopped
 ```
 
@@ -162,42 +116,16 @@ docker-compose up -d
 For production deployments behind nginx:
 
 ```nginx
-# /etc/nginx/sites-available/pathway-analysis
 server {
     listen 80;
     server_name your-server.nhs.uk;
 
-    # Backend API endpoints
-    location /admin {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location /ping {
-        proxy_pass http://localhost:8000;
-    }
-
-    location /upload {
-        proxy_pass http://localhost:8000;
-        client_max_body_size 100M;  # For large data file uploads
-    }
-
-    # WebSocket connections (required for Reflex state sync)
-    location /_event/ {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_read_timeout 86400;  # 24 hours for long-running connections
-    }
-
-    # Frontend (all other requests)
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:8050;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
@@ -209,69 +137,21 @@ sudo ln -s /etc/nginx/sites-available/pathway-analysis /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### Caddy (Alternative)
-
-Caddy provides automatic HTTPS:
-
-```caddyfile
-# Caddyfile
-your-server.nhs.uk {
-    # Backend API
-    handle /admin/* {
-        reverse_proxy localhost:8000
-    }
-    handle /ping {
-        reverse_proxy localhost:8000
-    }
-    handle /upload {
-        reverse_proxy localhost:8000
-    }
-    handle /_event/* {
-        reverse_proxy localhost:8000
-    }
-
-    # Frontend
-    handle {
-        reverse_proxy localhost:3000
-    }
-}
-```
-
 ## Process Management
 
 ### Systemd (Linux)
 
-Create service files for automatic startup:
-
 ```ini
-# /etc/systemd/system/pathway-backend.service
+# /etc/systemd/system/pathway-analysis.service
 [Unit]
-Description=Pathway Analysis Backend
+Description=Pathway Analysis Dash App
 After=network.target
 
 [Service]
 Type=simple
 User=www-data
 WorkingDirectory=/opt/pathway-analysis
-ExecStart=/usr/bin/reflex run --env prod --backend-only
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```ini
-# /etc/systemd/system/pathway-frontend.service
-[Unit]
-Description=Pathway Analysis Frontend
-After=network.target pathway-backend.service
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/pathway-analysis
-ExecStart=/usr/bin/reflex run --env prod --frontend-only
+ExecStart=/opt/pathway-analysis/.venv/bin/gunicorn dash_app.app:server -b 0.0.0.0:8050 --workers 4
 Restart=always
 RestartSec=10
 
@@ -283,8 +163,8 @@ Enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable pathway-backend pathway-frontend
-sudo systemctl start pathway-backend pathway-frontend
+sudo systemctl enable pathway-analysis
+sudo systemctl start pathway-analysis
 ```
 
 ### Windows Service
@@ -296,8 +176,8 @@ Use NSSM (Non-Sucking Service Manager) on Windows:
 choco install nssm
 
 # Create service
-nssm install PathwayAnalysis "C:\Path\To\reflex.exe" "run --env prod"
-nssm set PathwayAnalysis AppDirectory "C:\Path\To\Patient pathway analysis"
+nssm install PathwayAnalysis "C:\Path\To\python.exe" "run_dash.py"
+nssm set PathwayAnalysis AppDirectory "C:\Path\To\pathway-analysis"
 nssm start PathwayAnalysis
 ```
 
@@ -305,192 +185,112 @@ nssm start PathwayAnalysis
 
 ### Production Environment Variables
 
-Set these environment variables for production:
-
 ```bash
-# Reflex configuration
-export REFLEX_ENV=prod
-
-# Database paths (if using custom locations)
+# Database path (if using custom location)
 export PATHWAY_DB_PATH=/var/data/pathways.db
-export PATHWAY_CACHE_DIR=/var/cache/pathway-analysis
 
-# Snowflake (if using)
+# Snowflake (for data refresh only — not needed for the web app)
 export SNOWFLAKE_ACCOUNT=your-account
 export SNOWFLAKE_WAREHOUSE=your-warehouse
 ```
 
 ### Snowflake Configuration
 
-Ensure `config/snowflake.toml` is properly configured for production:
+Snowflake is only needed for the data refresh CLI command, not for running the web application. Ensure `src/config/snowflake.toml` is configured:
 
 ```toml
-[connection]
+[snowflake]
 account = "your-production-account"
 warehouse = "ANALYTICS_WH"
 database = "DATA_HUB"
 schema = "CDM"
-authenticator = "externalbrowser"  # or "oauth" for service accounts
-
-[cache]
-enabled = true
-directory = "/var/cache/pathway-analysis"
-ttl_seconds = 86400  # 24 hours
+authenticator = "externalbrowser"
 ```
 
-## Reflex Cloud
+## Data Refresh
 
-For managed hosting, consider [Reflex Cloud](https://reflex.dev/cloud/):
+The web application reads pre-computed data from SQLite. To update the data:
 
 ```bash
-# Deploy to Reflex Cloud
-reflex deploy
+# Full refresh (both chart types, all date filters)
+python -m cli.refresh_pathways --chart-type all
+
+# The app will serve new data immediately — no restart needed
 ```
 
-Benefits:
-- Zero configuration deployment
-- Automatic scaling
-- Built-in SSL certificates
-- Managed state management with Redis
+Schedule this as a cron job or Windows Task Scheduler task for periodic updates.
 
 ## Security Considerations
 
 ### Network Security
 
-1. **Firewall Rules**: Only expose necessary ports (typically just 80/443)
-2. **HTTPS**: Use TLS certificates (Let's Encrypt or organizational certs)
+1. **Firewall Rules**: Only expose port 8050 (or 80/443 behind reverse proxy)
+2. **HTTPS**: Use TLS certificates via reverse proxy (nginx, Caddy)
 3. **VPN**: Consider restricting access to NHS network only
 
 ### Data Security
 
-1. **Database Access**: Ensure SQLite database permissions are restricted
-2. **File Uploads**: Validate file types and scan for malware
-3. **Snowflake**: Use least-privilege service accounts
-
-### Authentication
-
-For NHS deployments, consider adding authentication:
-
-```python
-# Example: Add basic auth middleware
-import reflex as rx
-from starlette.middleware import Middleware
-from starlette.middleware.authentication import AuthenticationMiddleware
-
-# In rxconfig.py
-config = rx.Config(
-    app_name="pathways_app",
-    # Add authentication middleware
-)
-```
+1. **Database Access**: The app uses read-only SQLite access
+2. **No file uploads**: The Dash app does not accept file uploads
+3. **No authentication built in**: Add authentication via reverse proxy or middleware if needed
 
 ## Monitoring
 
 ### Health Checks
 
-The application provides endpoints for monitoring:
-
-- `/ping` - Basic health check
-- Backend port 8000 - FastAPI health
+The application serves at `/` — a 200 response indicates the app is running.
 
 ### Logging
 
-Configure logging for production:
+Dash outputs request logs to stdout. Configure log aggregation as needed:
 
-```python
-# In pathways_app/pathways_app.py
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('/var/log/pathway-analysis/app.log'),
-        logging.StreamHandler()
-    ]
-)
+```bash
+# Redirect logs to file
+gunicorn dash_app.app:server -b 0.0.0.0:8050 --access-logfile /var/log/pathway-analysis/access.log --error-logfile /var/log/pathway-analysis/error.log
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Port already in use
 
-**Port already in use:**
 ```bash
-# Find and kill process using port 3000
-lsof -i :3000
-kill -9 <PID>
+# Find process using port 8050
+lsof -i :8050   # Linux/macOS
+netstat -ano | findstr :8050   # Windows
 ```
 
-**Build cache issues:**
-```bash
-# Clear Reflex build cache
-rm -rf .web
-reflex run --env prod
-```
+### Database not found
 
-**Database connection errors:**
 ```bash
-# Verify database exists and has correct permissions
+# Verify database exists
 ls -la data/pathways.db
 sqlite3 data/pathways.db ".tables"
+
+# Recreate if needed
+python -m data_processing.migrate
+python -m cli.refresh_pathways --chart-type all
 ```
 
-**Snowflake authentication:**
-- Ensure browser is available for SSO popup
-- Check firewall allows connections to Snowflake endpoints
-- Verify account identifier is correct
-
-## Performance Tuning
-
-### Backend (FastAPI/Uvicorn)
-
-For high-traffic deployments:
+### Import errors
 
 ```bash
-# Run with multiple workers
-uvicorn pathways_app:app --workers 4 --host 0.0.0.0 --port 8000
-```
+# Ensure src/ is on Python path
+uv run python setup_dev.py
 
-### State Management
-
-For multi-instance deployments, configure Redis for state management:
-
-```python
-# rxconfig.py
-config = rx.Config(
-    app_name="pathways_app",
-    state_manager_mode="redis",
-    redis_url="redis://localhost:6379/0",
-)
-```
-
-### Caching
-
-Enable aggressive caching for Snowflake queries in `config/snowflake.toml`:
-
-```toml
-[cache]
-enabled = true
-ttl_seconds = 86400  # 24 hours for historical data
-ttl_current_data_seconds = 3600  # 1 hour for recent data
-max_size_mb = 1000  # 1GB cache
+# Verify imports
+uv run python -c "from dash_app.app import app; print('OK')"
 ```
 
 ---
 
 ## Quick Reference
 
-| Environment | Command | Ports |
-|-------------|---------|-------|
-| Development | `reflex run` | 3000, 8000 |
-| Production | `reflex run --env prod` | 3000, 8000 |
-| Backend only | `reflex run --backend-only` | 8000 |
-| Frontend only | `reflex run --frontend-only` | 3000 |
-| Export | `reflex export` | Static files |
-| Cloud | `reflex deploy` | Managed |
+| Environment | Command | Port |
+|-------------|---------|------|
+| Development | `python run_dash.py` | 8050 |
+| Production | `gunicorn dash_app.app:server -b 0.0.0.0:8050 --workers 4` | 8050 |
+| Docker | `docker run -p 8050:8050 pathway-analysis` | 8050 |
 
 For more information, see:
-- [Reflex Documentation](https://reflex.dev/docs/)
-- [Reflex Cloud](https://reflex.dev/cloud/)
-- [FastAPI Deployment](https://fastapi.tiangolo.com/deployment/)
+- [Dash Documentation](https://dash.plotly.com/)
+- [Gunicorn Deployment](https://docs.gunicorn.org/en/stable/deploy.html)
