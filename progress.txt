@@ -1115,3 +1115,76 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - After 7.4, Task 7.5 adds trigger buttons in the filter bar to open each modal
 ### Blocked items:
 - None
+
+## Iteration 21 — 2026-02-06
+### Task: Phase 7 — Tasks 7.4 + 7.5 (Replace drawer with modals + filter bar triggers)
+### Why this task:
+- Tasks 7.1-7.3 complete. Task 7.4 is next in Phase 7 dependency order.
+- Progress.txt from iteration 20 explicitly recommended this task.
+- Tasks 7.4 and 7.5 are tightly coupled — modals (7.4) need trigger buttons (7.5) to open them, so both done together.
+### Status: COMPLETE
+### What was done:
+- **Used frontend-developer agent** to design modal UX for 3 filter types:
+  - Drug Selection: `size="lg"`, centered, with selection count badge in title
+  - Trust Selection: `size="sm"`, centered, minimal layout for 7 items
+  - Directorate Browser: `size="xl"`, centered, with nested accordion
+  - Live filtering (no "Apply" button) — matches existing behavior
+  - Per-modal and global "Clear" buttons
+- **Created `dash_app/components/modals.py`**:
+  - `make_drug_modal()`: dmc.Modal with ChipGroup (id=all-drugs-chips, same as drawer), count badge, clear button
+  - `make_trust_modal()`: dmc.Modal with ChipGroup (id=trust-chips, same as drawer), count badge, clear button
+  - `make_directorate_modal()`: dmc.Modal with nested accordion (same structure as drawer), drug fragment badges with pattern-matching IDs, clear button
+  - `make_modals()`: returns all three modals in a wrapper div
+  - Component IDs preserved from drawer — no callback rewiring needed
+- **Updated `dash_app/components/filter_bar.py`**:
+  - Added 3 filter trigger buttons: "Drugs", "Trusts", "Directorates" with count badge spans
+  - Added "Clear All" button for global filter reset
+  - Buttons use new `.filter-btn` CSS class
+- **Created `dash_app/callbacks/modals.py`**:
+  - 3 modal open callbacks (one per modal, triggered by filter bar buttons)
+  - `handle_selection_actions`: unified callback for fragment matching + 4 clear triggers (per-drug, per-trust, directorate modal, global)
+  - `update_count_badges`: updates both filter bar badges and modal header badges
+- **Updated `dash_app/app.py`**: replaced `make_drawer()` with `make_modals()`
+- **Updated `dash_app/callbacks/__init__.py`**: registers modal callbacks instead of drawer
+- **Deleted `dash_app/components/drawer.py`** and **`dash_app/callbacks/drawer.py`** (dead code after modal replacement)
+- **Updated `dash_app/assets/nhs.css`**: replaced drawer CSS with filter-btn and modal CSS classes
+- **Removed search inputs** from drug and directorate modals — dynamic chip filtering conflicts with Dash's callback architecture (ChipGroup children can't be both layout-defined and callback-output). 42 drugs is scannable without search.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 10 callbacks registered
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout):
+  - 3 modals in layout: drug-modal, trust-modal, directorate-modal (all centered, correctly sized)
+  - 32 string IDs, 540 pattern-match IDs — zero duplicates
+  - All key IDs present: modal IDs, trigger buttons, count badges, chip groups
+  - Filter bar has: toggle pills + date dropdowns + divider + Drugs/Trusts/Directorates buttons + Clear All
+- Tier 3 (Functional):
+  - Callback chain verified: open-drug-modal → drug-modal.opened, etc.
+  - Fragment matching preserved: drug-fragment badges → all-drugs-chips.value
+  - Clear buttons: clear-drug-selection → drugs only, clear-trust-selection → trusts only, clear-all-filters → both
+  - Count badges: all-drugs-chips.value + trust-chips.value → filter-btn badges + modal header badges
+  - App-state chain: chip values → update_app_state → chart-data → chart + KPIs (unchanged)
+### Files changed:
+- `dash_app/components/modals.py` — NEW: 3 filter modals (drug, trust, directorate)
+- `dash_app/callbacks/modals.py` — NEW: modal open/close, selection actions, count badges
+- `dash_app/components/filter_bar.py` — Updated: added trigger buttons + clear all
+- `dash_app/app.py` — Updated: replaced drawer with modals
+- `dash_app/callbacks/__init__.py` — Updated: registers modal callbacks
+- `dash_app/assets/nhs.css` — Updated: replaced drawer CSS with filter-btn + modal CSS
+- `dash_app/components/drawer.py` — DELETED (replaced by modals.py)
+- `dash_app/callbacks/drawer.py` — DELETED (replaced by modals.py)
+- `IMPLEMENTATION_PLAN.md` — Tasks 7.4, 7.5 marked [x], all completion criteria marked [x]
+### Committed: f2c5b26 "refactor: replace dmc.Drawer with dmc.Modal for filter selection (Task 7.4 + 7.5)"
+### Patterns discovered:
+- Reusing the same component IDs (all-drugs-chips, trust-chips, drug-fragment pattern) when migrating from drawer to modals means zero callback rewiring. The callbacks don't care whether the component is inside a Drawer or Modal — they reference by ID.
+- dmc.Modal title prop can contain components with IDs (e.g., dmc.Badge with id="drug-modal-count"). Dash finds these during callback resolution even though they're in the title prop, not children.
+- dmc.Modal with `centered=True` and `overlayProps={"backgroundOpacity": 0.55, "blur": 3}` gives a clean modern feel.
+- Dynamic chip filtering in Dash is architecturally difficult because ChipGroup children are set at layout time and can't easily be toggled without making children an Output (which conflicts with value already being an Output). Search input deferred to future enhancement.
+- Filter bar button count badges use CSS class toggling (hidden/visible) rather than conditional rendering — simpler with Dash's callback model.
+### All tasks COMPLETE:
+- ALL tasks in IMPLEMENTATION_PLAN.md are now marked [x]
+- ALL completion criteria are satisfied
+### Next iteration should:
+- ALL TASKS COMPLETE. No next iteration needed.
+- Run final validation: `python run_dash.py`, verify all 13 completion criteria at bottom of IMPLEMENTATION_PLAN.md.
+### Blocked items:
+- None
