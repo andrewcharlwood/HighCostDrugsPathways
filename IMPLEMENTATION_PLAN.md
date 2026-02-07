@@ -132,15 +132,17 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ## Phase C: New Analytics (Existing Data)
 
 ### C.1 Retention funnel chart
-- [ ] Create `get_retention_funnel()` in `src/data_processing/pathway_queries.py`:
-  - Query level 4+ nodes, aggregate patient counts by treatment line depth
-  - Return: `[{depth: 1, label: "1 drug", patients: N, pct: 100}, {depth: 2, ...}, ...]`
-- [ ] Add thin wrapper in `dash_app/data/queries.py`
-- [ ] Create `create_retention_funnel_figure(data, title)` in `src/visualization/plotly_generator.py`:
-  - Use `go.Funnel` with NHS blue gradient
-  - Show absolute patient count + percentage retained
-- [ ] Add "Funnel" tab to `TAB_DEFINITIONS` in `chart_card.py`
-- [ ] Add `_render_funnel()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+- [x] Create `get_retention_funnel()` in `src/data_processing/pathway_queries.py`:
+  - Query level 3+ nodes, aggregate patient counts by treatment line depth (level 3=1st drug, 4=2nd, 5=3rd)
+  - Return: `[{depth: 1, label: "1st drug", patients: N, pct: 100.0}, ...]`
+  - Supports directory/trust filters
+- [x] Add thin wrapper in `dash_app/data/queries.py`
+- [x] Create `create_retention_funnel_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Uses `go.Funnel` with NHS blue gradient (#003087 → #1E88E5)
+  - Shows absolute patient count + percentage retained as text inside bars
+  - Uses `_base_layout()` for consistent styling
+- [x] Add "Funnel" tab to `TAB_DEFINITIONS` in `chart_card.py` (4 tabs: Icicle, Sankey, Heatmap, Funnel)
+- [x] Add `_render_funnel()` helper and tab dispatch in `dash_app/callbacks/chart.py`
 - **Checkpoint**: Funnel tab shows retention by treatment line depth, responds to filters
 
 ### C.2 Pathway depth distribution chart

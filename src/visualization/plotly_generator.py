@@ -1754,3 +1754,69 @@ def create_trust_duration_figure(
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_retention_funnel_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create a retention funnel showing patient drop-off by treatment line depth.
+
+    Args:
+        data: List of dicts with keys: depth, label, patients, pct
+        title: Chart title from filter state.
+
+    Returns:
+        Plotly Figure with go.Funnel trace.
+    """
+    if not data:
+        return go.Figure()
+
+    display_title = f"Treatment Retention — {title}" if title else "Treatment Retention"
+
+    labels = [d["label"] for d in data]
+    patients = [d["patients"] for d in data]
+    pcts = [d["pct"] for d in data]
+
+    # NHS blue gradient: darkest at top (most patients) → lightest at bottom
+    funnel_colors = [
+        "#003087",  # NHS Heritage Blue (1st drug)
+        "#005EB8",  # NHS Blue
+        "#1E88E5",  # Mid blue
+        "#42A5F5",  # Light blue
+        "#90CAF9",  # Pale blue
+    ]
+    colors = funnel_colors[: len(data)]
+    if len(colors) < len(data):
+        colors.extend(["#E3F2FD"] * (len(data) - len(colors)))
+
+    text_values = [
+        f"{p:,} patients ({pct}%)" for p, pct in zip(patients, pcts)
+    ]
+
+    fig = go.Figure(
+        go.Funnel(
+            y=labels,
+            x=patients,
+            text=text_values,
+            textposition="inside",
+            textfont=dict(family=CHART_FONT_FAMILY, size=14, color="white"),
+            marker=dict(color=colors),
+            connector=dict(line=dict(color=GRID_COLOR, width=1)),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Patients: %{x:,}<br>"
+                "%{text}<extra></extra>"
+            ),
+        )
+    )
+
+    layout = _base_layout(display_title)
+    layout.update(
+        margin=dict(t=60, l=8, r=8, b=40),
+        yaxis=dict(automargin=True),
+        height=max(300, len(data) * 80 + 120),
+    )
+    fig.update_layout(**layout)
+
+    return fig

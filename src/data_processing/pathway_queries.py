@@ -1069,6 +1069,76 @@ def get_trust_durations(
 # --- Directorate/indication summary for Trust Comparison landing page ---
 
 
+def get_retention_funnel(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Aggregate patient counts by treatment line depth for a retention funnel.
+
+    Level 3 = 1st drug, Level 4 = 2-drug pathway, Level 5 = 3-drug pathway, etc.
+    Returns list of dicts sorted by depth ascending:
+        [{depth: 1, label: "1 drug", patients: N, pct: 100.0}, ...]
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["date_filter_id = ?", "chart_type = ?", "level >= 3"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            where.append("directory = ?")
+            params.append(directory)
+        if trust:
+            where.append("trust_name = ?")
+            params.append(trust)
+
+        query = f"""
+            SELECT level, SUM(value) AS patients
+            FROM pathway_nodes
+            WHERE {' AND '.join(where)}
+            GROUP BY level
+            ORDER BY level
+        """
+        rows = conn.execute(query, params).fetchall()
+
+        if not rows:
+            return []
+
+        result = []
+        base_patients = 0
+        for r in rows:
+            level = r["level"]
+            patients = r["patients"] or 0
+            depth = level - 2  # level 3 → depth 1, level 4 → depth 2, etc.
+
+            if depth == 1:
+                base_patients = patients
+
+            ordinal_labels = {
+                1: "1st drug",
+                2: "2nd drug",
+                3: "3rd drug",
+            }
+            label = ordinal_labels.get(depth, f"{depth}th drug")
+
+            pct = round(patients / base_patients * 100, 1) if base_patients else 0
+            result.append({
+                "depth": depth,
+                "label": label,
+                "patients": patients,
+                "pct": pct,
+            })
+
+        return result
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,
