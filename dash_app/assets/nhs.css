@@ -187,8 +187,17 @@ body {
     margin-left: var(--sidebar-w);
     margin-top: var(--header-total-h);
     padding: 24px;
-    min-height: calc(100vh - var(--header-total-h));
+    height: calc(100vh - var(--header-total-h));
     display: flex; flex-direction: column; gap: 20px;
+    overflow-y: auto;
+}
+
+/* View containers — flex chain for chart to fill height */
+#view-container {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+#patient-pathways-view {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; gap: 20px;
 }
 
 /* ── Patient Pathways Filter Strip ── */
@@ -250,6 +259,18 @@ body {
     border: 1px solid var(--nhs-pale-grey);
     flex: 1;
     display: flex; flex-direction: column;
+    min-height: 0;
+}
+/* Flex chain through dcc.Loading wrapper → chart container → dcc.Graph */
+#chart-container {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+#pathway-chart {
+    flex: 1; min-height: 0;
+}
+.chart-card > .dash-loading-callback,
+.chart-card > .dash-loading-callback > div {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
 }
 .chart-card__header {
     padding: 16px 20px;

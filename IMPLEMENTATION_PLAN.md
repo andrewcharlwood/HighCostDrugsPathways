@@ -645,11 +645,11 @@ User feedback after Phase 10 completion. Four layout/aesthetics issues on both P
 - **Checkpoint**: All 6 Trust Comparison charts render at a readable size without overspill ✓
 
 ### 11.3 Patient Pathways chart — fill available screen height
-- [ ] In `dash_app/components/chart_card.py`, update the `dcc.Graph` style to fill all available vertical space below the tab bar / chart header. Use CSS `calc(100vh - ...)` or `flex: 1` patterns to make the chart stretch to the bottom of the viewport.
-- [ ] In `dash_app/assets/nhs.css`, ensure `.chart-card` and its children use flex layout to fill remaining height. The `.main` container already has `min-height: calc(100vh - var(--header-total-h))` — the chart card should consume all of that minus the filter bar height.
-- [ ] The Patient Pathways view (`#patient-pathways-view`) should also be a flex column that fills height, so the chart card can stretch.
-- [ ] Verify: Icicle/Sankey charts fill the available viewport height, not just a fixed 500px minimum
-- **Checkpoint**: Patient Pathways chart uses all available vertical space below the filter bar
+- [x] In `dash_app/components/chart_card.py`, update the `dcc.Graph` style to fill all available vertical space below the tab bar / chart header. Use CSS `calc(100vh - ...)` or `flex: 1` patterns to make the chart stretch to the bottom of the viewport.
+- [x] In `dash_app/assets/nhs.css`, ensure `.chart-card` and its children use flex layout to fill remaining height. The `.main` container already has `min-height: calc(100vh - var(--header-total-h))` — the chart card should consume all of that minus the filter bar height.
+- [x] The Patient Pathways view (`#patient-pathways-view`) should also be a flex column that fills height, so the chart card can stretch.
+- [x] Verify: Icicle/Sankey charts fill the available viewport height, not just a fixed 500px minimum
+- **Checkpoint**: Patient Pathways chart uses all available vertical space below the filter bar ✓
 
 ### 11.4 Filter modals — improve aesthetics for large screens
 - [ ] In `dash_app/components/modals.py`:
