@@ -10,7 +10,7 @@ def _tc_chart_cell(title, graph_id):
             dcc.Graph(
                 id=graph_id,
                 config={"displayModeBar": False, "displaylogo": False},
-                style={"height": "320px"},
+                style={"height": "500px"},
             ),
         ]),
     ])

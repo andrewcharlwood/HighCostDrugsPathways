@@ -467,6 +467,8 @@ body {
     border: 1px solid var(--nhs-pale-grey);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
 }
 .tc-chart-cell__title {
     padding: 10px 16px;

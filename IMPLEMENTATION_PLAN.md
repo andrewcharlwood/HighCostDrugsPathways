@@ -638,11 +638,11 @@ User feedback after Phase 10 completion. Four layout/aesthetics issues on both P
 - **Checkpoint**: Clear All button is next to the filter buttons on the left ✓
 
 ### 11.2 Trust Comparison charts — fix overspill and increase chart size
-- [ ] In `dash_app/components/trust_comparison.py`, increase the `dcc.Graph` height from `320px` to a larger value (e.g., `450px` or use `calc()` / viewport units). Charts are currently too cramped and overspilling their containers.
-- [ ] In `dash_app/assets/nhs.css`, review `.tc-dashboard__grid` and `.tc-chart-cell` — ensure charts don't overflow. Consider whether the 2×3 grid should scroll vertically rather than cramming all 6 charts into the viewport. Each chart should be comfortably readable.
-- [ ] The user explicitly wants BIGGER charts, not smaller. Prioritize readability over fitting everything in the viewport.
-- [ ] Verify: Trust Comparison dashboard charts are large enough to read, no text/axis overspill, scrolling is acceptable if needed
-- **Checkpoint**: All 6 Trust Comparison charts render at a readable size without overspill
+- [x] In `dash_app/components/trust_comparison.py`, increase the `dcc.Graph` height from `320px` to a larger value (e.g., `450px` or use `calc()` / viewport units). Charts are currently too cramped and overspilling their containers.
+- [x] In `dash_app/assets/nhs.css`, review `.tc-dashboard__grid` and `.tc-chart-cell` — ensure charts don't overflow. Consider whether the 2×3 grid should scroll vertically rather than cramming all 6 charts into the viewport. Each chart should be comfortably readable.
+- [x] The user explicitly wants BIGGER charts, not smaller. Prioritize readability over fitting everything in the viewport.
+- [x] Verify: Trust Comparison dashboard charts are large enough to read, no text/axis overspill, scrolling is acceptable if needed
+- **Checkpoint**: All 6 Trust Comparison charts render at a readable size without overspill ✓
 
 ### 11.3 Patient Pathways chart — fill available screen height
 - [ ] In `dash_app/components/chart_card.py`, update the `dcc.Graph` style to fill all available vertical space below the tab bar / chart header. Use CSS `calc(100vh - ...)` or `flex: 1` patterns to make the chart stretch to the bottom of the viewport.
