@@ -78,12 +78,15 @@ def register_filter_callbacks(app):
         Input("nav-trends", "n_clicks"),
         Input({"type": "tc-selector", "index": ALL}, "n_clicks"),
         Input("tc-back-btn", "n_clicks"),
+        Input("trends-overview-chart", "clickData"),
+        Input("trends-back-btn", "n_clicks"),
         State("app-state", "data"),
     )
     def update_app_state(
         _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs,
         selected_trusts, _nav_pp_clicks, _nav_tc_clicks, _nav_trends_clicks,
-        _tc_selector_clicks, _tc_back_clicks, current_state
+        _tc_selector_clicks, _tc_back_clicks, trends_click_data,
+        _trends_back_clicks, current_state
     ):
         """Update app-state when any filter, nav, or TC selector changes."""
         if not current_state:
@@ -134,6 +137,21 @@ def register_filter_callbacks(app):
         if chart_type != prev_chart_type and selected_comparison_directorate is not None:
             selected_comparison_directorate = None
 
+        # Trends directorate drill-down
+        selected_trends_directorate = current_state.get("selected_trends_directorate")
+
+        if triggered_id == "trends-overview-chart" and trends_click_data:
+            points = trends_click_data.get("points", [])
+            if points:
+                selected_trends_directorate = points[0].get("customdata")
+
+        if triggered_id == "trends-back-btn":
+            selected_trends_directorate = None
+
+        # If chart type changed while trends directorate is selected, return to landing
+        if chart_type != prev_chart_type and selected_trends_directorate is not None:
+            selected_trends_directorate = None
+
         # Compute date_filter_id from dropdown values
         date_filter_id = f"{initiated}_{last_seen}"
 
@@ -148,6 +166,7 @@ def register_filter_callbacks(app):
             "selected_trusts": selected_trusts or [],
             "active_view": active_view,
             "selected_comparison_directorate": selected_comparison_directorate,
+            "selected_trends_directorate": selected_trends_directorate,
         }
 
         # Toggle pill CSS classes

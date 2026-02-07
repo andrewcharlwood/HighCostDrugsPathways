@@ -2343,6 +2343,7 @@ def create_trend_figure(
             y=s["values"],
             mode="lines+markers",
             name=name,
+            customdata=[name] * len(s["periods"]),
             line=dict(color=colour, width=2),
             marker=dict(color=colour, size=6),
             hovertemplate=(

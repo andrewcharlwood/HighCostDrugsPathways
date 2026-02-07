@@ -294,22 +294,18 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Trends view shows directorate-level line chart. Metric toggle switches y-axis. Lines show one per directorate. PASSED.
 
 ### E.4 Add drug drill-down within Trends view
-- [ ] Add `selected_trends_directorate` key (default `None`) to `app-state` initial data in `app.py`
-- [ ] Add directorate selection callback in `dash_app/callbacks/trends.py`:
-  - Clicking a line/trace on the overview chart sets `selected_trends_directorate` in app-state
-  - Use `clickData` from `trends-overview-chart` as Input
-  - Extract directorate name from the clicked trace's `name` attribute
-  - Update `app-state` with `selected_trends_directorate`
-- [ ] Add landing/detail toggle callback:
-  - Input: `app-state` → show/hide `trends-landing` vs `trends-detail`
-  - When `selected_trends_directorate` is set: hide landing, show detail with title "[Directorate] — Drug Trends"
-- [ ] Add detail chart callback:
-  - Input: `app-state` + `trends-view-metric-toggle` → Output `trends-detail-chart`
+- [x] Add `selected_trends_directorate` key (default `None`) to `app-state` initial data in `app.py` (already done in E.2)
+- [x] Add `customdata=[name]*len(periods)` to each trace in `create_trend_figure()` so directorate name is accessible from clickData
+- [x] Add `Input("trends-overview-chart", "clickData")` and `Input("trends-back-btn", "n_clicks")` to `update_app_state()` in `filters.py`:
+  - Clicking a trace point extracts directorate name from `clickData["points"][0]["customdata"]`
+  - Back button clears `selected_trends_directorate` to None
+  - Chart type change also clears `selected_trends_directorate`
+- [x] Landing/detail toggle callback already exists in `trends.py` (`toggle_trends_subviews`) — handles show/hide based on `selected_trends_directorate`
+- [x] Add `render_trends_detail()` callback in `trends.py`:
+  - Input: `app-state` + `trends-detail-metric-toggle` → Output `trends-detail-chart`
   - Calls `get_trend_data(directory=selected, metric=..., group_by="drug")` → `create_trend_figure()`
-  - Only fires when `selected_trends_directorate` is not None
-- [ ] Add back button callback:
-  - Clicking `trends-back-btn` clears `selected_trends_directorate` in app-state → returns to landing
-- **Checkpoint**: Click a directorate line → drill into drug-level trends. Back button returns to overview. `python run_dash.py` starts cleanly.
+  - Guards: only fires when `active_view == "trends"` and `selected_trends_directorate` is not None
+- **Checkpoint**: Click a directorate line → drill into drug-level trends. Back button returns to overview. `python run_dash.py` starts cleanly. PASSED.
 
 ### E.5 Fix chart height to fill viewport
 - [ ] In `create_trend_figure()` in `plotly_generator.py`: remove explicit `height=500`, let `autosize=True` (from `_base_layout()`) handle it
@@ -357,8 +353,8 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] Trends tab removed from Patient Pathways (9 tabs remain)
 - [x] 3rd sidebar item "Trends" visible and functional
 - [x] Trends landing page shows directorate-level line chart with metric toggle
-- [ ] Clicking a directorate drills into drug-level trends
-- [ ] Back button returns to directorate overview
+- [x] Clicking a directorate drills into drug-level trends
+- [x] Back button returns to directorate overview
 - [ ] Charts fill available viewport height (no fixed 500px cutoff)
 - [x] "Cost" renamed to "Cost per Patient" in metric toggles
 - [ ] `python run_dash.py` starts cleanly

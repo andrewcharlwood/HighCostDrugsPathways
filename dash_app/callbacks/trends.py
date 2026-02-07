@@ -92,3 +92,49 @@ def register_trends_callbacks(app):
         title = f"Directorate Trends \u2014 {metric_labels.get(metric, 'Patients')}"
 
         return create_trend_figure(data, title, metric)
+
+    # --- Drug detail chart (drill-down) ---
+    @app.callback(
+        Output("trends-detail-chart", "figure"),
+        Input("app-state", "data"),
+        Input("trends-detail-metric-toggle", "value"),
+        prevent_initial_call=True,
+    )
+    def render_trends_detail(app_state, metric):
+        """Render drug-level trends for the selected directorate."""
+        if not app_state:
+            return no_update
+
+        active_view = app_state.get("active_view", "")
+        if active_view != "trends":
+            return no_update
+
+        selected = app_state.get("selected_trends_directorate")
+        if not selected:
+            return no_update
+
+        metric = metric or "patients"
+
+        from dash_app.data.queries import get_trend_data
+        from visualization.plotly_generator import create_trend_figure
+
+        try:
+            data = get_trend_data(
+                metric=metric,
+                directory=selected,
+                group_by="drug",
+            )
+        except Exception:
+            return _trends_empty("Failed to load trend data.")
+
+        if not data:
+            return _trends_empty("No trend data for this directorate.")
+
+        metric_labels = {
+            "patients": "Patients",
+            "total_cost": "Cost per Patient",
+            "cost_pp_pa": "Cost per Patient p.a.",
+        }
+        title = f"{selected} \u2014 {metric_labels.get(metric, 'Patients')}"
+
+        return create_trend_figure(data, title, metric)
