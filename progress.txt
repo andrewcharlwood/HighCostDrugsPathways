@@ -484,3 +484,41 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Alternative: D.3 (Drug timeline / Gantt chart) uses existing `first_seen`/`last_seen` data in pathway_nodes — no backend changes needed. Could be a better next task.
 ### Blocked items:
 - None
+
+## Iteration 13 — 2026-02-07
+### Task: D.3 — Drug timeline (Gantt chart)
+### Why this task:
+- D.3 uses existing `first_seen`/`last_seen` data in pathway_nodes — no backend/schema changes needed. D.1 requires schema changes + pipeline extension (both in guardrail DO NOT MODIFY list) and needs ≥2 refresh cycles for meaningful data. D.2 requires parsing complex `average_administered` JSON. D.3 was the cleanest next task.
+### Status: COMPLETE
+### What was done:
+- **`get_drug_timeline()`** in `pathway_queries.py`: Queries level 3 nodes aggregated across trusts — MIN(first_seen), MAX(last_seen), SUM(value), weighted avg cost_pp_pa per drug × directory. Supports directory/trust filters. Returns 59 entries for all-directory view.
+- **Thin wrapper** in `dash_app/data/queries.py`: Standard import + DB_PATH delegation.
+- **`create_drug_timeline_figure()`** in `plotly_generator.py`: Gantt-style using `go.Bar(orientation="h")` with `base` set to `first_seen` datetime and `x` as duration in milliseconds. One trace per bar, legend grouped by directory. Colors from `DRUG_PALETTE` (one color per directory). Patient count as white text inside bars. Hover shows drug, directory, first/last seen (month/year), duration in days, patients, cost p.a. Dynamic height (28px per bar). Uses `_base_layout()` + `_smart_legend()` + `_smart_legend_margin()`.
+- **TAB_DEFINITIONS**: Added `("timeline", "Timeline")` — now 8 tabs: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network, Timeline.
+- **`_render_timeline()`** in `chart.py`: Standard render helper with directory/trust filter extraction and error handling.
+- **Dispatch case**: Added `elif active_tab == "timeline"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): 59 data points across 12 directories. Date x-axis with 6-month ticks. Bars span 2019–2025. Newest drug DOCETAXEL (BREAST SURGERY) starts May 2025. Single-directory mode (RHEUMATOLOGY): 16 drugs, y-labels without directory suffix.
+- Tier 3 (Functional): Directory filter works (RHEUMATOLOGY: 16 drugs). Trust filter works. Empty data returns empty figure. Tab switching wired via dynamic `_TAB_IDS`. 8 tabs visible.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_drug_timeline()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_drug_timeline_figure()`
+- `dash_app/components/chart_card.py` — added timeline to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_timeline()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked D.3 subtasks [x]
+### Committed: 0a14f1f "feat: drug timeline Gantt chart tab (Task D.3)"
+### Patterns discovered:
+- Plotly `go.Bar` Gantt trick: set `base` to start datetime, `x` to duration in milliseconds (days × 86,400,000), `orientation="h"`. Plotly auto-detects date axis type from the datetime base values.
+- `datetime.fromisoformat()` handles the `T00:00:00` suffix in ISO timestamps from SQLite without issue.
+- Single-directory detection (`len(directories) == 1`) lets us simplify y-labels to just drug names, avoiding redundant "(RHEUMATOLOGY)" suffix when the user already filtered to that directory.
+- With 59 bars, 12 directories → `_smart_legend()` uses horizontal mode (≤15 items), which works well since directory names aren't too long.
+### Next iteration should:
+- Choose between D.1 (Temporal trends), D.2 (Dose distribution), or D.4 (NICE TA compliance).
+- **D.1** is problematic: requires modifying `schema.py` (guardrail protected), `reference_data.py` (guardrail protected), and `refresh_pathways.py` (guardrail protected). The plan allows it as an exception, but it also needs ≥2 refresh cycles for meaningful data. Consider marking D.1 as [B] (blocked on pipeline changes being out of scope).
+- **D.2** (Dose distribution): Requires parsing `average_administered` JSON from pathway_nodes. Check if the data exists and is parseable first — run `SELECT average_administered FROM pathway_nodes WHERE average_administered IS NOT NULL AND average_administered != '' LIMIT 5` to inspect the format.
+- **D.4** (NICE TA compliance): Requires parsing `data/ta-recommendations.xlsx` — check if this file exists and what it contains. This is also substantial (schema + migration + compliance scoring).
+- Recommendation: Try D.2 next if `average_administered` data is available and parseable. If the JSON format is too complex or data is sparse, mark D.2 as [B] and assess D.4.
+### Blocked items:
+- D.1: Likely blocked — requires modifying guardrail-protected files (schema.py, reference_data.py, refresh_pathways.py) + needs multiple refresh cycles for meaningful data.
