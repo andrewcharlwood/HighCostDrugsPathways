@@ -446,3 +446,41 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - After C.4, Phase D begins (backend work: trends, dose distribution, timeline, NICE compliance).
 ### Blocked items:
 - None
+
+## Iteration 12 — 2026-02-07
+### Task: C.4 — Drug switching network graph
+### Why this task:
+- C.4 is the last Phase C task. C.1-C.3 are complete. Iteration 11 explicitly recommended C.4. It follows the established 6-step pattern for adding a new chart tab.
+### Status: COMPLETE
+### What was done:
+- **`get_drug_network()`** in `pathway_queries.py`: Queries level 4+ nodes for drug_sequence co-occurrence edges (undirected, sorted pairs to avoid duplicates). Also queries level 3 nodes for per-drug patient totals. Supports directory/trust filters. Returns `{nodes: [{name, total_patients}], edges: [{source, target, patients}]}`.
+- **Thin wrapper** in `dash_app/data/queries.py`: Standard import + DB_PATH delegation.
+- **`create_drug_network_figure()`** in `plotly_generator.py`: Circular layout using `math.cos/sin` for node positions. Individual `go.Scatter` traces for each edge (variable width 0.5–6px and opacity 0.15–0.7 scaled by patient count). Node scatter with `markers+text` mode, size 12–50px proportional to patients, colors from `DRUG_PALETTE`. Uses `_base_layout()`. Axes hidden, `scaleanchor="y"` for square aspect ratio.
+- **TAB_DEFINITIONS**: Added `("network", "Network")` — now 7 tabs: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network.
+- **`_render_network()`** in `chart.py`: Standard render helper with filter extraction and error handling. Checks `data.get("nodes")` for empty state.
+- **Dispatch case**: Added `elif active_tab == "network"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): 39 drug nodes, 45 co-occurrence edges. Top connections: FARICIMAB↔RANIBIZUMAB (452), AFLIBERCEPT↔FARICIMAB (392), ADALIMUMAB↔ETANERCEPT (305). Figure has 46 traces (45 edges + 1 node scatter).
+- Tier 3 (Functional): Directory filter works (RHEUMATOLOGY: 17 nodes, 20 edges). Indication chart type works (39 nodes, 28 edges). Empty data returns empty figure. Tab switching wired via dynamic `_TAB_IDS`.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_drug_network()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_drug_network_figure()`
+- `dash_app/components/chart_card.py` — added network to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_network()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked C.4 subtasks [x]
+### Committed: 1405476 "feat: drug switching network graph tab (Task C.4)"
+### Patterns discovered:
+- Individual edge traces (one `go.Scatter` per edge) is necessary for variable width/opacity per edge. A single trace would only support uniform line properties.
+- `scaleanchor="y", scaleratio=1` on xaxis ensures the circular layout is actually circular, not elliptical.
+- The undirected edge approach (sort pair to canonical form) correctly deduplicates A→B and B→A transitions.
+- Phase C is now COMPLETE. All 4 tasks (C.1-C.4) are done. 7 Patient Pathways tabs total.
+### Next iteration should:
+- Start Phase D: New Analytics (Backend Work). D.1 (Temporal trend analysis) is the first task.
+- **Important**: D.1 requires schema changes (`pathway_trends` table) and CLI pipeline extension — this is backend work that has been avoided so far. Read guardrails.md carefully: DO NOT modify the existing pipeline logic, but adding new tables and extending refresh_pathways.py to compute trends is allowed per the plan.
+- D.1 steps: (1) Design `pathway_trends` table schema in schema.py, (2) Add migration, (3) Extend refresh_pathways.py to insert trend snapshots, (4) Create query function, (5) Create figure function (line chart), (6) Add tab + callbacks.
+- However: trends need at least 2 refresh cycles to show meaningful data. Consider whether D.1 is worth implementing vs. skipping to D.2 (dose distribution) or D.3 (drug timeline) which work with existing data.
+- Alternative: D.3 (Drug timeline / Gantt chart) uses existing `first_seen`/`last_seen` data in pathway_nodes — no backend changes needed. Could be a better next task.
+### Blocked items:
+- None
