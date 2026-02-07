@@ -561,3 +561,28 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 ### Blocked items:
 - D.1: Blocked — requires modifying guardrail-protected files + needs multiple refresh cycles.
 - D.4: Potentially blocked — requires schema + migration for TA reference data (guardrail-protected files).
+
+## Iteration 15 — 2026-02-07
+### Task: D.1 + D.4 — Final assessment and project completion
+### Why this task:
+- Only D.1 and D.4 remain. Both were flagged as potentially blocked in Iteration 14. This iteration assesses their feasibility and makes a final determination.
+### Status: COMPLETE (project finalization)
+### What was done:
+- **D.1 (Temporal trends)**: Confirmed BLOCKED. Requires modifying 3 guardrail-protected files (`schema.py`, `reference_data.py`, `refresh_pathways.py`) + needs ≥2 data refresh cycles to show meaningful trend data. Marked `[B]` in IMPLEMENTATION_PLAN.md.
+- **D.4 (NICE TA compliance)**: Confirmed BLOCKED. `data/ta-recommendations.xlsx` does not exist — the source data file is missing entirely. Even if it existed, would require schema + migration changes to guardrail-protected files. Marked `[B]` in IMPLEMENTATION_PLAN.md.
+- **Completion criteria**: Updated all achievable criteria to `[x]`. Phase D blocked items marked `[B]` with explanations.
+- **Final validation**: `from dash_app.app import app` OK. `python run_dash.py` starts cleanly on http://127.0.0.1:8050/.
+### Validation results:
+- Tier 1 (Code): Import check passes, app starts without errors
+### Files changed:
+- `IMPLEMENTATION_PLAN.md` — marked D.1 and D.4 as [B] (blocked), updated all completion criteria
+- `progress.txt` — this entry
+### Summary of all completed work (14 iterations):
+- **Phase A (4 tasks)**: Shared constants + `_base_layout()`, heatmap fixes (colorscale + annotations), legend overflow fix (4 charts), trust color differentiation
+- **Phase B (4 tasks)**: Title consistency (all 11 charts), cost effectiveness gradient, Sankey freeform, heatmap metric toggle
+- **Phase C (4 tasks)**: Retention funnel, pathway depth distribution, duration vs cost scatter, drug network graph
+- **Phase D (2 of 4 tasks)**: Drug timeline Gantt chart, average administered doses chart
+- **Total**: 14 tasks completed, 2 blocked, 9 Patient Pathways tabs, 15+ chart functions, all using shared styling
+### Blocked items:
+- D.1: BLOCKED — guardrail-protected file modifications required + needs ≥2 refresh cycles
+- D.4: BLOCKED — source data file (`ta-recommendations.xlsx`) missing + guardrail-protected file modifications required

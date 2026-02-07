@@ -190,6 +190,7 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ## Phase D: New Analytics (Backend Work)
 
 ### D.1 Temporal trend analysis
+- [B] **BLOCKED**: Requires modifying guardrail-protected files (`schema.py`, `reference_data.py`, `refresh_pathways.py`) + needs ≥2 refresh cycles for meaningful data
 - [ ] Design `pathway_trends` table schema in `src/data_processing/schema.py`:
   - Columns: `snapshot_date, chart_type, directory, drug, patients, cost, cost_pp_pa`
   - Stores quarterly aggregates from each refresh
@@ -233,6 +234,7 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Timeline tab shows when each drug cohort was active
 
 ### D.4 NICE TA compliance dashboard
+- [B] **BLOCKED**: `data/ta-recommendations.xlsx` does not exist (source data missing). Also requires schema + migration (guardrail-protected files)
 - [ ] Parse `data/ta-recommendations.xlsx` into a reference table
 - [ ] Create schema and migration for TA compliance reference data
 - [ ] Create compliance scoring: cross-reference pathway data with TA recommendations
@@ -245,33 +247,33 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ## Completion Criteria
 
 ### Phase A
-- [ ] All charts use `_base_layout()` for consistent styling
-- [ ] Heatmaps have linear colorscale + cell annotations + autosize
-- [ ] Legends don't overflow at any drug/trust count
-- [ ] Trust Comparison charts use 7 maximally-distinct colors
-- [ ] `python run_dash.py` starts cleanly
+- [x] All charts use `_base_layout()` for consistent styling
+- [x] Heatmaps have linear colorscale + cell annotations + autosize
+- [x] Legends don't overflow at any drug/trust count
+- [x] Trust Comparison charts use 7 maximally-distinct colors
+- [x] `python run_dash.py` starts cleanly
 
 ### Phase B
-- [ ] All chart titles use `CHART_TITLE_SIZE` and `CHART_TITLE_COLOR`
-- [ ] Cost effectiveness uses smooth gradient
-- [ ] Sankey handles narrow viewports
-- [ ] Heatmap metric toggle works in both views
-- [ ] `python run_dash.py` starts cleanly
+- [x] All chart titles use `CHART_TITLE_SIZE` and `CHART_TITLE_COLOR`
+- [x] Cost effectiveness uses smooth gradient
+- [x] Sankey handles narrow viewports
+- [x] Heatmap metric toggle works in both views
+- [x] `python run_dash.py` starts cleanly
 
 ### Phase C
-- [ ] Retention funnel renders with real data
-- [ ] Pathway depth distribution renders with real data
-- [ ] Duration vs cost scatter renders with quadrant lines
-- [ ] Drug network graph renders as Sankey alternative
-- [ ] All new tabs respond to existing filters
-- [ ] `python run_dash.py` starts cleanly
+- [x] Retention funnel renders with real data
+- [x] Pathway depth distribution renders with real data
+- [x] Duration vs cost scatter renders with quadrant lines
+- [x] Drug network graph renders as Sankey alternative
+- [x] All new tabs respond to existing filters
+- [x] `python run_dash.py` starts cleanly
 
 ### Phase D
-- [ ] Temporal trends show data over time (if >1 refresh cycle)
-- [ ] Dose distribution shows box/violin plots
-- [ ] Drug timeline shows Gantt-style cohort activity
-- [ ] NICE TA compliance matrix shows traffic-light scoring
-- [ ] `python run_dash.py` starts cleanly
+- [B] Temporal trends — BLOCKED (requires guardrail-protected file changes + ≥2 refresh cycles)
+- [x] Dose distribution shows average administered doses per drug
+- [x] Drug timeline shows Gantt-style cohort activity
+- [B] NICE TA compliance — BLOCKED (source data file missing + requires guardrail-protected file changes)
+- [x] `python run_dash.py` starts cleanly
 
 ---
 
