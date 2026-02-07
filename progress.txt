@@ -640,6 +640,66 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - `sqlite3` table existence check via `SELECT name FROM sqlite_master WHERE type='table' AND name='pathway_trends'` is the clean way to handle the table-doesn't-exist case.
 - Adding a new Output/Input to an existing callback requires updating ALL return paths (4 return sites in update_chart).
 ### Next iteration should:
-- ALL TASKS ARE COMPLETE. Check completion criteria in IMPLEMENTATION_PLAN.md.
+- See Manual Intervention below — Phase E tasks added.
 ### Blocked items:
 - None — all tasks complete
+
+## Manual Intervention — 2026-02-07
+### Reason: Redesign temporal trends as standalone view + fix chart height
+### Changes made:
+- `IMPLEMENTATION_PLAN.md` — added Phase E with 5 tasks (E.1–E.5), updated "What Changes" section, added Phase E completion criteria
+- `guardrails.md` — added guardrails for 3-view navigation and Trends view state
+- `progress.txt` — this entry
+### Tasks reset: None (all Phase A–D tasks remain complete)
+### Tasks added:
+- E.1: Remove Trends tab from Patient Pathways
+- E.2: Add Trends sidebar nav item + view container (3rd top-level view)
+- E.3: Create Trends landing page — directorate-level overview chart with metric toggle
+- E.4: Add drug drill-down within Trends view (click directorate → drug-level trends)
+- E.5: Fix chart height to fill viewport + rename "Cost" to "Cost per Patient"
+### Context for next iteration:
+- Start with E.1 (remove Trends from Patient Pathways) — this is a cleanup task that simplifies the codebase before adding the new view
+- E.1 involves removing the trends tab from TAB_DEFINITIONS, removing the trends-metric-wrapper/toggle from chart_card.py, removing _render_trends() and its dispatch case from chart.py, and cleaning up the update_chart() callback signature (remove trends Output/Input). CRITICAL: update ALL return paths in update_chart() when removing the trends toggle style output.
+- After E.1, E.2 adds the 3rd sidebar item and empty view container. Key files: sidebar.py (add icon + nav item), app.py (add trends-view div), navigation.py (3-way switch_view), filters.py (add nav-trends Input)
+- E.3 creates the new Trends view components and callbacks. The existing `get_trend_data()` in pathway_queries.py needs a `group_by` parameter added. `create_trend_figure()` in plotly_generator.py is reused as-is.
+- E.4 adds drill-down using the same landing/detail toggle pattern as Trust Comparison (selected_trends_directorate in app-state)
+- E.5 fixes chart height by removing fixed height values and relying on CSS flex + responsive=True
+- The existing `get_trend_data()` query already supports directory filter and drug filter. For directorate-level grouping, add a `group_by="directory"` parameter that changes the SQL GROUP BY from drug to directory.
+- Keep `create_trend_figure()` — it already handles any number of named series
+### New guardrails added:
+- "3-view navigation pattern" — when modifying switch_view or update_app_state, update ALL outputs/return paths for 3 views
+- "Trends view state in app-state" — selected_trends_directorate must be in app-state initial data
+
+## Iteration 17 — 2026-02-07
+### Task: E.1 — Remove Trends tab from Patient Pathways
+### Why this task:
+- E.1 is the first Phase E task. Progress.txt explicitly recommended it. It's a cleanup prerequisite — the Trends tab must be removed from Patient Pathways before re-adding it as a standalone 3rd view in E.2–E.4.
+### Status: COMPLETE
+### What was done:
+- **chart_card.py**: Removed `("trends", "Trends")` from `TAB_DEFINITIONS` (now 9 tabs: Icicle through Doses). Removed `trends-metric-wrapper` div and `trends-metric-toggle` SegmentedControl from chart card header.
+- **chart.py**: Removed `_render_trends()` helper function (~17 lines). Removed `Output("trends-metric-wrapper", "style")` and `Input("trends-metric-toggle", "value")` from `update_chart()` callback. Removed `trends_metric` parameter. Removed `trends_toggle_style` variable and the entire `if active_tab == "trends"` dispatch block. Updated ALL 4 return paths from 4-tuple to 3-tuple (figure, subtitle, heatmap_toggle_style).
+- **queries.py**: Removed `get_trend_data` import from the import block and removed the `get_trend_data()` thin wrapper function.
+- **Preserved**: `get_trend_data()` in `pathway_queries.py` and `create_trend_figure()` in `plotly_generator.py` — both still needed for the new Trends view.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly on http://127.0.0.1:8050/.
+- Tier 2 (Visual): 9 tabs visible (Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network, Timeline, Doses). No Trends tab.
+- Tier 3 (Functional): Callback signature now has 3 Outputs, 4 Inputs (was 4 Outputs, 5 Inputs). All 4 return paths updated correctly.
+### Files changed:
+- `dash_app/components/chart_card.py` — removed trends tab + metric toggle
+- `dash_app/callbacks/chart.py` — removed _render_trends + trends dispatch + trends I/O
+- `dash_app/data/queries.py` — removed get_trend_data import + wrapper
+- `IMPLEMENTATION_PLAN.md` — marked E.1 subtasks [x]
+### Committed: [pending]
+### Patterns discovered:
+- Removing a callback Output/Input required updating exactly 4 return paths: (1) no chart_data, (2) error_msg, (3) no nodes, (4) final return with fig. Guardrail about counting return paths before/after was essential.
+- The `dmc` import in chart_card.py is still needed for the heatmap metric toggle — only the trends toggle was removed.
+### Next iteration should:
+- Do Task E.2: Add Trends sidebar nav item + view container. Key files to read:
+  1. `dash_app/components/sidebar.py` — add "trends" icon + 3rd nav item
+  2. `dash_app/app.py` — add `trends-view` div to layout, add `selected_trends_directorate` to app-state initial data
+  3. `dash_app/callbacks/navigation.py` — update `switch_view()` for 3 views (6 outputs: 3 view styles + 3 nav classNames)
+  4. `dash_app/callbacks/filters.py` — add `Input("nav-trends", "n_clicks")` to `update_app_state()`
+- CRITICAL: The `switch_view()` callback must handle 3 views with 6 Outputs. Read the existing 2-view implementation first to understand the pattern, then extend to 3.
+- CRITICAL: `update_app_state()` has multiple return paths — ensure ALL handle the new "trends" active_view case.
+### Blocked items:
+- None

@@ -10,19 +10,27 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 
 ### What Changes
 - `src/visualization/plotly_generator.py` — shared styling constants, bug fixes, new chart functions
-- `src/data_processing/pathway_queries.py` — new query functions for Tier 3 analytics
+- `src/data_processing/pathway_queries.py` — new/modified query functions
 - `dash_app/data/queries.py` — thin wrappers for new queries
-- `dash_app/callbacks/chart.py` — heatmap metric toggle, new tab support
+- `dash_app/callbacks/chart.py` — remove Trends tab, fix chart height
 - `dash_app/callbacks/trust_comparison.py` — trust color palette, heatmap metric toggle
-- `dash_app/components/chart_card.py` — new tab definitions, metric toggle component
+- `dash_app/callbacks/trends.py` — NEW: Trends view callbacks (directorate overview + drug drill-down)
+- `dash_app/callbacks/__init__.py` — register new trends callbacks
+- `dash_app/components/chart_card.py` — remove Trends tab, metric toggle cleanup
 - `dash_app/components/trust_comparison.py` — metric toggle component
+- `dash_app/components/trends.py` — NEW: Trends landing + detail components
+- `dash_app/components/sidebar.py` — add Trends nav item
+- `dash_app/callbacks/navigation.py` — 3-way view switching
+- `dash_app/callbacks/filters.py` — add nav-trends input
+- `dash_app/app.py` — add trends-view to layout, add selected_trends_directorate to app-state
+- `dash_app/assets/nhs.css` — chart height CSS for responsive sizing
 
 ### What Stays (DO NOT MODIFY)
 - Pipeline/analysis logic: `pathway_pipeline.py`, `transforms.py`, `diagnosis_lookup.py`, `pathway_analyzer.py`
 - Database schema and `pathway_nodes` table
-- CLI refresh command
+- CLI refresh command and `cli/compute_trends.py`
 - Existing callback chain architecture (app-state → chart-data → UI)
-- Two-view architecture (Patient Pathways + Trust Comparison)
+- Trust Comparison view (unchanged)
 
 ---
 
@@ -243,6 +251,78 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 
 ---
 
+## Phase E: Trends View Redesign + Chart Height
+
+### E.1 Remove Trends tab from Patient Pathways
+- [x] Remove `("trends", "Trends")` from `TAB_DEFINITIONS` in `dash_app/components/chart_card.py`
+- [x] Remove `trends-metric-wrapper` div and `trends-metric-toggle` SegmentedControl from `chart_card.py`
+- [x] Remove `_render_trends()` helper from `dash_app/callbacks/chart.py`
+- [x] Remove `elif active_tab == "trends"` dispatch case from `update_chart()`
+- [x] Remove `Output("trends-metric-wrapper", "style")` and `Input("trends-metric-toggle", "value")` from `update_chart()` callback signature — updated ALL 4 return paths to return 3 values instead of 4
+- [x] Remove thin wrapper `get_trend_data()` from `dash_app/data/queries.py` (will be re-imported by the new Trends view callbacks)
+- [x] Keep `get_trend_data()` in `pathway_queries.py` — it's still used by the new Trends view
+- [x] Keep `create_trend_figure()` in `plotly_generator.py` — it's still used by the new Trends view
+- **Checkpoint**: Patient Pathways has 9 tabs (Icicle through Doses, no Trends). `python run_dash.py` starts cleanly. PASSED.
+
+### E.2 Add Trends sidebar nav item + view container
+- [ ] Add `"trends"` icon SVG to `_ICONS` dict in `dash_app/components/sidebar.py` — use a line chart icon: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`
+- [ ] Add `_sidebar_item("Trends", "trends", active=False, item_id="nav-trends")` to sidebar children
+- [ ] Add `html.Div(id="trends-view", style={"display": "none"}, children=[...])` to `app.py` layout inside `view-container`, after `trust-comparison-view`
+- [ ] Update `switch_view()` in `dash_app/callbacks/navigation.py`:
+  - Add `Output("trends-view", "style")` and `Output("nav-trends", "className")` — now 3 views, 3 nav items (6 outputs total)
+  - Handle 3-way switching: `"patient-pathways"`, `"trust-comparison"`, `"trends"`
+- [ ] Update `update_app_state()` in `dash_app/callbacks/filters.py`:
+  - Add `Input("nav-trends", "n_clicks")`
+  - Add `elif triggered_id == "nav-trends": active_view = "trends"` case
+- **Checkpoint**: 3 sidebar items visible. Clicking "Trends" switches to empty trends view. `python run_dash.py` starts cleanly.
+
+### E.3 Create Trends landing page — directorate-level trends
+- [ ] Create `dash_app/components/trends.py`:
+  - `make_trends_landing()` — container with title, description, metric toggle (`dmc.SegmentedControl` id: `trends-view-metric-toggle`, options: Patients / Cost per Patient / Cost per Patient p.a.), and `dcc.Graph(id="trends-overview-chart")` wrapped in `dcc.Loading`
+  - `make_trends_detail()` — hidden container with back button (id: `trends-back-btn`), title (id: `trends-detail-title`), same metric toggle, and `dcc.Graph(id="trends-detail-chart")` wrapped in `dcc.Loading`
+- [ ] Update `get_trend_data()` in `pathway_queries.py` to support `group_by` parameter:
+  - `group_by="drug"` (default, existing behavior): one line per drug
+  - `group_by="directory"`: one line per directory (aggregate drugs within each directory)
+  - When `group_by="directory"`: `SELECT period_end, directory AS name, SUM(...) ... GROUP BY period_end, directory`
+- [ ] Update thin wrapper in `dash_app/data/queries.py` to pass `group_by` param
+- [ ] Create `dash_app/callbacks/trends.py` with `register_trends_callbacks(app)`:
+  - Callback to render directorate-level chart: Input `app-state` + `trends-view-metric-toggle` → Output `trends-overview-chart` figure. Calls `get_trend_data(group_by="directory", metric=...)` → `create_trend_figure(data, title, metric)`.
+  - Only fires when `active_view == "trends"` and `selected_trends_directorate` is None.
+- [ ] Register in `dash_app/callbacks/__init__.py`
+- [ ] Rename "Cost" label to "Cost per Patient" in the metric toggle options (value stays `total_cost`)
+- [ ] Wire `trends-view` div in `app.py` to contain `make_trends_landing()` + `make_trends_detail()`
+- **Checkpoint**: Trends view shows directorate-level line chart. Metric toggle switches y-axis. Lines show one per directorate.
+
+### E.4 Add drug drill-down within Trends view
+- [ ] Add `selected_trends_directorate` key (default `None`) to `app-state` initial data in `app.py`
+- [ ] Add directorate selection callback in `dash_app/callbacks/trends.py`:
+  - Clicking a line/trace on the overview chart sets `selected_trends_directorate` in app-state
+  - Use `clickData` from `trends-overview-chart` as Input
+  - Extract directorate name from the clicked trace's `name` attribute
+  - Update `app-state` with `selected_trends_directorate`
+- [ ] Add landing/detail toggle callback:
+  - Input: `app-state` → show/hide `trends-landing` vs `trends-detail`
+  - When `selected_trends_directorate` is set: hide landing, show detail with title "[Directorate] — Drug Trends"
+- [ ] Add detail chart callback:
+  - Input: `app-state` + `trends-view-metric-toggle` → Output `trends-detail-chart`
+  - Calls `get_trend_data(directory=selected, metric=..., group_by="drug")` → `create_trend_figure()`
+  - Only fires when `selected_trends_directorate` is not None
+- [ ] Add back button callback:
+  - Clicking `trends-back-btn` clears `selected_trends_directorate` in app-state → returns to landing
+- **Checkpoint**: Click a directorate line → drill into drug-level trends. Back button returns to overview. `python run_dash.py` starts cleanly.
+
+### E.5 Fix chart height to fill viewport
+- [ ] In `create_trend_figure()` in `plotly_generator.py`: remove explicit `height=500`, let `autosize=True` (from `_base_layout()`) handle it
+- [ ] For ALL Patient Pathways chart functions (icicle, sankey, heatmap, funnel, depth, scatter, network, timeline, doses): review and remove fixed `height=...` values where appropriate. Replace with responsive height:
+  - For charts with dynamic height (e.g. `max(400, n_bars * 28 + 150)`): keep the dynamic calculation but ensure minimum is high enough to fill viewport
+  - For charts with fixed `height=500`: remove it
+- [ ] Add CSS rule to ensure `#pathway-chart .js-plotly-plot, #pathway-chart .plot-container` have `height: 100%` to propagate the flex container height to the Plotly div
+- [ ] Verify the existing CSS flex chain propagates correctly: `.chart-card` → `.dash-loading-callback` → `#chart-container` → `#pathway-chart`
+- [ ] Rename "Cost" to "Cost per Patient" in any remaining metric toggle labels (heatmap toggles in `chart_card.py` and `trust_comparison.py`)
+- **Checkpoint**: Charts fill available viewport height in Patient Pathways. No fixed 500px cutoff. `python run_dash.py` starts cleanly.
+
+---
+
 ## Completion Criteria
 
 ### Phase A
@@ -272,6 +352,16 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] Dose distribution shows average administered doses per drug
 - [x] Drug timeline shows Gantt-style cohort activity
 - [x] `python run_dash.py` starts cleanly
+
+### Phase E
+- [ ] Trends tab removed from Patient Pathways (9 tabs remain)
+- [ ] 3rd sidebar item "Trends" visible and functional
+- [ ] Trends landing page shows directorate-level line chart with metric toggle
+- [ ] Clicking a directorate drills into drug-level trends
+- [ ] Back button returns to directorate overview
+- [ ] Charts fill available viewport height (no fixed 500px cutoff)
+- [ ] "Cost" renamed to "Cost per Patient" in metric toggles
+- [ ] `python run_dash.py` starts cleanly
 
 ---
 

@@ -30,7 +30,6 @@ from data_processing.pathway_queries import (
     get_drug_network as _get_drug_network,
     get_drug_timeline as _get_drug_timeline,
     get_dosing_distribution as _get_dosing_distribution,
-    get_trend_data as _get_trend_data,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -252,10 +251,3 @@ def get_dosing_distribution(
     return _get_dosing_distribution(DB_PATH, date_filter_id, chart_type, directory, trust)
 
 
-def get_trend_data(
-    metric: str = "patients",
-    directory: Optional[str] = None,
-    drug: Optional[str] = None,
-) -> list[dict]:
-    """Time-series trend data from pathway_trends table."""
-    return _get_trend_data(DB_PATH, metric, directory, drug)
