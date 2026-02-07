@@ -652,26 +652,22 @@ User feedback after Phase 10 completion. Four layout/aesthetics issues on both P
 - **Checkpoint**: Patient Pathways chart uses all available vertical space below the filter bar ✓
 
 ### 11.4 Filter modals — improve aesthetics for large screens
-- [ ] In `dash_app/components/modals.py`:
-  - Drug modal: increase chip `size` from `"xs"` to `"sm"` or `"md"` for readability. Increase modal `size` from `"lg"` to `"xl"` or a fixed width (e.g., `"70%"` or `900px`). Add `dmc.SimpleGrid` or `dmc.Group(wrap="wrap")` with consistent gap to fix spacing/layout of chips.
-  - Trust modal: increase chip `size` from `"xs"` to `"sm"`. Increase modal `size` from `"sm"` to `"md"`. Use `dmc.Stack` for vertical layout of trust chips (7 items don't need wrapping).
-  - Directorate modal: review accordion spacing and text sizes. Ensure indication items and drug badges are clearly readable.
-- [ ] In `dash_app/assets/nhs.css`, add/update modal CSS:
-  - Ensure `.modal-chips-scroll` has appropriate max-height and padding
-  - Chip labels should use the project font (Source Sans 3) at readable size
-  - Fix any broken text wrapping or extra whitespace between chip options
-  - Consider responsive modal sizing (percentage-based width) so large screens get proportionally larger modals
-- [ ] **Use the frontend-developer agent** to review the modal layout for optimal aesthetics with 42 drugs, 7 trusts, 19 directorates × 163 indications. The agent should recommend chip sizing, grid layout, spacing, and responsive behavior for large screens (1920px+).
-- [ ] Verify: Modals look polished — no broken text, consistent spacing, chips are readable at all screen sizes
-- **Checkpoint**: All three filter modals are visually polished and proportionally sized for large screens
+- [x] In `dash_app/components/modals.py`:
+  - Drug modal: chip `size` "xs" → "sm", modal `size` "lg" → "70%", added `dmc.SimpleGrid(cols=4)` layout
+  - Trust modal: chip `size` "xs" → "md", modal `size` "sm" → "lg", added `dmc.Stack(gap="xs")` vertical layout
+  - Directorate modal: modal `size` "xl" → "70%", drug fragment badge "sm" → "md", directorate text "sm" → "md", count badge "xs" → "sm"
+- [x] In `dash_app/assets/nhs.css`: padding-right on scroll container, white-space: nowrap on chip labels, .mantine-Modal-title width: 100%
+- [x] **Used frontend-developer agent** for UX review: recommended 4-col SimpleGrid for drugs, Stack for trusts, percentage-based modal widths, specific size bumps per component
+- [x] Verify: App starts cleanly, 20 callbacks, no regressions
+- **Checkpoint**: All three filter modals are visually polished and proportionally sized for large screens ✓
 
 ### Phase 11 Completion Criteria
-- [ ] "Clear All Filters" button is left-aligned next to filter buttons
-- [ ] Trust Comparison charts are readable with no overspill
-- [ ] Patient Pathways chart fills available viewport height
-- [ ] Filter modals are aesthetically polished with readable chip sizes
-- [ ] `python run_dash.py` starts cleanly
-- [ ] No regressions in existing functionality
+- [x] "Clear All Filters" button is left-aligned next to filter buttons
+- [x] Trust Comparison charts are readable with no overspill
+- [x] Patient Pathways chart fills available viewport height
+- [x] Filter modals are aesthetically polished with readable chip sizes
+- [x] `python run_dash.py` starts cleanly
+- [x] No regressions in existing functionality
 
 ---
 

@@ -35,7 +35,7 @@ def _make_directorate_accordion_item(directorate: str, indications: dict[str, li
                                     frag,
                                     id={"type": "drug-fragment", "index": f"{directorate}|{search_term}|{frag}"},
                                     variant="light",
-                                    size="sm",
+                                    size="md",
                                     className="modal-drug-badge",
                                     style={"cursor": "pointer"},
                                 )
@@ -54,10 +54,10 @@ def _make_directorate_accordion_item(directorate: str, indications: dict[str, li
                 dmc.Group(
                     gap="xs",
                     children=[
-                        dmc.Text(directorate.title(), fw=600, size="sm"),
+                        dmc.Text(directorate.title(), fw=600, size="md"),
                         dmc.Badge(
                             str(len(indications)),
-                            size="xs",
+                            size="sm",
                             variant="light",
                             color="gray",
                         ),
@@ -82,7 +82,7 @@ def make_drug_modal():
         id="drug-modal",
         opened=False,
         centered=True,
-        size="lg",
+        size="70%",
         title=dmc.Group(
             justify="space-between",
             style={"width": "100%"},
@@ -112,8 +112,15 @@ def make_drug_modal():
                         multiple=True,
                         value=[],
                         children=[
-                            dmc.Chip(drug, value=drug, size="xs")
-                            for drug in drugs
+                            dmc.SimpleGrid(
+                                cols=4,
+                                spacing="sm",
+                                verticalSpacing="xs",
+                                children=[
+                                    dmc.Chip(drug, value=drug, size="sm")
+                                    for drug in drugs
+                                ],
+                            ),
                         ],
                     ),
                 ],
@@ -143,7 +150,7 @@ def make_trust_modal():
         id="trust-modal",
         opened=False,
         centered=True,
-        size="sm",
+        size="lg",
         title=dmc.Group(
             justify="space-between",
             style={"width": "100%"},
@@ -164,8 +171,13 @@ def make_trust_modal():
                 multiple=True,
                 value=[],
                 children=[
-                    dmc.Chip(trust, value=trust, size="xs")
-                    for trust in trusts
+                    dmc.Stack(
+                        gap="xs",
+                        children=[
+                            dmc.Chip(trust, value=trust, size="md")
+                            for trust in trusts
+                        ],
+                    ),
                 ],
             ),
             dmc.Space(h=12),
@@ -200,7 +212,7 @@ def make_directorate_modal():
         id="directorate-modal",
         opened=False,
         centered=True,
-        size="xl",
+        size="70%",
         title=dmc.Text("Browse by Directorate", fw=600, size="lg"),
         overlayProps={"backgroundOpacity": 0.55, "blur": 3},
         children=[

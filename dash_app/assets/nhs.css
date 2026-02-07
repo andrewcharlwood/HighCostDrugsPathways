@@ -341,9 +341,14 @@ body {
 .modal-chips-scroll {
     max-height: 60vh;
     overflow-y: auto;
+    padding-right: 8px;
 }
 .modal-chips-scroll .mantine-Chip-label {
     font-family: 'Source Sans 3', Arial, sans-serif;
+    white-space: nowrap;
+}
+.mantine-Modal-title {
+    width: 100%;
 }
 .modal-drug-badge {
     cursor: pointer;
