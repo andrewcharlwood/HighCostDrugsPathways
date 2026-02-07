@@ -855,7 +855,7 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - `dash_app/components/chart_card.py` — renamed heatmap metric toggle labels
 - `dash_app/components/trust_comparison.py` — renamed TC heatmap metric toggle labels
 - `IMPLEMENTATION_PLAN.md` — marked E.5 subtasks [x], all completion criteria [x]
-### Committed: [pending]
+### Committed: 901bf39 "fix: responsive chart heights + rename cost metric labels (Task E.5)"
 ### Patterns discovered:
 - Plotly `responsive=True` on `dcc.Graph` + `autosize=True` in figure layout is insufficient on its own — the Plotly-generated inner divs (`.js-plotly-plot`, `.plot-container`, `.svg-container`) need explicit `height: 100%` CSS to inherit the flex container height. Without this, they default to their content height.
 - The `!important` on the height rule is needed because Plotly sets inline styles on these elements.
