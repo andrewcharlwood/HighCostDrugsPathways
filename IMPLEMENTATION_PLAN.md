@@ -1,673 +1,260 @@
-# Implementation Plan — Reflex → Dash Migration
+# Implementation Plan — Dashboard Visualization Improvements
 
 ## Project Overview
 
-Migrate the Reflex web application to Dash (Plotly) + Dash Mantine Components. The backend (`src/`) is untouched — only the frontend changes.
+Comprehensive review and improvement of all Plotly charts in the Dash dashboard. Four tiers: bug fixes, visual polish, new analytics from existing data, and new analytics requiring backend work.
+
+**Primary file**: `src/visualization/plotly_generator.py`
+**Palette policy**: Broader than NHS brand (maximally-distinct colors for trust comparisons)
+**Constraint**: `python run_dash.py` must work after every task
 
 ### What Changes
-- `pathways_app/` (Reflex) → `dash_app/` (Dash + DMC)
-- `run_dash.py` entry point replaces `reflex run`
-- CSS extracted from `01_nhs_classic.html` → `dash_app/assets/nhs.css`
-- Drug/Directory/Indication filters consolidated into a right-side `dmc.Drawer`
+- `src/visualization/plotly_generator.py` — shared styling constants, bug fixes, new chart functions
+- `src/data_processing/pathway_queries.py` — new query functions for Tier 3 analytics
+- `dash_app/data/queries.py` — thin wrappers for new queries
+- `dash_app/callbacks/chart.py` — heatmap metric toggle, new tab support
+- `dash_app/callbacks/trust_comparison.py` — trust color palette, heatmap metric toggle
+- `dash_app/components/chart_card.py` — new tab definitions, metric toggle component
+- `dash_app/components/trust_comparison.py` — metric toggle component
 
-### What Stays (DO NOT MODIFY pipeline/analysis logic)
-- `data_processing/pathway_pipeline.py`, `transforms.py`, `diagnosis_lookup.py` (matching logic)
-- `analysis/pathway_analyzer.py`, `statistics.py`
-- `cli/refresh_pathways.py`
-- `data_processing/schema.py`, `reference_data.py`, `cache.py`, `data_source.py`
-- SQLite schema and `pathway_nodes` table
-- `data/` reference files (CSVs, pathways.db)
-
-### What CAN be edited in `src/` (shared utilities)
-- `visualization/plotly_generator.py` — add/refactor a function to accept list-of-dicts (what Dash produces) instead of only DataFrames
-- `data_processing/database.py` — add shared query functions for pathway node loading so both Reflex and Dash use the same queries
-- `core/config.py` — if path resolution needs adjusting
-
-### Dash App Structure
-```
-dash_app/
-├── __init__.py
-├── app.py                    # Entry point, layout root, dcc.Store components
-├── assets/
-│   └── nhs.css               # Extracted from 01_nhs_classic.html
-├── data/
-│   ├── queries.py             # SQLite queries (extracted from Reflex AppState)
-│   └── card_browser.py        # DimSearchTerm.csv → directorate tree
-├── components/
-│   ├── header.py              # Top header bar
-│   ├── sidebar.py             # Left navigation
-│   ├── kpi_row.py             # 4 KPI cards
-│   ├── filter_bar.py          # Chart type toggle + date dropdowns
-│   ├── chart_card.py          # Chart area with tabs + dcc.Graph
-│   ├── drawer.py              # dmc.Drawer with card browser
-│   └── footer.py              # Page footer
-├── callbacks/
-│   ├── __init__.py            # register_callbacks(app)
-│   ├── filters.py             # Date/chart-type → app-state store
-│   ├── chart.py               # chart-data → go.Icicle figure
-│   ├── drawer.py              # Drawer open/close + drug selection
-│   └── kpi.py                 # chart-data → KPI card values
-└── utils/
-    └── formatting.py          # Cost/patient display formatters
-```
-
-### State Management (3 dcc.Store components)
-- **app-state** (session): `chart_type`, `initiated`, `last_seen`, `selected_drugs`, `selected_directorates`, `date_filter_id`
-- **chart-data** (memory): `nodes[]`, `unique_patients`, `total_drugs`, `total_cost`
-- **reference-data** (session): `available_drugs`, `directorate_tree` (loaded once)
-
-### Callback Chain
-```
-Page Load → load_reference_data → reference-data store
-         → load_pathway_data → chart-data store
-                              ├→ update_kpis → KPI cards
-                              └→ update_chart → dcc.Graph
-
-Filter change → update_app_state → app-state store → load_pathway_data → (chain above)
-
-Drawer selection → update_drug_selection → app-state store → load_pathway_data → (chain above)
-```
-
-### Directorate Card Browser (dmc.Drawer)
-- Position: right, ~480px wide
-- **Top card**: "All Drugs" — flat list from `pathway_nodes` level 3. Pick one drug → see it across all directorates/indications.
-- **Below**: Cards per PrimaryDirectorate (from DimSearchTerm.csv). Each has `dmc.Accordion` with indication items → drug chips inside.
-- **Clear Filters** button resets all selections.
-- Data model: `DimSearchTerm.csv` grouped by PrimaryDirectorate → Search_Term → CleanedDrugName
+### What Stays (DO NOT MODIFY)
+- Pipeline/analysis logic: `pathway_pipeline.py`, `transforms.py`, `diagnosis_lookup.py`, `pathway_analyzer.py`
+- Database schema and `pathway_nodes` table
+- CLI refresh command
+- Existing callback chain architecture (app-state → chart-data → UI)
+- Two-view architecture (Patient Pathways + Trust Comparison)
 
 ---
 
-## Phase 0: Project Scaffolding
+## Phase A: Core Fixes + Shared Constants
 
-### 0.1 Create dash_app/ skeleton + update pyproject.toml
-- [x] Create `dash_app/` directory with `__init__.py`, `app.py`, subdirectories (`assets/`, `data/`, `components/`, `callbacks/`, `utils/`)
-- [x] Create `run_dash.py` at project root (simple `from dash_app.app import app; app.run(debug=True, port=8050)`)
-- [x] Update `pyproject.toml`: add `dash>=2.14.0`, `dash-mantine-components>=0.14.0` to dependencies (keep `reflex` temporarily)
-- [x] Create minimal `app.py` with `dash.Dash(__name__)`, DMC provider wrapper, and "Hello Dash" placeholder layout
-- **Checkpoint**: `python run_dash.py` starts, shows "Hello Dash" at localhost:8050 ✓
+### A.1 Extract shared styling constants + `_base_layout()` helper
+- [ ] Add module-level constants to top of `src/visualization/plotly_generator.py`:
+  ```python
+  CHART_FONT_FAMILY = "Source Sans 3, system-ui, sans-serif"
+  CHART_TITLE_SIZE = 18
+  CHART_TITLE_COLOR = "#1E293B"
+  GRID_COLOR = "#E2E8F0"
+  ANNOTATION_COLOR = "#768692"
 
-### 0.2 Extract CSS from 01_nhs_classic.html into dash_app/assets/nhs.css
-- [x] Copy the `<style>` block from `01_nhs_classic.html` (lines 8-314) into `dash_app/assets/nhs.css`
-- [x] Add Google Fonts `@import` for Source Sans 3 at top of CSS file
-- [x] Remove the mock icicle chart CSS (`.icicle`, `.icicle__row`, `.icicle__cell`, `.lvl-*` classes) — Plotly handles the real chart
-- [x] Verify CSS loads by checking browser dev tools when app starts
-- **Checkpoint**: `python run_dash.py` loads CSS (check font renders as Source Sans 3) ✓
+  TRUST_PALETTE = [
+      "#005EB8", "#DA291C", "#009639", "#ED8B00",
+      "#7C2855", "#00A499", "#330072",
+  ]
 
----
+  DRUG_PALETTE = [
+      "#005EB8", "#DA291C", "#009639", "#ED8B00", "#7C2855",
+      "#00A499", "#330072", "#E06666", "#6FA8DC", "#93C47D",
+      "#F6B26B", "#8E7CC3", "#C27BA0", "#76A5AF", "#FFD966",
+  ]
+  ```
+- [ ] Create `_base_layout(title, **overrides)` helper returning a dict with shared layout properties (title font, hoverlabel, paper/plot bgcolor, autosize, font family)
+- [ ] Apply `_base_layout()` to `create_icicle_from_nodes()` as a proof-of-concept (keep all existing behavior, just DRY the layout dict)
+- **Checkpoint**: `python run_dash.py` starts, icicle chart unchanged visually
 
-## Phase 1: Data Access Layer
+### A.2 Fix heatmap colorscale + cell annotations (Patient Pathways)
+- [ ] In `create_heatmap_figure()` (~L1189):
+  1. Replace non-linear colorscale with linear 5-stop: `[0.0 #E3F2FD, 0.25 #90CAF9, 0.5 #42A5F5, 0.75 #1E88E5, 1.0 #003087]`
+  2. Add `text=text_values, texttemplate="%{text}"` with formatted values per metric (patients: `"N"`, cost: `"£Nk"`, cost_pp_pa: `"£N"`)
+  3. Set `zmin=0` explicitly
+  4. Remove explicit `width`, use `autosize=True`
+  5. Replace `l=200` with `l=8` + `yaxis automargin=True`
+  6. Add subtitle annotation when 25-drug cap is hit: `"Showing top 25 of N drugs"`
+  7. Reduce `xgap/ygap` from 2→1 when >15 columns
+- [ ] Apply same fixes to `create_trust_heatmap_figure()` (~L1582)
+- [ ] Apply `_base_layout()` to both heatmap functions
+- **Checkpoint**: Heatmaps show linear color gradient, cell text visible, no fixed width overflow
 
-### 1.1 Create shared data access functions
-- [x] Add query functions to `src/data_processing/pathway_queries.py`:
-  - `load_initial_data(db_path) -> dict` — extracted from `AppState.load_data()` (pathways_app.py lines 407-488): returns `{"available_drugs": [...], "available_directorates": [...], "available_indications": [...], "total_records": int, "last_updated": str}`
-  - `load_pathway_nodes(db_path, filter_id, chart_type, selected_drugs=None, selected_directorates=None) -> dict` — extracted from `AppState.load_pathway_data()` (lines 490-642): returns `{"nodes": [...], "unique_patients": int, "total_drugs": int, "total_cost": float, "last_updated": str}`
-  - These are plain Python functions that accept `db_path` as a parameter (no Reflex state objects)
-- [x] Create thin `dash_app/data/queries.py` that imports and calls the shared functions with the correct `db_path`
-- [x] Return plain dicts/lists — JSON-serializable for dcc.Store
-- **Checkpoint**: `python -c "from dash_app.data.queries import load_initial_data; print(load_initial_data())"` returns valid data
+### A.3 Fix legend overflow in 4 charts
+- [ ] Create `_smart_legend(n_items)` helper that returns legend dict:
+  - When >15 items: vertical legend on right (`orientation="v", x=1.02, y=1, xanchor="left"`) with dynamic right margin
+  - When ≤15: horizontal legend with dynamic bottom margin based on estimated row count
+- [ ] Apply to `create_market_share_figure()` (~L350)
+- [ ] Apply to `create_trust_market_share_figure()` (~L1564)
+- [ ] Apply to `create_dosing_figure()` (~L913)
+- [ ] Apply to `create_trust_duration_figure()` (~L1771)
+- [ ] Apply `_base_layout()` to all 4 functions
+- **Checkpoint**: Legends don't overlap chart content with 42 drugs or 7 trusts
 
-### 1.2 Build directorate card tree from DimSearchTerm.csv
-- [x] Create `dash_app/data/card_browser.py` with:
-  - `build_directorate_tree()` → dict structured as `{PrimaryDirectorate: {Search_Term: [drug_fragment, ...]}}`
-  - Loads `data/DimSearchTerm.csv`, groups by PrimaryDirectorate → Search_Term → split CleanedDrugName by pipe
-  - Applies SEARCH_TERM_MERGE_MAP from `data_processing.diagnosis_lookup` (merge asthma variants)
-  - `get_all_drugs()` → sorted flat list of all unique drug labels from `pathway_nodes` level 3
-- **Checkpoint**: `python -c "from dash_app.data.card_browser import build_directorate_tree; import json; print(json.dumps(build_directorate_tree(), indent=2))"` returns valid tree ✓
-
----
-
-## Phase 2: Static Layout
-
-### 2.1 Header + sidebar components
-- [x] Create `dash_app/components/header.py` — `make_header()` function returning Dash HTML component
-  - NHS logo, title "HCD Analysis", breadcrumb, data freshness indicator (status dot + record count + last updated)
-  - Use CSS classes from `nhs.css`: `.top-header`, `.top-header__brand`, `.top-header__logo`, `.top-header__title`, etc.
-  - Record count and last updated are `html.Span` with IDs for callback updates: `id="header-record-count"`, `id="header-last-updated"`
-- [x] Create `dash_app/components/sidebar.py` — `make_sidebar()` function
-  - Navigation items matching 01_nhs_classic.html sidebar (Pathway Overview active, Drug Selection, Trust Selection, Directory Selection, Indications, Cost Analysis, Export Data)
-  - SVG icons via data URI img elements (Dash doesn't support inline SVGs natively)
-  - "Drug Selection" (`id="sidebar-drug-selection"`) and "Indications" (`id="sidebar-indications"`) items have IDs for drawer callbacks (Phase 4)
-  - Footer: "NHS Norfolk & Waveney ICB / High Cost Drugs Programme"
-- **Checkpoint**: Components render in browser with correct NHS styling ✓
-
-### 2.2 Main content area: KPI row + filter bar + chart card
-- [x] Create `dash_app/components/kpi_row.py` — `make_kpi_row()` function
-  - 4 KPI cards: Unique Patients, Drug Types, Total Cost, Indication Match Rate
-  - Each card value has an ID for callback updates: `id="kpi-patients"`, `id="kpi-drugs"`, `id="kpi-cost"`, `id="kpi-match"`
-  - CSS classes: `.kpi-row`, `.kpi-card`, `.kpi-card__label`, `.kpi-card__value`, `.kpi-card__sub`
-- [x] Create `dash_app/components/filter_bar.py` — `make_filter_bar()` function
-  - Chart type toggle pills ("By Directory" / "By Indication") — use `html.Button` with `.toggle-pill` CSS
-  - Initiated dropdown: All years, Last 2 years, Last 1 year — use `dcc.Dropdown` or `html.Select` with `.filter-select`
-  - Last seen dropdown: Last 6 months, Last 12 months
-  - NO drug/directorate dropdowns here (those are in the drawer)
-  - Component IDs: `id="chart-type-directory"`, `id="chart-type-indication"`, `id="filter-initiated"`, `id="filter-last-seen"`
-- [x] Create `dash_app/components/chart_card.py` — `make_chart_card()` function
-  - Card header with title + dynamic subtitle (hierarchy label: "Trust → Directorate → Drug → Pathway")
-  - Tab row: Icicle (active), Sankey (disabled placeholder), Timeline (disabled placeholder)
-  - `dcc.Graph(id="pathway-chart")` filling the card body
-  - CSS classes: `.chart-card`, `.chart-card__header`, `.chart-card__tabs`, `.chart-tab`
-- **Checkpoint**: All three components render with correct layout and styling
-
-### 2.3 Footer + full page assembly
-- [x] Create `dash_app/components/footer.py` — `make_footer()` function
-  - CSS class `.page-footer`, same text as 01_nhs_classic.html
-- [x] Update `dash_app/app.py` to assemble full page layout:
-  - `dmc.MantineProvider(children=[header, sidebar, main_content])`
-  - Main content: KPI row → filter bar → chart card → footer
-  - Add 3 `dcc.Store` components: `id="app-state"`, `id="chart-data"`, `id="reference-data"`
-  - Wrap main content in `html.Main(className="main")`
-- **Checkpoint**: Full page renders at localhost:8050, layout matches 01_nhs_classic.html visually
+### A.4 Fix trust comparison color differentiation
+- [ ] In `create_trust_duration_figure()`: replace `nhs_colours` list with `TRUST_PALETTE`
+- [ ] Add `is_trust_comparison=False` param to `create_cost_waterfall_figure()` — use `TRUST_PALETTE` when True
+- [ ] Update `tc_cost_waterfall` callback in `dash_app/callbacks/trust_comparison.py` (~L165) to pass `is_trust_comparison=True`
+- [ ] Fix `_dosing_by_drug()` blue→blue interpolation: replace with `plotly.colors.sample_colorscale("Viridis", ...)` for meaningful gradient
+- [ ] Replace `nhs_colours` in `create_trust_market_share_figure()` with `DRUG_PALETTE` for drug traces
+- [ ] Apply `_base_layout()` to all affected functions
+- **Checkpoint**: Trust Comparison charts have 7 visually distinct trust colors; dosing has meaningful gradient
 
 ---
 
-## Phase 3: Core Callbacks
+## Phase B: Visual Polish
 
-### 3.1 Reference data loading + filter state management
-- [x] Create `dash_app/callbacks/filters.py`:
-  - `load_reference_data` callback: fires on page load, calls `queries.load_initial_data()`, populates `reference-data` store + header indicators
-  - `update_app_state` callback: fires when chart-type toggle or date dropdowns change, computes `date_filter_id` (e.g., `"all_6mo"`), updates `app-state` store
-  - Chart type toggle: use `callback_context` to determine which button was clicked, set active class via `className`
-- [x] Create `dash_app/callbacks/__init__.py` with `register_callbacks(app)` that imports and registers all callback modules
-- [x] Wire `register_callbacks(app)` in `app.py`
-- **Checkpoint**: Page loads reference data, filter dropdowns update app-state store (verify via browser dev tools → dcc.Store)
+### B.1 Fix title inconsistencies across all charts
+- [ ] Sankey (~L817): title color `"#003087"` → `CHART_TITLE_COLOR`
+- [ ] Dosing (~L885): title color `"#003087"` → `CHART_TITLE_COLOR`
+- [ ] Patient Pathways heatmap (~L1300): title color `"#003087"` → `CHART_TITLE_COLOR`
+- [ ] Duration (~L1449): title color `"#003087"` → `CHART_TITLE_COLOR`
+- [ ] All Trust Comparison functions: title `size=16` → `CHART_TITLE_SIZE` (18)
+- [ ] Apply `_base_layout()` to all remaining chart functions not yet converted
+- **Checkpoint**: All chart titles use consistent font, size, and color
 
-### 3.2 Pathway data loading callback
-- [x] Create `dash_app/callbacks/chart.py` (or add to filters.py):
-  - `load_pathway_data` callback: Input=`app-state` store, Output=`chart-data` store
-  - Calls `queries.load_pathway_data(filter_id, chart_type, selected_drugs, selected_directorates)`
-  - Runs on page load AND whenever `app-state` changes
-- **Checkpoint**: Changing date filter updates chart-data store with new pathway nodes ✓
+### B.2 Cost effectiveness smooth gradient
+- [ ] In `create_cost_effectiveness_figure()` (~L428-435):
+  - Replace 3-bin hard threshold (green/amber/red) with smooth RGB interpolation
+  - Green (#009639) → Amber (#ED8B00) for ratio 0–0.5
+  - Amber (#ED8B00) → Red (#DA291C) for ratio 0.5–1.0
+- [ ] Apply `_base_layout()` to the function
+- **Checkpoint**: Lollipop dots show smooth green→amber→red gradient
 
-### 3.3 KPI update callback
-- [x] Create `dash_app/callbacks/kpi.py`:
-  - `update_kpis` callback: Input=`chart-data` store, Output=KPI card values (4 outputs)
-  - Extracts `unique_patients`, `total_drugs`, `total_cost` from chart-data
-  - Formats numbers: patients with commas, cost as "£XXX.XM", drugs as plain number
-- **Checkpoint**: KPIs update when date filters change
+### B.3 Sankey narrow-screen fix
+- [ ] In `create_sankey_figure()` (~L788):
+  - Change `arrangement="snap"` → `arrangement="freeform"`
+  - Increase `pad` from 20 → 25
+- **Checkpoint**: Sankey nodes don't overlap on narrow viewports
 
-### 3.4 Icicle chart rendering callback
-- [x] Add a `create_icicle_from_nodes(nodes: list[dict], title: str) -> go.Figure` function to `src/visualization/plotly_generator.py`:
-  - Accepts list-of-dicts (the format stored in `chart-data` dcc.Store / returned by `load_pathway_data`)
-  - Same 10-field customdata, colorscale, texttemplate, hovertemplate as the existing Reflex `icicle_figure` (pathways_app.py lines 769-920)
-  - The existing `create_icicle_figure(ice_df)` stays untouched — the new function is an additional entry point for dict-based data
-  - Use the NHS blue gradient colorscale from the Reflex version: `[[0.0, "#003087"], [0.25, "#0066CC"], ...]`
-- [x] Add to `dash_app/callbacks/chart.py`:
-  - `update_chart` callback: Input=`chart-data` store, Output=`pathway-chart` figure
-  - Calls `create_icicle_from_nodes(chart_data["nodes"], title)` from the shared visualization module
-  - Dynamic title based on chart type and filters
-- **Checkpoint**: Real icicle chart renders with SQLite data, filters change the chart, hover shows full statistics
-
----
-
-## Phase 4: Directorate Card Browser
-
-### 4.1 dmc.Drawer layout
-- [x] Create `dash_app/components/drawer.py` — `make_drawer()` function:
-  - `dmc.Drawer(id="drug-drawer", position="right", size="480px")`
-  - **Top section**: "All Drugs" card — flat alphabetical list of all drug names from pathway_nodes level 3
-    - Each drug as a `dmc.Chip` or clickable badge, ID pattern: `{"type": "drug-chip", "index": drug_name}`
-  - **Below**: One `dmc.Card` per PrimaryDirectorate from DimSearchTerm.csv
-    - Card title = PrimaryDirectorate name
-    - Inside: `dmc.Accordion` with one item per Search_Term (indication)
-    - Inside each accordion item: drug fragment chips
-  - **Bottom**: `dmc.Button("Clear Filters", id="clear-drug-filters")` — full width
-- **Checkpoint**: Drawer opens with correct layout, all directorates and drugs visible
-
-### 4.2 Drawer callbacks
-- [x] Create `dash_app/callbacks/drawer.py`:
-  - Open/close drawer: sidebar "Drug Selection" or "Indications" click → open drawer
-  - Drug selection: ChipGroup value change → app-state.selected_drugs via update_app_state
-  - Drug fragment click: pattern-matching badge clicks → substring match → update chip selection
-  - Clear filters: resets chip selection → app-state.selected_drugs empties
-  - Fragment matching uses `drug.upper() in fragment.upper()` for substring match
-  - Toggle behavior: clicking already-selected fragment deselects matching drugs
-- **Checkpoint**: Select drug from drawer → chart filters to show that drug → clear resets
+### B.4 Heatmap metric toggle (both views)
+- [ ] Add `dmc.SegmentedControl` component next to Patient Pathways heatmap:
+  - Options: Patients, Cost, Cost p.a.
+  - ID: `heatmap-metric-toggle`
+  - Add to `dash_app/components/chart_card.py` (visible only when heatmap tab active)
+- [ ] Add `dmc.SegmentedControl` next to Trust Comparison heatmap:
+  - ID: `tc-heatmap-metric-toggle`
+  - Add to `dash_app/components/trust_comparison.py`
+- [ ] Update `_render_heatmap()` in `dash_app/callbacks/chart.py` (~L239) to read metric toggle value
+- [ ] Update `tc_heatmap` callback in `dash_app/callbacks/trust_comparison.py` (~L214) to read metric toggle value
+- **Checkpoint**: Heatmap metric toggles work in both views, switching between patients/cost/cost_pp_pa
 
 ---
 
-## Phase 5: Polish & Cleanup
+## Phase C: New Analytics (Existing Data)
 
-### 5.1 Trust selection
-- [x] Add trust selection either:
-  - In the dmc.Drawer as a "Trusts" section (preferred — keeps all filters in one place), OR
-  - As sidebar checkboxes
-- [x] Wire trust selection to `selected_trusts` in `app-state` → pathway data reload
-- **Checkpoint**: Selecting trusts filters the chart correctly
+### C.1 Retention funnel chart
+- [ ] Create `get_retention_funnel()` in `src/data_processing/pathway_queries.py`:
+  - Query level 4+ nodes, aggregate patient counts by treatment line depth
+  - Return: `[{depth: 1, label: "1 drug", patients: N, pct: 100}, {depth: 2, ...}, ...]`
+- [ ] Add thin wrapper in `dash_app/data/queries.py`
+- [ ] Create `create_retention_funnel_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Use `go.Funnel` with NHS blue gradient
+  - Show absolute patient count + percentage retained
+- [ ] Add "Funnel" tab to `TAB_DEFINITIONS` in `chart_card.py`
+- [ ] Add `_render_funnel()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+- **Checkpoint**: Funnel tab shows retention by treatment line depth, responds to filters
 
-### 5.2 Loading/error/empty states + dynamic hierarchy label
-- [x] Add `dcc.Loading` wrapper around chart area
-- [x] Show "No data" message when chart-data is empty
-- [x] Show error feedback when database query fails
-- [x] Dynamic chart subtitle: "Trust → Directorate → Drug → Pathway" or "Trust → Indication → Drug → Pathway" based on chart type (done in Task 3.4)
-- **Checkpoint**: Loading spinner appears during data fetch, empty state shows message
+### C.2 Pathway depth distribution chart
+- [ ] Create `get_pathway_depth_distribution()` in `src/data_processing/pathway_queries.py`:
+  - Aggregate patient counts at level 3 (1-drug), level 4 (2-drug), etc.
+  - Subtract child counts to get patients who STOPPED at each depth
+  - Return: `[{depth: 1, label: "1 drug only", patients: N}, ...]`
+- [ ] Add thin wrapper in `dash_app/data/queries.py`
+- [ ] Create `create_pathway_depth_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Horizontal bar chart with NHS blue gradient by depth
+- [ ] Add "Depth" tab to `TAB_DEFINITIONS` in `chart_card.py`
+- [ ] Add `_render_depth()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+- **Checkpoint**: Depth tab shows patient distribution by treatment line count
 
-### 5.3 Data freshness indicator
-- [x] Header shows: green dot + "{N} patients" + "Last updated: {relative_time}"
-- [x] Pull from `pathway_refresh_log` via `queries.load_initial_data()` (uses total_patients from root node as fallback when source_row_count is 0)
-- [x] Format as relative time (e.g., "2h ago", "yesterday")
-- **Checkpoint**: Header shows correct data freshness
+### C.3 Duration vs Cost scatter plot
+- [ ] Create `get_duration_cost_scatter()` in `src/data_processing/pathway_queries.py`:
+  - Query level 3 nodes for drug-level data
+  - Return: `[{drug, directory, avg_days, cost_pp_pa, patients}, ...]`
+- [ ] Add thin wrapper in `dash_app/data/queries.py`
+- [ ] Create `create_duration_cost_scatter_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Scatter: x=avg_days, y=cost_pp_pa, size=patients, color=directory
+  - Add quadrant lines at median values (4 quadrants: cheap/short, cheap/long, expensive/short, expensive/long)
+  - Hover shows drug name, directory, all values
+- [ ] Add "Scatter" tab to `TAB_DEFINITIONS` in `chart_card.py`
+- [ ] Add `_render_scatter()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+- **Checkpoint**: Scatter tab shows drugs by duration vs cost with directorate coloring
 
-### 5.4 Remove Reflex + final validation
-- [x] Remove `reflex` from `pyproject.toml` dependencies
-- [x] Delete or archive `pathways_app/` directory (move to `archive/`)
-- [x] Delete `pathways_app/styles.py` and any Reflex-specific files
-- [x] Update project `CLAUDE.md` to document Dash app structure, new run command, callback architecture
-- [x] Verify: `python run_dash.py` starts cleanly, full end-to-end workflow works
-- [x] Verify: No Reflex imports anywhere in `dash_app/`
-- **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
-
-
-
-## Phase 6: Update all documentation
-- [x] Remove `reflex` references from all documentation
-- [x] Verify: No Reflex mentions of reflex in any md files (archive/ excluded — historical)
-- [x] Add documentation in readme re how to run dash app
-- [x] Update all claude.md files (CLAUDE.md was updated in Task 5.4)
-- **Checkpoint**: Full application works, no Reflex remnants, CLAUDE.md updated
----
-
----
-
-## Phase 7: Bug Fixes & UI Restructure
-
-### 7.1 Fix duplicate component ID error on first load
-- [x] **Bug**: `DuplicateIdError` for `{"index":"CARDIOLOGY|RIVAROXABAN","type":"drug-fragment"}` on first page load (works on refresh)
-- [x] **Root cause**: Same drug fragment (e.g. RIVAROXABAN) appears under multiple indications within the same directorate in DimSearchTerm.csv. The `{"type": "drug-fragment", "index": f"{directorate}|{frag}"}` ID in `drawer.py:66` is keyed by directorate+fragment, NOT directorate+indication+fragment. So if CARDIOLOGY has RIVAROXABAN under both "acute coronary syndrome" and "atrial fibrillation", two badges get the same ID.
-- [x] **Fix**: Changed badge ID to include search_term: `f"{directorate}|{search_term}|{frag}"`. Updated callback to use `rsplit("|", 1)[-1]` to extract the fragment from the 3-part key.
-- [x] **Also investigate**: First-load-only failure was because Dash validates layout IDs on initial render but `suppress_callback_exceptions=True` only suppresses callback-related ID checks, not layout duplication checks. After refresh, session store may short-circuit the check.
-- **Checkpoint**: `python run_dash.py` starts, first page load has no DuplicateIdError, drawer still works.
-
-### 7.2 Fix drug filter breaking the icicle chart ("multiple implied roots")
-- [x] **Bug**: Selecting a drug from the All Drugs chip list makes the chart go blank. Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of trace 0. These roots include: N&WICS - NORFOLK AND NORWICH... - RHEUMATOLOGY, ...RHEUMATOLOGY - RITUXIMAB, ...RHEUMATOLOGY - ADALIMUMAB - RITUXIMAB`
-- [x] **Root cause**: The drug filter in `pathway_queries.py:load_pathway_nodes()` uses `drug_sequence LIKE %DRUG%` which returns drug-level and pathway-level nodes, but drops ancestor nodes (root, trust, directory levels 0-2) that have `drug_sequence = ''` (empty string, not NULL). The `OR drug_sequence IS NULL` check doesn't match empty strings. Same bug existed for directorate filter (`directory = ''` at levels 0-1).
-- [x] **Fix**: Restructured WHERE clauses to use level-based gating: drug filter now uses `(level < 3 OR drug_sequence LIKE ...)` so levels 0-2 are always included. Directorate filter now uses `(level < 2 OR directory IN (...) OR directory IS NULL OR directory = '')` so levels 0-1 are always included. Trust filter was already correct (had `OR trust_name = ''`).
-- [x] **Note**: Trust filter was OK. Drug and directorate filters both had the bug. Both fixed.
-- [x] Verify: select a single drug → chart renders correctly with trust→directory→drug→pathway hierarchy intact. Select multiple drugs → works. Clear → full chart returns.
-- **Checkpoint**: Drug selection filters chart without "multiple implied roots" error.
-
-### 7.3 Restructure sidebar: move chart views to sidebar, remove placeholder items
-- [x] **Remove** from sidebar: "Cost Analysis" and "Export Data" items (no functionality behind them)
-- [x] **Remove** from sidebar: "Drug Selection", "Trust Selection", "Directory Selection", "Indications" items (filters moving to top bar — see 7.5)
-- [x] **Add** to sidebar: chart view buttons — "Icicle Chart" (active), "Sankey Diagram" (disabled), "Timeline" (disabled). These replace the tab row currently in chart_card.py.
-- [x] **Keep**: "Pathway Overview" as the top active item
-- [x] Update sidebar IDs and callback wiring. The chart type toggle pills (By Directory / By Indication) stay in the filter bar — they're data filters, not view selectors.
-- [x] Remove the tab row from `chart_card.py` since chart view selection moves to sidebar
-- **Checkpoint**: Sidebar shows chart view options, no placeholder items, app runs without errors.
-
-### 7.4 Replace dmc.Drawer with dmc.Modal for filter selection
-- [x] **Problem**: The single dmc.Drawer with drugs + trusts + directorates requires excessive scrolling and is confusing (multiple sidebar buttons all open the same drawer)
-- [x] **Solution**: Replace `dmc.Drawer` with `dmc.Modal` dialogs. Create separate modals:
-  - Drug Selection modal (contains the All Drugs ChipGroup)
-  - Trust Selection modal (contains the Trust ChipGroup)
-  - Directorate Browser modal (contains the nested directorate accordion with indication sub-items and drug fragment badges)
-- [x] Each modal is opened by its corresponding button in the filter bar (see 7.5)
-- [x] Modals should be appropriately sized (`size="lg"` or `size="xl"`) and use `dmc.Modal` with `centered=True`
-- [x] Preserve all existing selection logic: ChipGroup values, fragment matching, clear button
-- [x] Consider having a shared "Clear All Filters" mechanism accessible from each modal or from the filter bar
-- [x] Delete `dash_app/components/drawer.py` after modals are working, or refactor it into a `modals.py`
-- [x] **Use the frontend-developer agent** to determine optimal modal layout, sizing, and UX patterns. The agent should review the data shapes (42 drugs, 7 trusts, 19 directorates × 163 indications) and recommend the best modal organization.
-- **Checkpoint**: Each filter has its own modal, selection works, no excessive scrolling, chart updates correctly.
-
-### 7.5 Move filter triggers to the top filter bar
-- [x] **Problem**: Filter buttons are in the sidebar, which should be for navigation/views, not filters. Filters should be in the persistent top filter bar.
-- [x] **Add** to the filter bar (alongside existing chart-type toggle and date dropdowns):
-  - "Drugs" button that opens the Drug Selection modal (show count badge when drugs are selected, e.g. "Drugs (3)")
-  - "Trusts" button that opens the Trust Selection modal (show count badge)
-  - "Directorates" button that opens the Directorate Browser modal (show count badge)
-  - "Clear All" button to reset all filter selections
-- [x] The filter bar should remain static across all chart views (icicle, sankey, timeline) — it's the global filter control
-- [x] Update callback wiring: filter bar buttons → open corresponding modal; modal selections → app-state → chart-data → chart
-- [x] Remove drawer-related sidebar callbacks (`open_drawer` in `dash_app/callbacks/drawer.py`)
-- **Checkpoint**: Filter bar has drug/trust/directorate buttons with count badges, each opens correct modal, filter bar is visible across all views.
-
-
-## 8 - Additional notes
--  [x] When filtering drugs, ensure that any 2nd levels (e.g., directorate) with no children is hidden. For example, if Immunoglobulin is filtered, then directorates with no pathways such ar ophthalmology are hidden.
-- [x] ensure filters update the KPI cards at the top to reflect the icicle chart visible
----
-
-## Phase 9: Additional Analytics Charts
-
-### Design Approach
-- Replace sidebar chart view selection with a **tab bar inside `chart_card.py`**
-- Each tab renders its chart in the same `dcc.Graph` area
-- Only the active tab's chart is computed (lazy rendering)
-- Store `active_tab` in `app-state` (default: "icicle")
-- All new charts respond to existing filters (date, chart type, trust, drug, directorate)
-- New query functions go in `src/data_processing/pathway_queries.py` (shared, not in dash_app/)
-- New parsing utilities go in `src/data_processing/pathway_queries.py` (or a new `parsing.py` if large)
-- New figure-building functions go in `src/visualization/` (shared, callable from Dash callbacks)
-- New callback files in `dash_app/callbacks/` — one per chart type
-
-### 9.1 Parsing utilities + tab infrastructure
-- [x] Create parsing utility functions (in new `src/data_processing/parsing.py`):
-  - `parse_average_spacing(spacing_html: str) -> list[dict]` — extract drug_name, dose_count, weekly_interval, total_weeks from HTML string
-  - `parse_pathway_drugs(ids: str, level: int) -> list[str]` — extract ordered drug list from ids column at level 4+
-  - `calculate_retention_rate(nodes: list[dict]) -> dict` — for each N-drug pathway, calculate % not escalating to N+1 drugs
-- [x] Update `dash_app/components/chart_card.py`:
-  - Add tab bar with 8 tabs: Icicle, Market Share, Cost Effectiveness, Cost Waterfall, Sankey, Dosing, Heatmap, Duration
-  - Plain HTML buttons with existing `.chart-tab` / `.chart-tab--active` CSS classes
-  - Single `dcc.Graph` shared across all tabs (lazy rendering)
-  - `active_tab` stored in separate `dcc.Store(id="active-tab")`
-- [x] Update `dash_app/components/sidebar.py`:
-  - Remove "Chart Views" section (Icicle/Sankey/Timeline items) — chart selection moves to tab bar
-  - Keep "Overview" section with "Pathway Overview"
-- [x] Update `dash_app/callbacks/chart.py`:
-  - Tab switching callback: 8 tab button Inputs → `active-tab` store + CSS class Outputs
-  - `update_chart` checks `active-tab` store and dispatches to correct figure builder
-  - Icicle renders normally; other tabs show "coming soon" placeholder
-- **Checkpoint**: App starts, tab bar renders with all 8 tabs, icicle tab still works, other tabs show placeholder "Coming soon" messages ✓
-
-### 9.2 Query functions for all chart types
-- [x] Add to `src/data_processing/pathway_queries.py`:
-  - `get_drug_market_share(db_path, date_filter_id, chart_type, directory=None, trust=None)` — Level 3 nodes grouped by directory, returning drug, value, colour
-  - `get_pathway_costs(db_path, date_filter_id, chart_type, directory=None)` — Level 4+ nodes with cost_pp_pa, parsed pathway labels, patient counts
-  - `get_cost_waterfall(db_path, date_filter_id, chart_type, trust=None)` — Level 2 nodes with cost_pp_pa per directorate/indication
-  - `get_drug_transitions(db_path, date_filter_id, chart_type, directory=None)` — Level 3+ nodes parsed into source→target drug transitions with patient counts
-  - `get_dosing_intervals(db_path, date_filter_id, chart_type, drug=None)` — Level 3 nodes for a specific drug, parsed average_spacing by trust/directory
-  - `get_drug_directory_matrix(db_path, date_filter_id, chart_type)` — Level 3 nodes pivoted as directory × drug with value/cost metrics
-  - `get_treatment_durations(db_path, date_filter_id, chart_type, directory=None)` — Level 3 nodes with avg_days by drug within a directorate
-- [x] Add thin wrappers in `dash_app/data/queries.py` for each new function (resolve DB_PATH and delegate)
-- **Checkpoint**: All 7 query functions return correct data via manual Python tests (`python -c "..."`) ✓
-
-### 9.3 First-Line Market Share chart (Tab 2)
-- [x] Create market share chart rendering:
-  - Build horizontal stacked bar chart from `get_drug_market_share()` data
-  - One cluster per directorate/indication (sorted by total patients desc), bars = drugs, length = % of patients
-  - NHS colour palette, stacked bars with hover showing patients, share, cost, cost_pp_pa
-  - Responds to all existing filters (date, chart type, trust, directorate)
-- [x] Create figure function in `src/visualization/plotly_generator.py` — `create_market_share_figure(data, title)`
-- [x] Wire into tab switching in `update_chart` callback via `_render_market_share()` helper
-- **Checkpoint**: Market Share tab renders real data, responds to filters, icicle still works
-
-### 9.4 Pathway Cost Effectiveness chart (Tab 3)
-- [x] Create `dash_app/callbacks/pathway_costs.py`:
-  - Build horizontal lollipop chart from `get_pathway_costs()` data
-  - Y-axis = pathway label (e.g., "Adalimumab → Secukinumab → Rituximab"), X-axis = £ per patient per annum
-  - Dot size = patient count, colour gradient: green (cheap) → amber → red (expensive)
-  - Uses `parse_pathway_drugs()` to extract pathway labels
-- [x] Add retention rate annotations using `calculate_retention_rate()`
-  - Show as secondary annotation: "Drug B retains 72% of patients"
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Cost Effectiveness tab renders with lollipop dots and retention annotations ✓
-
-### 9.5 Cost Waterfall chart (Tab 4)
-- [x] Create `dash_app/callbacks/cost_waterfall.py`:
-  - Build Plotly waterfall chart from `get_cost_waterfall()` data
-  - Each bar = one directorate's average cost_pp_pa, sorted highest to lowest
-  - NHS colours, responds to chart_type toggle, date filter, trust filter
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Cost Waterfall tab renders real data, responds to filters ✓
-
-### 9.6 Drug Switching Sankey chart (Tab 5)
-- [x] Create `dash_app/callbacks/sankey.py`:
-  - Build Plotly Sankey diagram from `get_drug_transitions()` data
-  - Left nodes = 1st-line drugs, middle = 2nd-line, right = 3rd-line
-  - Link width = patient count, colour by drug or directorate
-  - Uses `parse_pathway_drugs()` to extract drug transitions from `ids` column
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Sankey tab renders real drug transition flows ✓
-
-### 9.7 Dosing Interval Comparison chart (Tab 6)
-- [x] Create `dash_app/callbacks/dosing.py`:
-  - Build horizontal grouped bar chart from `get_dosing_intervals()` data
-  - Uses `parse_average_spacing()` to extract weekly interval numbers
-  - Y-axis = trust or directorate, X-axis = weekly interval
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Dosing tab renders real data with parsed interval numbers ✓
-
-### 9.8 Directorate × Drug Heatmap chart (Tab 7)
-- [x] Create `dash_app/callbacks/heatmap.py`:
-  - Build Plotly heatmap from `get_drug_directory_matrix()` data
-  - Rows = directorates (sorted by total patients), columns = drugs (sorted by frequency)
-  - Cell colour = patient count or cost, hover shows details
-  - Toggle between patient count / cost / cost_pp_pa colouring (additional control in tab)
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Heatmap tab renders matrix with correct colour mapping ✓
-
-### 9.9 Treatment Duration chart (Tab 8)
-- [x] Create `dash_app/callbacks/duration.py`:
-  - Build horizontal bar chart from `get_treatment_durations()` data
-  - Y-axis = drug, X-axis = average days, colour intensity by patient count
-  - Directorate filter drives which drugs are shown
-- [x] Create figure function in `src/visualization/`
-- [x] Wire into tab switching
-- **Checkpoint**: Duration tab renders real data, responds to directorate filter
-
-### 9.10 Final integration + polish
-- [x] Verify all 8 tabs switch smoothly with no unnecessary recomputation
-- [x] Verify each chart responds to filter changes (date, chart type, trust, directorate, drug)
-- [x] Test with both "directory" and "indication" chart types
-- [x] Verify icicle chart still works correctly (no regressions)
-- [x] Update CLAUDE.md with new chart types, callback files, and query functions
-- **Checkpoint**: All tabs work, all filters work, no regressions, documentation updated ✓
+### C.4 Drug switching network graph
+- [ ] Create modified variant of `get_drug_transitions()` in pathway_queries.py that returns undirected edges without ordinal suffixes:
+  - `get_drug_network(db_path, filter_id, chart_type, directory, trust)` → `{nodes: [{name, total_patients}], edges: [{source, target, patients}]}`
+- [ ] Add thin wrapper in `dash_app/data/queries.py`
+- [ ] Create `create_drug_network_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Use `go.Scatter` for nodes (circular layout) + edges (lines)
+  - Node size = total patients, edge width = switching flow
+  - `DRUG_PALETTE` for node colors
+- [ ] Add as sub-toggle within Sankey tab (e.g., "Flow" vs "Network" toggle) or as separate "Network" tab
+- **Checkpoint**: Network view shows drug switching as a graph alternative to Sankey
 
 ---
 
-## Phase 10: Two-View Architecture + Header Redesign
+## Phase D: New Analytics (Backend Work)
 
-### Context
-Phase 9 delivered 8 chart tabs in a single view. User feedback: comparing drugs across directorates is "apples and oranges" — e.g., Remicade (ophthalmology) vs Adalimumab (multi-directorate) isn't useful. The new architecture splits charts into two views with distinct perspectives:
-- **Patient Pathways**: Pathway-focused analysis (Icicle + Sankey) with drug/trust/directorate filters
-- **Trust Comparison**: Per-directorate analysis comparing drugs across trusts (6 charts for a selected directorate)
+### D.1 Temporal trend analysis
+- [ ] Design `pathway_trends` table schema in `src/data_processing/schema.py`:
+  - Columns: `snapshot_date, chart_type, directory, drug, patients, cost, cost_pp_pa`
+  - Stores quarterly aggregates from each refresh
+- [ ] Add migration for `pathway_trends` table in `data_processing/reference_data.py`
+- [ ] Extend `cli/refresh_pathways.py` to compute and insert trend data after main refresh
+- [ ] Create `get_trend_data()` query in `pathway_queries.py`
+- [ ] Add thin wrapper in `dash_app/data/queries.py`
+- [ ] Create `create_trend_figure(data, title, metric)` in plotly_generator.py:
+  - Line chart: x=date, y=metric, one line per drug (or directory)
+  - Metric selector: patients / cost / cost_pp_pa
+- [ ] Add "Trends" tab to `TAB_DEFINITIONS` in `chart_card.py`
+- [ ] Add callback wiring
+- **Checkpoint**: Trends tab shows drug usage over time (requires at least 2 refresh cycles for meaningful data)
 
-Additionally: KPI row removed, fraction KPIs moved to header, global filter sub-header added.
+### D.2 Average administered doses analysis
+- [ ] Create `parse_average_administered(json_str)` parsing function in `src/data_processing/parsing.py`:
+  - Extract dose count arrays from the JSON `average_administered` column
+- [ ] Create `get_dosing_distribution()` query in `pathway_queries.py`:
+  - Level 3 nodes with parsed `average_administered` JSON
+- [ ] Create `create_dosing_distribution_figure(data, title)` in plotly_generator.py:
+  - Box/violin plot showing dose count distribution per drug
+- [ ] Add as sub-option within Dosing tab or as separate tab
+- **Checkpoint**: Dose distribution visible as box/violin plots
 
-### 10.1 Design consultation via frontend-design skill
-- [x] Use the `/frontend-design` skill to design the following layouts:
-  1. **Header redesign**: Fraction KPIs (X/X patients, X/X drugs, £X/£X cost) integrated into the header bar. Data freshness info stays right. Title stays left.
-  2. **Global filter sub-header**: Date filter dropdowns (Initiated, Last Seen) + chart type toggle pills (By Directory / By Indication). Styled as a prominent, permanent fixture directly below the main blue header — visually distinct (semi-light blue or similar). Constant across both views.
-  3. **Trust Comparison landing page**: ~14 directorate buttons (or ~32 indication buttons when "By Indication" active). Clickable cards/buttons that lead to the 6-chart dashboard for that directorate.
-  4. **Trust Comparison 6-chart dashboard**: Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness — all for one selected directorate, comparing drugs across trusts. Layout optimized for 6 charts on one screen.
-  5. **Patient Pathways filter placement**: Drug/trust/directorate filter buttons (only visible on Patient Pathways, not Trust Comparison). Design appropriate placement — could be inline with content, or in a secondary bar.
-- [x] Capture design decisions (component structure, CSS classes, layout approach) for subsequent tasks
-- **Checkpoint**: Design mockups/specifications ready for all 5 areas above
+### D.3 Drug timeline (Gantt chart)
+- [ ] Create `get_drug_timeline()` query in `pathway_queries.py`:
+  - Level 3 nodes with `first_seen`, `last_seen`, `labels`, `value` per drug × directory
+- [ ] Create `create_drug_timeline_figure(data, title)` in plotly_generator.py:
+  - Gantt-style using `go.Bar` (horizontal bars from first_seen to last_seen)
+  - Grouped by directory, colored by patient count
+- [ ] Add "Timeline" tab to `TAB_DEFINITIONS` in `chart_card.py`
+- [ ] Add callback wiring
+- **Checkpoint**: Timeline tab shows when each drug cohort was active
 
-### 10.2 State management + sidebar restructure
-- [x] Add `active_view` to `app-state`: `"patient-pathways"` (default) or `"trust-comparison"`
-- [x] Add `selected_comparison_directorate` to `app-state`: `null` (landing page) or directorate name
-- [x] Update `dash_app/components/sidebar.py`:
-  - Rename "Pathway Overview" → "Patient Pathways"
-  - Add "Trust Comparison" nav item below it
-  - Active state tracks `active_view`
-- [x] Add callback: sidebar clicks → update `active_view` in app-state
-- [x] Main content area switches between Patient Pathways view and Trust Comparison view based on `active_view`
-- [x] Date filter + chart type toggle remain in global sub-header (visible in both views)
-- **Checkpoint**: Sidebar switches between two views, active state highlights correctly, app starts without errors ✓
-
-### 10.3 Header redesign — remove KPI row, add fraction KPIs
-- [x] Remove `dash_app/components/kpi_row.py` (or gut it)
-- [x] Remove KPI row from `app.py` layout
-- [x] Update `dash_app/components/header.py`:
-  - Add fraction KPI display: "X / X patients", "X / X drugs", "£X / £X cost"
-  - Numerator = filtered values (from chart-data store), denominator = global totals (from reference-data store)
-  - Position: right side of header, alongside existing data freshness indicator
-  - Remove indication match rate KPI entirely
-- [x] Update header callbacks to receive both filtered and total values
-- [x] Update CSS in `dash_app/assets/nhs.css` for new header layout
-- [x] Apply design from 10.1
-- **Checkpoint**: Header shows fraction KPIs, KPI row is gone, header looks clean with design from 10.1 ✓
-
-### 10.4 Global filter sub-header bar
-- [x] Extract date filter dropdowns + chart type toggle from `filter_bar.py` into a new sub-header component (or restyle existing filter_bar)
-- [x] Style as a prominent bar directly below the main header — visually distinct per design from 10.1
-- [x] Remove drug/trust/directorate filter buttons from this bar (they move to Patient Pathways view only — see 10.7)
-- [x] Ensure sub-header is constant across both views (Patient Pathways and Trust Comparison)
-- [x] Date filter and chart type toggle changes update `app-state` globally (triggering updates in whichever view is active)
-- [x] Update CSS per design from 10.1
-- **Checkpoint**: Global sub-header renders below main header, date/chart-type controls work, visible in both views ✓
-
-### 10.5 Patient Pathways view — reduce to Icicle + Sankey
-- [x] Create a Patient Pathways view component (or update chart_card.py) with only 2 tabs: Icicle, Sankey
-- [x] Remove Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness from this view's tab bar
-- [x] Existing filter → chart-data → chart callback pipeline stays for these 2 tabs
-- [x] This view is shown when `active_view == "patient-pathways"`
-- **Checkpoint**: Patient Pathways shows only Icicle + Sankey tabs, both still work with all existing filters
-
-### 10.6 Trust Comparison query functions
-- [x] Add new/modified query functions to `src/data_processing/pathway_queries.py` for per-trust-within-directorate perspective:
-  - `get_trust_market_share(db_path, filter_id, chart_type, directory)` — drugs by trust within a single directorate (stacked bars per trust instead of per directorate)
-  - `get_trust_cost_waterfall(db_path, filter_id, chart_type, directory)` — one bar per trust showing cost_pp within that directorate
-  - `get_trust_dosing(db_path, filter_id, chart_type, directory)` — drug dosing intervals broken down by trust within a directorate
-  - `get_trust_heatmap(db_path, filter_id, chart_type, directory)` — trust × drug matrix for one directorate (rows=trusts, cols=drugs)
-  - `get_trust_durations(db_path, filter_id, chart_type, directory)` — drug durations by trust within a directorate
-  - `get_directorate_pathway_costs(db_path, filter_id, chart_type, directory)` — verified existing `get_pathway_costs(directory=X)` works correctly (no new function needed)
-- [x] Add thin wrappers in `dash_app/data/queries.py`
-- [x] Verify all queries return correct data for both "directory" and "indication" chart types
-- **Checkpoint**: All 6 query functions return correct per-trust data for sample directorates
-
-### 10.7 Trust Comparison landing page + directorate selector
-- [x] Create Trust Comparison view component with two states:
-  - **Landing**: Grid of directorate/indication buttons (source: reference-data store)
-  - **Dashboard**: 6-chart layout for selected directorate (see 10.8)
-- [x] Directorate buttons: ~14 for "By Directory" mode, ~32 for "By Indication" mode (from chart type toggle)
-- [x] Clicking a button sets `selected_comparison_directorate` in app-state, switching to dashboard view
-- [x] Back button to return to landing page (clears `selected_comparison_directorate`)
-- [x] Apply layout design from 10.1
-- [x] This view is shown when `active_view == "trust-comparison"`
-- **Checkpoint**: Landing page shows directorate buttons, clicking one transitions to dashboard state, back button works
-
-### 10.8 Trust Comparison 6-chart dashboard
-- [x] Build 6-chart dashboard layout per design from 10.1
-- [x] All 6 charts scoped to the selected directorate:
-  1. **Market Share**: Drug breakdown per trust (using `get_trust_market_share`)
-  2. **Cost Waterfall**: Per-trust cost within directorate (using `get_trust_cost_waterfall`)
-  3. **Dosing**: Drug dosing intervals by trust (using `get_trust_dosing`)
-  4. **Heatmap**: Trust × drug matrix (using `get_trust_heatmap`)
-  5. **Duration**: Drug durations by trust (using `get_trust_durations`)
-  6. **Cost Effectiveness**: Pathway costs within directorate, NOT split by trust (using `get_directorate_pathway_costs`)
-- [x] Create new visualization functions in `src/visualization/plotly_generator.py` where existing ones don't fit the trust-comparison perspective (may need `create_trust_market_share_figure`, `create_trust_heatmap_figure`, etc., or parameterize existing functions)
-- [x] All 6 charts respond to date filter and chart type toggle (global filters)
-- [x] Dashboard title shows selected directorate name
-- [x] Use `dcc.Loading` wrappers for each chart
-- **Checkpoint**: All 6 charts render for a selected directorate, comparing drugs across trusts. Charts update when date filter or chart type changes.
-
-### 10.9 Patient Pathways filter relocation
-- [x] Drug/trust/directorate filter buttons (with count badges) only visible when on Patient Pathways view
-- [x] Hidden when on Trust Comparison view
-- [x] Placement per design from 10.1 (could be below the global sub-header, or inline with Patient Pathways content)
-- [x] Filter modals still work as before (drug modal, trust modal, directorate modal)
-- [x] "Clear All Filters" still works
-- **Checkpoint**: Filters visible on Patient Pathways, hidden on Trust Comparison, all filter functionality preserved
-
-### 10.10 CSS updates + polish
-- [x] Global filter sub-header styling per design from 10.1
-- [x] Trust Comparison landing page styling (directorate buttons grid)
-- [x] Trust Comparison dashboard grid styling (6-chart layout)
-- [x] Header fraction KPI styling
-- [x] Remove or repurpose `.kpi-row` / `.kpi-card` CSS
-- [x] Ensure responsive behavior
-- [x] Update `01_nhs_classic.html` if it serves as an ongoing design reference (or note that Phase 10 diverges)
-- **Checkpoint**: All new components styled consistently with NHS design system
-
-### 10.11 Final integration + documentation
-- [x] Verify all views work: Patient Pathways (Icicle + Sankey), Trust Comparison (landing + 6-chart dashboard)
-- [x] Verify global filters (date, chart type) affect both views
-- [x] Verify Patient Pathways filters (drug, trust, directorate) only affect Patient Pathways
-- [x] Verify Trust Comparison directorate selector works for all directorates and indications
-- [x] Verify no regressions in Icicle and Sankey charts
-- [x] Test with both "directory" and "indication" chart types
-- [x] Update CLAUDE.md with new architecture (two views, state management, callback chains)
-- [x] `python run_dash.py` starts cleanly
-- **Checkpoint**: Full application works end-to-end, documentation updated ✓
+### D.4 NICE TA compliance dashboard
+- [ ] Parse `data/ta-recommendations.xlsx` into a reference table
+- [ ] Create schema and migration for TA compliance reference data
+- [ ] Create compliance scoring: cross-reference pathway data with TA recommendations
+- [ ] Create `create_ta_compliance_figure(data, title)` — traffic-light matrix
+- [ ] Add "Compliance" tab or separate Trust Comparison sub-view
+- **Checkpoint**: Compliance matrix shows alignment with NICE guidance
 
 ---
 
 ## Completion Criteria
 
-All tasks marked `[x]` AND:
-- [x] `python run_dash.py` starts cleanly at localhost:8050
-- [x] Layout matches 01_nhs_classic.html (header, sidebar, KPIs, filter bar, chart card, footer)
-- [x] Icicle chart renders with real SQLite data (pathway_nodes)
-- [x] Date filters + chart type toggle update chart correctly
-- [x] Filter modals open correctly for drugs, trusts, and directorates
-- [x] Selecting a drug filters the chart correctly (no "multiple implied roots" error)
-- [x] "All Drugs" card allows selecting any drug across all contexts
-- [x] "Clear Filters" resets all selections
-- [x] KPIs update dynamically (patients, drugs, cost)
-- [x] No Reflex imports in `dash_app/`
-- [x] No duplicate component ID errors on first load
-- [x] Sidebar shows chart views (icicle/sankey/timeline), not filter triggers
-- [x] Filter bar has drug/trust/directorate trigger buttons with selection count badges
+### Phase A
+- [ ] All charts use `_base_layout()` for consistent styling
+- [ ] Heatmaps have linear colorscale + cell annotations + autosize
+- [ ] Legends don't overflow at any drug/trust count
+- [ ] Trust Comparison charts use 7 maximally-distinct colors
+- [ ] `python run_dash.py` starts cleanly
 
-### Phase 9 Completion Criteria
-- [x] 8 chart tabs render in the chart card (Icicle + 7 new)
-- [x] Tab switching is smooth — only active tab's chart is computed
-- [x] All 7 new charts render real data from SQLite
-- [x] All charts respond to existing filters (date, chart type, trust, drug, directorate)
-- [x] Market Share shows grouped bars by directorate with drug breakdown
-- [x] Cost Effectiveness shows lollipop chart with retention annotations
-- [x] Cost Waterfall shows directorate cost_pp_pa bars
-- [x] Sankey shows drug switching flows across treatment lines
-- [x] Dosing shows parsed interval comparisons
-- [x] Heatmap shows directorate × drug matrix
-- [x] Treatment Duration shows avg_days bars
-- [x] Icicle chart has no regressions
-- [x] `python run_dash.py` starts cleanly with all tabs
+### Phase B
+- [ ] All chart titles use `CHART_TITLE_SIZE` and `CHART_TITLE_COLOR`
+- [ ] Cost effectiveness uses smooth gradient
+- [ ] Sankey handles narrow viewports
+- [ ] Heatmap metric toggle works in both views
+- [ ] `python run_dash.py` starts cleanly
 
-### Phase 10 Completion Criteria
-- [x] Sidebar has "Patient Pathways" + "Trust Comparison" navigation items
-- [x] Patient Pathways view shows Icicle + Sankey tabs only
-- [x] Trust Comparison landing page shows directorate/indication buttons
-- [x] Trust Comparison dashboard renders 6 charts for selected directorate (Market Share, Cost Waterfall, Dosing, Heatmap, Duration, Cost Effectiveness)
-- [x] All 6 Trust Comparison charts show per-trust breakdown within selected directorate (except Cost Effectiveness which is directorate-scoped, no trust split)
-- [x] KPI row removed — fraction KPIs (X/X patients, drugs, cost) in header
-- [x] Global filter sub-header (date + chart type) is prominent and constant across both views
-- [x] Drug/trust/directorate filters only visible on Patient Pathways
-- [x] Chart type toggle affects Trust Comparison (indication mode shows indication buttons)
-- [x] Date filter changes update both views
-- [x] Icicle + Sankey have no regressions
-- [x] `python run_dash.py` starts cleanly
+### Phase C
+- [ ] Retention funnel renders with real data
+- [ ] Pathway depth distribution renders with real data
+- [ ] Duration vs cost scatter renders with quadrant lines
+- [ ] Drug network graph renders as Sankey alternative
+- [ ] All new tabs respond to existing filters
+- [ ] `python run_dash.py` starts cleanly
 
----
-
-## Phase 11: UI Polish — Layout & Aesthetics Fixes
-
-### Context
-User feedback after Phase 10 completion. Four layout/aesthetics issues on both Patient Pathways and Trust Comparison views. All are additive CSS/component fixes — no existing work needs reverting.
-
-### 11.1 Move "Clear All Filters" button to left side
-- [x] In `dash_app/components/filter_bar.py`, move the "Clear All" button into the `.pathway-filters__buttons` div (alongside Drugs, Trusts, Directorates buttons) instead of being a separate sibling
-- [x] In `dash_app/assets/nhs.css`, update `.pathway-filters` to remove `justify-content: space-between` (no longer needed — all items grouped left). Add a small left margin or separator to visually distinguish Clear All from the filter buttons.
-- [x] Verify: "Clear All" button appears immediately after the Directorates button, left-aligned
-- **Checkpoint**: Clear All button is next to the filter buttons on the left ✓
-
-### 11.2 Trust Comparison charts — fix overspill and increase chart size
-- [x] In `dash_app/components/trust_comparison.py`, increase the `dcc.Graph` height from `320px` to a larger value (e.g., `450px` or use `calc()` / viewport units). Charts are currently too cramped and overspilling their containers.
-- [x] In `dash_app/assets/nhs.css`, review `.tc-dashboard__grid` and `.tc-chart-cell` — ensure charts don't overflow. Consider whether the 2×3 grid should scroll vertically rather than cramming all 6 charts into the viewport. Each chart should be comfortably readable.
-- [x] The user explicitly wants BIGGER charts, not smaller. Prioritize readability over fitting everything in the viewport.
-- [x] Verify: Trust Comparison dashboard charts are large enough to read, no text/axis overspill, scrolling is acceptable if needed
-- **Checkpoint**: All 6 Trust Comparison charts render at a readable size without overspill ✓
-
-### 11.3 Patient Pathways chart — fill available screen height
-- [x] In `dash_app/components/chart_card.py`, update the `dcc.Graph` style to fill all available vertical space below the tab bar / chart header. Use CSS `calc(100vh - ...)` or `flex: 1` patterns to make the chart stretch to the bottom of the viewport.
-- [x] In `dash_app/assets/nhs.css`, ensure `.chart-card` and its children use flex layout to fill remaining height. The `.main` container already has `min-height: calc(100vh - var(--header-total-h))` — the chart card should consume all of that minus the filter bar height.
-- [x] The Patient Pathways view (`#patient-pathways-view`) should also be a flex column that fills height, so the chart card can stretch.
-- [x] Verify: Icicle/Sankey charts fill the available viewport height, not just a fixed 500px minimum
-- **Checkpoint**: Patient Pathways chart uses all available vertical space below the filter bar ✓
-
-### 11.4 Filter modals — improve aesthetics for large screens
-- [x] In `dash_app/components/modals.py`:
-  - Drug modal: chip `size` "xs" → "sm", modal `size` "lg" → "70%", added `dmc.SimpleGrid(cols=4)` layout
-  - Trust modal: chip `size` "xs" → "md", modal `size` "sm" → "lg", added `dmc.Stack(gap="xs")` vertical layout
-  - Directorate modal: modal `size` "xl" → "70%", drug fragment badge "sm" → "md", directorate text "sm" → "md", count badge "xs" → "sm"
-- [x] In `dash_app/assets/nhs.css`: padding-right on scroll container, white-space: nowrap on chip labels, .mantine-Modal-title width: 100%
-- [x] **Used frontend-developer agent** for UX review: recommended 4-col SimpleGrid for drugs, Stack for trusts, percentage-based modal widths, specific size bumps per component
-- [x] Verify: App starts cleanly, 20 callbacks, no regressions
-- **Checkpoint**: All three filter modals are visually polished and proportionally sized for large screens ✓
-
-### Phase 11 Completion Criteria
-- [x] "Clear All Filters" button is left-aligned next to filter buttons
-- [x] Trust Comparison charts are readable with no overspill
-- [x] Patient Pathways chart fills available viewport height
-- [x] Filter modals are aesthetically polished with readable chip sizes
-- [x] `python run_dash.py` starts cleanly
-- [x] No regressions in existing functionality
+### Phase D
+- [ ] Temporal trends show data over time (if >1 refresh cycle)
+- [ ] Dose distribution shows box/violin plots
+- [ ] Drug timeline shows Gantt-style cohort activity
+- [ ] NICE TA compliance matrix shows traffic-light scoring
+- [ ] `python run_dash.py` starts cleanly
 
 ---
 
@@ -675,37 +262,42 @@ User feedback after Phase 10 completion. Four layout/aesthetics issues on both P
 
 | File | Purpose |
 |------|---------|
-| `01_nhs_classic.html` | Design reference — CSS classes, layout structure, visual targets |
-| `pathways_app/pathways_app.py` | Source of truth for data loading logic (lines 407-642) and icicle chart (lines 769-920) |
-| `data/pathways.db` | SQLite database with pre-computed pathway_nodes |
-| `data/DimSearchTerm.csv` | Directorate → Search_Term → drug mapping for card browser |
-| `src/data_processing/diagnosis_lookup.py` | SEARCH_TERM_MERGE_MAP constant for asthma normalization |
+| `src/visualization/plotly_generator.py` | PRIMARY — all chart generation functions |
+| `src/data_processing/pathway_queries.py` | All SQLite query functions |
+| `src/data_processing/parsing.py` | HTML/JSON parsing utilities |
+| `dash_app/callbacks/chart.py` | Patient Pathways tab dispatch + chart rendering |
+| `dash_app/callbacks/trust_comparison.py` | Trust Comparison 6-chart callbacks |
+| `dash_app/components/chart_card.py` | Tab definitions + chart card component |
+| `dash_app/components/trust_comparison.py` | TC landing + dashboard layout |
+| `dash_app/data/queries.py` | Thin wrappers around shared query functions |
 
-## Key Data Patterns
+## Key Patterns
 
-### Date Filter IDs
-| ID | Initiated | Last Seen |
-|----|-----------|-----------|
-| `all_6mo` | All years | Last 6 months (DEFAULT) |
-| `all_12mo` | All years | Last 12 months |
-| `1yr_6mo` | Last 1 year | Last 6 months |
-| `1yr_12mo` | Last 1 year | Last 12 months |
-| `2yr_6mo` | Last 2 years | Last 6 months |
-| `2yr_12mo` | Last 2 years | Last 12 months |
+### plotly_generator.py structure
+- Module-level palettes: `TRUST_PALETTE` (7 colors), `DRUG_PALETTE` (15 colors)
+- `_base_layout(title, **overrides)` helper for DRY layout dicts
+- `_smart_legend(n_items)` helper for adaptive legend positioning
+- Each `create_*_figure()` function accepts list-of-dicts, returns `go.Figure`
 
-### Pathway Node Columns (from SQLite)
-`parents, ids, labels, level, value, cost, costpp, cost_pp_pa, colour, first_seen, last_seen, first_seen_parent, last_seen_parent, average_spacing, average_administered, avg_days, trust_name, directory, drug_sequence, chart_type, date_filter_id`
+### Adding a new chart tab (Patient Pathways)
+1. Add query function to `src/data_processing/pathway_queries.py`
+2. Add thin wrapper to `dash_app/data/queries.py`
+3. Add figure function to `src/visualization/plotly_generator.py`
+4. Add tab to `TAB_DEFINITIONS` in `dash_app/components/chart_card.py`
+5. Add `_render_*()` helper in `dash_app/callbacks/chart.py`
+6. Add dispatch case in `update_chart()` callback
 
-### Icicle Chart Customdata (10 fields)
-```
-[0] value          — patient count
-[1] colour         — proportion of parent
-[2] cost           — total cost
-[3] costpp         — cost per patient
-[4] first_seen     — first intervention date
-[5] last_seen      — last intervention date
-[6] first_seen_parent  — earliest date in parent group
-[7] last_seen_parent   — latest date in parent group
-[8] average_spacing    — dosing information string
-[9] cost_pp_pa         — cost per patient per annum
-```
+### Existing chart functions in plotly_generator.py
+- `create_icicle_from_nodes(nodes, title)` — L113
+- `create_market_share_figure(data, title)` — L247
+- `create_cost_effectiveness_figure(data, retention, title)` — L384
+- `create_cost_waterfall_figure(data, title)` — L562
+- `create_sankey_figure(data, title)` — L706
+- `create_dosing_figure(data, title, group_by)` — L837
+- `_dosing_by_drug(data, colours)` — L926
+- `_dosing_by_trust(data, colours)` — L1007
+- `create_heatmap_figure(data, title, metric)` — L1189
+- `create_duration_figure(data, title, show_directory)` — L1329
+- `create_trust_market_share_figure(data, title)` — L1481
+- `create_trust_heatmap_figure(data, title, metric)` — L1582
+- `create_trust_duration_figure(data, title)` — L1689

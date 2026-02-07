@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Ralph Wiggum Loop - Dash Migration variant.
+    Ralph Wiggum Loop - Visualization Improvements variant.
 
 .DESCRIPTION
-    Outer loop for iterative Dash frontend development (Reflex -> Dash migration).
+    Outer loop for iterative chart improvement (bug fixes, polish, new analytics).
     Each iteration spawns a fresh `claude --print` invocation.
     Memory persists via filesystem only: git commits, progress.txt, IMPLEMENTATION_PLAN.md, guardrails.md.
 
@@ -141,7 +141,7 @@ if (Test-Path $progressFile) {
 }
 
 Write-Host ""
-Write-Host "===== Ralph Wiggum Loop (Dash Migration) =====" -ForegroundColor Cyan
+Write-Host "===== Ralph Wiggum Loop (Visualization Improvements) =====" -ForegroundColor Cyan
 Write-Host "Model: $Model | Runs until COMPLETE" -ForegroundColor Cyan
 Write-Host "Circuit breakers: no-progress=$MaxNoProgress, same-error=$MaxSameError" -ForegroundColor Cyan
 if ($BranchName) { Write-Host "Branch: $BranchName" -ForegroundColor Cyan }
@@ -328,7 +328,7 @@ while ($true) {
     if ($outputString -match "<promise>COMPLETE</promise>") {
         Write-Host ""
         Write-Host "===== COMPLETE =====" -ForegroundColor Green
-        Write-Host "Dash migration finished after $i iteration(s) this run ($totalIteration total)." -ForegroundColor Green
+        Write-Host "Visualization improvements finished after $i iteration(s) this run ($totalIteration total)." -ForegroundColor Green
         exit 0
     }
 
