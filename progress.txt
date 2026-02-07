@@ -226,3 +226,34 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Both are quick changes — could potentially do B.2+B.3 together if scoped carefully, but the loop rules say one task per iteration.
 ### Blocked items:
 - None
+
+## Iteration 6 — 2026-02-07
+### Task: B.2 — Cost effectiveness smooth gradient
+### Why this task:
+- B.2 is the next Phase B task after B.1. Iteration 5 explicitly recommended B.2 or B.3. B.2 addresses the crude 3-bin color threshold in the cost effectiveness lollipop chart.
+### Status: COMPLETE
+### What was done:
+- **`create_cost_effectiveness_figure()`**: Replaced 3-bin hard threshold color assignment (green if ratio<0.33, amber if <0.66, red otherwise) with a smooth `_lerp_color()` inner function that does linear RGB interpolation:
+  - Ratio 0–0.5: Green (#009639) → Amber (#ED8B00)
+  - Ratio 0.5–1.0: Amber (#ED8B00) → Red (#DA291C)
+  - Includes clamping to [0,1] for safety
+- Net change: +9 lines (replaced 8-line loop with 17-line function + 1-line list comprehension)
+- `_base_layout()` was already applied in B.1 — no further layout changes needed
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): Functional test confirmed 5 gradient points: 1000→rgb(0,150,57) green, 3000→rgb(118,144,28) yellow-green, 5000→rgb(237,139,0) amber, 7000→rgb(227,90,14) orange-red, 9000→rgb(218,41,28) red. Smooth interpolation verified.
+### Files changed:
+- `src/visualization/plotly_generator.py` — replaced 3-bin color logic with `_lerp_color()` smooth gradient
+- `IMPLEMENTATION_PLAN.md` — marked B.2 subtasks [x]
+### Committed: cbac37e "fix: smooth green→amber→red gradient for cost effectiveness chart (Task B.2)"
+### Patterns discovered:
+- Inner function `_lerp_color()` defined inside `create_cost_effectiveness_figure()` keeps it scoped to where it's used. If other charts need similar gradients, could promote to module level.
+- The data is reversed before coloring (line 486), so colors are assigned based on position in the reversed list. But since `_lerp_color` uses the actual cost value via `(c - min_cost) / cost_range`, the reversal doesn't affect color correctness.
+### Next iteration should:
+- Do Task B.3: Sankey narrow-screen fix. Very small change:
+  1. Search for `def create_sankey_figure` to find the function
+  2. Change `arrangement="snap"` → `arrangement="freeform"`
+  3. Increase `pad` from 20 → 25
+- After B.3, Task B.4 (heatmap metric toggle) is the last Phase B task — it's more involved (adding SegmentedControl components + callback wiring).
+### Blocked items:
+- None
