@@ -1,5 +1,6 @@
 """Trust Comparison view — landing page (directorate selector) + 6-chart dashboard."""
 from dash import html, dcc
+import dash_mantine_components as dmc
 
 
 def _tc_chart_cell(title, graph_id):
@@ -71,7 +72,34 @@ def make_tc_dashboard():
                     _tc_chart_cell("Market Share", "tc-chart-market-share"),
                     _tc_chart_cell("Cost Waterfall", "tc-chart-cost-waterfall"),
                     _tc_chart_cell("Dosing Intervals", "tc-chart-dosing"),
-                    _tc_chart_cell("Drug \u00d7 Trust Heatmap", "tc-chart-heatmap"),
+                    html.Div(className="tc-chart-cell", children=[
+                        html.Div(
+                            className="tc-chart-cell__title-row",
+                            style={"display": "flex", "alignItems": "center",
+                                   "justifyContent": "space-between", "gap": "8px"},
+                            children=[
+                                html.Div("Drug \u00d7 Trust Heatmap",
+                                         className="tc-chart-cell__title"),
+                                dmc.SegmentedControl(
+                                    id="tc-heatmap-metric-toggle",
+                                    data=[
+                                        {"value": "patients", "label": "Patients"},
+                                        {"value": "cost", "label": "Cost"},
+                                        {"value": "cost_pp_pa", "label": "Cost p.a."},
+                                    ],
+                                    value="patients",
+                                    size="xs",
+                                ),
+                            ],
+                        ),
+                        dcc.Loading(type="circle", color="#005EB8", children=[
+                            dcc.Graph(
+                                id="tc-chart-heatmap",
+                                config={"displayModeBar": False, "displaylogo": False},
+                                style={"height": "500px"},
+                            ),
+                        ]),
+                    ]),
                     _tc_chart_cell("Treatment Duration", "tc-chart-duration"),
                     _tc_chart_cell("Cost Effectiveness", "tc-chart-cost-effectiveness"),
                 ],

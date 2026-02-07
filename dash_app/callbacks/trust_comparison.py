@@ -195,9 +195,10 @@ def register_trust_comparison_callbacks(app):
     @app.callback(
         Output("tc-chart-heatmap", "figure"),
         Input("app-state", "data"),
+        Input("tc-heatmap-metric-toggle", "value"),
         prevent_initial_call=True,
     )
-    def tc_heatmap(app_state):
+    def tc_heatmap(app_state, heatmap_metric):
         selected = (app_state or {}).get("selected_comparison_directorate")
         if not selected:
             return no_update
@@ -205,13 +206,14 @@ def register_trust_comparison_callbacks(app):
         from visualization.plotly_generator import create_trust_heatmap_figure
         filter_id = app_state.get("date_filter_id", "all_6mo")
         chart_type = app_state.get("chart_type", "directory")
+        metric = heatmap_metric or "patients"
         try:
             data = get_trust_heatmap(filter_id, chart_type, selected)
         except Exception:
             return _tc_empty("Failed to load heatmap data.")
         if not data.get("trusts") or not data.get("drugs"):
             return _tc_empty("No heatmap data for this selection.")
-        return create_trust_heatmap_figure(data, _tc_title(app_state))
+        return create_trust_heatmap_figure(data, _tc_title(app_state), metric=metric)
 
     # 5. Duration — drug durations by trust
     @app.callback(

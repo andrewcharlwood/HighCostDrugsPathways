@@ -216,7 +216,7 @@ def _render_dosing(app_state, title):
     return create_dosing_figure(data, title, group_by)
 
 
-def _render_heatmap(app_state, title):
+def _render_heatmap(app_state, title, metric="patients"):
     """Build the directorate × drug heatmap from current filter state."""
     from dash_app.data.queries import get_drug_directory_matrix
     from visualization.plotly_generator import create_heatmap_figure
@@ -236,7 +236,7 @@ def _render_heatmap(app_state, title):
     if not data.get("directories") or not data.get("drugs"):
         return _empty_figure("No heatmap data available.\nTry adjusting your filters.")
 
-    return create_heatmap_figure(data, title, metric="patients")
+    return create_heatmap_figure(data, title, metric=metric)
 
 
 def _render_duration(app_state, title):
@@ -345,14 +345,19 @@ def register_chart_callbacks(app):
     @app.callback(
         Output("pathway-chart", "figure"),
         Output("chart-subtitle", "children"),
+        Output("heatmap-metric-wrapper", "style"),
         Input("chart-data", "data"),
         Input("active-tab", "data"),
         Input("app-state", "data"),
+        Input("heatmap-metric-toggle", "value"),
     )
-    def update_chart(chart_data, active_tab, app_state):
+    def update_chart(chart_data, active_tab, app_state, heatmap_metric):
         """Render the active tab's chart from chart-data nodes."""
         active_tab = active_tab or "icicle"
         chart_type = (app_state or {}).get("chart_type", "directory")
+
+        # Show/hide heatmap metric toggle based on active tab
+        toggle_style = {} if active_tab == "heatmap" else {"display": "none"}
 
         if chart_type == "indication":
             subtitle = "Trust \u2192 Indication \u2192 Drug \u2192 Patient Pathway"
@@ -360,17 +365,17 @@ def register_chart_callbacks(app):
             subtitle = "Trust \u2192 Directorate \u2192 Drug \u2192 Patient Pathway"
 
         if not chart_data:
-            return no_update, no_update
+            return no_update, no_update, toggle_style
 
         error_msg = chart_data.get("error")
         if error_msg:
-            return _empty_figure(error_msg), subtitle
+            return _empty_figure(error_msg), subtitle, toggle_style
 
         if not chart_data.get("nodes"):
             return _empty_figure(
                 "No matching pathways found.\n"
                 "Try adjusting your filters."
-            ), subtitle
+            ), subtitle, toggle_style
 
         # Lazy rendering — only compute the active tab's chart
         title = _generate_chart_title(app_state) if app_state else ""
@@ -396,7 +401,8 @@ def register_chart_callbacks(app):
             fig = _render_dosing(app_state, title)
 
         elif active_tab == "heatmap":
-            fig = _render_heatmap(app_state, title)
+            metric = heatmap_metric or "patients"
+            fig = _render_heatmap(app_state, title, metric=metric)
 
         elif active_tab == "duration":
             fig = _render_duration(app_state, title)
@@ -406,4 +412,4 @@ def register_chart_callbacks(app):
             tab_label = dict(TAB_DEFINITIONS).get(active_tab, active_tab)
             fig = _empty_figure(f"{tab_label} chart — coming soon")
 
-        return fig, subtitle
+        return fig, subtitle, toggle_style

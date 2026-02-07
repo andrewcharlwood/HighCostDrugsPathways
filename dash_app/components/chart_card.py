@@ -1,11 +1,13 @@
 """Chart card component — tab bar, header, and dcc.Graph for charts."""
 from dash import html, dcc
+import dash_mantine_components as dmc
 
 
-# Patient Pathways view: only Icicle + Sankey
+# Patient Pathways view: Icicle, Sankey, Heatmap
 TAB_DEFINITIONS = [
     ("icicle", "Icicle"),
     ("sankey", "Sankey"),
+    ("heatmap", "Heatmap"),
 ]
 
 # Full set retained for Trust Comparison dashboard (Phase 10.8)
@@ -68,6 +70,23 @@ def make_chart_card():
                                 id="chart-subtitle",
                             ),
                         ]
+                    ),
+                    # Heatmap metric toggle — visible only when heatmap tab active
+                    html.Div(
+                        id="heatmap-metric-wrapper",
+                        style={"display": "none"},
+                        children=[
+                            dmc.SegmentedControl(
+                                id="heatmap-metric-toggle",
+                                data=[
+                                    {"value": "patients", "label": "Patients"},
+                                    {"value": "cost", "label": "Cost"},
+                                    {"value": "cost_pp_pa", "label": "Cost p.a."},
+                                ],
+                                value="patients",
+                                size="xs",
+                            ),
+                        ],
                     ),
                 ],
             ),

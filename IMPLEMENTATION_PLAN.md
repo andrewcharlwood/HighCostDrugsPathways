@@ -115,15 +115,16 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Sankey nodes don't overlap on narrow viewports
 
 ### B.4 Heatmap metric toggle (both views)
-- [ ] Add `dmc.SegmentedControl` component next to Patient Pathways heatmap:
+- [x] Add `dmc.SegmentedControl` component next to Patient Pathways heatmap:
   - Options: Patients, Cost, Cost p.a.
   - ID: `heatmap-metric-toggle`
-  - Add to `dash_app/components/chart_card.py` (visible only when heatmap tab active)
-- [ ] Add `dmc.SegmentedControl` next to Trust Comparison heatmap:
+  - Added to `dash_app/components/chart_card.py` in header, hidden by default, shown when heatmap tab active
+  - Also added "heatmap" tab to TAB_DEFINITIONS (was only in ALL_TAB_DEFINITIONS before)
+- [x] Add `dmc.SegmentedControl` next to Trust Comparison heatmap:
   - ID: `tc-heatmap-metric-toggle`
-  - Add to `dash_app/components/trust_comparison.py`
-- [ ] Update `_render_heatmap()` in `dash_app/callbacks/chart.py` (~L239) to read metric toggle value
-- [ ] Update `tc_heatmap` callback in `dash_app/callbacks/trust_comparison.py` (~L214) to read metric toggle value
+  - Added to `dash_app/components/trust_comparison.py` inline in heatmap chart cell header
+- [x] Update `_render_heatmap()` in `dash_app/callbacks/chart.py` to accept metric param, `update_chart` passes toggle value + controls toggle visibility via `heatmap-metric-wrapper` style output
+- [x] Update `tc_heatmap` callback in `dash_app/callbacks/trust_comparison.py` to read `tc-heatmap-metric-toggle` value and pass to `create_trust_heatmap_figure()`
 - **Checkpoint**: Heatmap metric toggles work in both views, switching between patients/cost/cost_pp_pa
 
 ---
