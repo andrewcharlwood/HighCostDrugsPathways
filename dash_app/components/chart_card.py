@@ -9,6 +9,7 @@ TAB_DEFINITIONS = [
     ("sankey", "Sankey"),
     ("heatmap", "Heatmap"),
     ("funnel", "Funnel"),
+    ("depth", "Depth"),
 ]
 
 # Full set retained for Trust Comparison dashboard (Phase 10.8)

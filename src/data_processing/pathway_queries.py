@@ -1139,6 +1139,76 @@ def get_retention_funnel(
         conn.close()
 
 
+def get_pathway_depth_distribution(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Count patients who STOPPED at each treatment line depth.
+
+    Unlike the retention funnel (cumulative), this shows exclusive counts:
+    patients at depth N minus patients at depth N+1 = stopped at depth N.
+
+    Returns list of dicts sorted by depth ascending:
+        [{depth: 1, label: "1 drug only", patients: N, pct: 45.2}, ...]
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["date_filter_id = ?", "chart_type = ?", "level >= 3"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            where.append("directory = ?")
+            params.append(directory)
+        if trust:
+            where.append("trust_name = ?")
+            params.append(trust)
+
+        query = f"""
+            SELECT level, SUM(value) AS patients
+            FROM pathway_nodes
+            WHERE {' AND '.join(where)}
+            GROUP BY level
+            ORDER BY level
+        """
+        rows = conn.execute(query, params).fetchall()
+
+        if not rows:
+            return []
+
+        # Build list of (depth, cumulative_patients)
+        levels = []
+        for r in rows:
+            depth = r["level"] - 2  # level 3 → depth 1
+            patients = r["patients"] or 0
+            levels.append((depth, patients))
+
+        # Subtract next level to get "stopped at this depth"
+        total_patients = levels[0][1] if levels else 0
+        result = []
+        for i, (depth, patients) in enumerate(levels):
+            next_patients = levels[i + 1][1] if i + 1 < len(levels) else 0
+            stopped = patients - next_patients
+
+            label = f"{depth} drug{'s' if depth > 1 else ''} only"
+            pct = round(stopped / total_patients * 100, 1) if total_patients else 0
+            result.append({
+                "depth": depth,
+                "label": label,
+                "patients": stopped,
+                "pct": pct,
+            })
+
+        return result
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,

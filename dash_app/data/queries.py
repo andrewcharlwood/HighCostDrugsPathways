@@ -25,6 +25,7 @@ from data_processing.pathway_queries import (
     get_trust_durations as _get_trust_durations,
     get_directorate_summary as _get_directorate_summary,
     get_retention_funnel as _get_retention_funnel,
+    get_pathway_depth_distribution as _get_pathway_depth_distribution,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -194,3 +195,13 @@ def get_retention_funnel(
 ) -> list[dict]:
     """Patient retention by treatment line depth."""
     return _get_retention_funnel(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_pathway_depth_distribution(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Patients who stopped at each treatment line depth (exclusive counts)."""
+    return _get_pathway_depth_distribution(DB_PATH, date_filter_id, chart_type, directory, trust)

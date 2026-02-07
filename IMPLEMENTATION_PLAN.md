@@ -146,15 +146,17 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Funnel tab shows retention by treatment line depth, responds to filters
 
 ### C.2 Pathway depth distribution chart
-- [ ] Create `get_pathway_depth_distribution()` in `src/data_processing/pathway_queries.py`:
+- [x] Create `get_pathway_depth_distribution()` in `src/data_processing/pathway_queries.py`:
   - Aggregate patient counts at level 3 (1-drug), level 4 (2-drug), etc.
   - Subtract child counts to get patients who STOPPED at each depth
-  - Return: `[{depth: 1, label: "1 drug only", patients: N}, ...]`
-- [ ] Add thin wrapper in `dash_app/data/queries.py`
-- [ ] Create `create_pathway_depth_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Return: `[{depth: 1, label: "1 drug only", patients: N, pct: 80.2}, ...]`
+- [x] Add thin wrapper in `dash_app/data/queries.py`
+- [x] Create `create_pathway_depth_figure(data, title)` in `src/visualization/plotly_generator.py`:
   - Horizontal bar chart with NHS blue gradient by depth
-- [ ] Add "Depth" tab to `TAB_DEFINITIONS` in `chart_card.py`
-- [ ] Add `_render_depth()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+  - Text shows "N (pct%)" inside bars
+  - Uses `_base_layout()` for consistent styling
+- [x] Add "Depth" tab to `TAB_DEFINITIONS` in `chart_card.py` (5 tabs: Icicle, Sankey, Heatmap, Funnel, Depth)
+- [x] Add `_render_depth()` helper and tab dispatch in `dash_app/callbacks/chart.py`
 - **Checkpoint**: Depth tab shows patient distribution by treatment line count
 
 ### C.3 Duration vs Cost scatter plot

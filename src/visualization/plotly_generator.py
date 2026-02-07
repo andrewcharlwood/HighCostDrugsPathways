@@ -1820,3 +1820,74 @@ def create_retention_funnel_figure(
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_pathway_depth_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create a horizontal bar chart showing patients who stopped at each treatment depth.
+
+    Args:
+        data: List of dicts with keys: depth, label, patients, pct
+        title: Chart title from filter state.
+
+    Returns:
+        Plotly Figure with horizontal bar trace.
+    """
+    if not data:
+        return go.Figure()
+
+    display_title = f"Pathway Depth Distribution — {title}" if title else "Pathway Depth Distribution"
+
+    labels = [d["label"] for d in data]
+    patients = [d["patients"] for d in data]
+    pcts = [d["pct"] for d in data]
+
+    # NHS blue gradient: darkest for depth 1 (most patients) → lightest
+    bar_colors = [
+        "#003087",
+        "#005EB8",
+        "#1E88E5",
+        "#42A5F5",
+        "#90CAF9",
+    ]
+    colors = bar_colors[: len(data)]
+    if len(colors) < len(data):
+        colors.extend(["#E3F2FD"] * (len(data) - len(colors)))
+
+    fig = go.Figure(
+        go.Bar(
+            y=labels,
+            x=patients,
+            orientation="h",
+            text=[f"{p:,} ({pct}%)" for p, pct in zip(patients, pcts)],
+            textposition="auto",
+            textfont=dict(family=CHART_FONT_FAMILY, size=13),
+            marker=dict(color=colors),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Patients: %{x:,}<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    layout = _base_layout(display_title)
+    layout.update(
+        margin=dict(t=60, l=8, r=24, b=40),
+        yaxis=dict(
+            automargin=True,
+            autorange="reversed",
+            title="",
+        ),
+        xaxis=dict(
+            title="Patients",
+            gridcolor=GRID_COLOR,
+        ),
+        height=max(300, len(data) * 70 + 120),
+        bargap=0.3,
+    )
+    fig.update_layout(**layout)
+
+    return fig
