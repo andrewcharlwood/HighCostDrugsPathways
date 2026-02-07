@@ -51,13 +51,14 @@ def make_filter_bar():
                         className="filter-btn",
                         n_clicks=0,
                     ),
+                    html.Span(className="pathway-filters__separator"),
+                    html.Button(
+                        "Clear All",
+                        id="clear-all-filters",
+                        className="filter-btn filter-btn--clear",
+                        n_clicks=0,
+                    ),
                 ],
-            ),
-            html.Button(
-                "Clear All",
-                id="clear-all-filters",
-                className="filter-btn filter-btn--clear",
-                n_clicks=0,
             ),
         ],
     )

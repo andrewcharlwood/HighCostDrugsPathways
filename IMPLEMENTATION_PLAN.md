@@ -626,6 +626,55 @@ All tasks marked `[x]` AND:
 
 ---
 
+## Phase 11: UI Polish — Layout & Aesthetics Fixes
+
+### Context
+User feedback after Phase 10 completion. Four layout/aesthetics issues on both Patient Pathways and Trust Comparison views. All are additive CSS/component fixes — no existing work needs reverting.
+
+### 11.1 Move "Clear All Filters" button to left side
+- [x] In `dash_app/components/filter_bar.py`, move the "Clear All" button into the `.pathway-filters__buttons` div (alongside Drugs, Trusts, Directorates buttons) instead of being a separate sibling
+- [x] In `dash_app/assets/nhs.css`, update `.pathway-filters` to remove `justify-content: space-between` (no longer needed — all items grouped left). Add a small left margin or separator to visually distinguish Clear All from the filter buttons.
+- [x] Verify: "Clear All" button appears immediately after the Directorates button, left-aligned
+- **Checkpoint**: Clear All button is next to the filter buttons on the left ✓
+
+### 11.2 Trust Comparison charts — fix overspill and increase chart size
+- [ ] In `dash_app/components/trust_comparison.py`, increase the `dcc.Graph` height from `320px` to a larger value (e.g., `450px` or use `calc()` / viewport units). Charts are currently too cramped and overspilling their containers.
+- [ ] In `dash_app/assets/nhs.css`, review `.tc-dashboard__grid` and `.tc-chart-cell` — ensure charts don't overflow. Consider whether the 2×3 grid should scroll vertically rather than cramming all 6 charts into the viewport. Each chart should be comfortably readable.
+- [ ] The user explicitly wants BIGGER charts, not smaller. Prioritize readability over fitting everything in the viewport.
+- [ ] Verify: Trust Comparison dashboard charts are large enough to read, no text/axis overspill, scrolling is acceptable if needed
+- **Checkpoint**: All 6 Trust Comparison charts render at a readable size without overspill
+
+### 11.3 Patient Pathways chart — fill available screen height
+- [ ] In `dash_app/components/chart_card.py`, update the `dcc.Graph` style to fill all available vertical space below the tab bar / chart header. Use CSS `calc(100vh - ...)` or `flex: 1` patterns to make the chart stretch to the bottom of the viewport.
+- [ ] In `dash_app/assets/nhs.css`, ensure `.chart-card` and its children use flex layout to fill remaining height. The `.main` container already has `min-height: calc(100vh - var(--header-total-h))` — the chart card should consume all of that minus the filter bar height.
+- [ ] The Patient Pathways view (`#patient-pathways-view`) should also be a flex column that fills height, so the chart card can stretch.
+- [ ] Verify: Icicle/Sankey charts fill the available viewport height, not just a fixed 500px minimum
+- **Checkpoint**: Patient Pathways chart uses all available vertical space below the filter bar
+
+### 11.4 Filter modals — improve aesthetics for large screens
+- [ ] In `dash_app/components/modals.py`:
+  - Drug modal: increase chip `size` from `"xs"` to `"sm"` or `"md"` for readability. Increase modal `size` from `"lg"` to `"xl"` or a fixed width (e.g., `"70%"` or `900px`). Add `dmc.SimpleGrid` or `dmc.Group(wrap="wrap")` with consistent gap to fix spacing/layout of chips.
+  - Trust modal: increase chip `size` from `"xs"` to `"sm"`. Increase modal `size` from `"sm"` to `"md"`. Use `dmc.Stack` for vertical layout of trust chips (7 items don't need wrapping).
+  - Directorate modal: review accordion spacing and text sizes. Ensure indication items and drug badges are clearly readable.
+- [ ] In `dash_app/assets/nhs.css`, add/update modal CSS:
+  - Ensure `.modal-chips-scroll` has appropriate max-height and padding
+  - Chip labels should use the project font (Source Sans 3) at readable size
+  - Fix any broken text wrapping or extra whitespace between chip options
+  - Consider responsive modal sizing (percentage-based width) so large screens get proportionally larger modals
+- [ ] **Use the frontend-developer agent** to review the modal layout for optimal aesthetics with 42 drugs, 7 trusts, 19 directorates × 163 indications. The agent should recommend chip sizing, grid layout, spacing, and responsive behavior for large screens (1920px+).
+- [ ] Verify: Modals look polished — no broken text, consistent spacing, chips are readable at all screen sizes
+- **Checkpoint**: All three filter modals are visually polished and proportionally sized for large screens
+
+### Phase 11 Completion Criteria
+- [ ] "Clear All Filters" button is left-aligned next to filter buttons
+- [ ] Trust Comparison charts are readable with no overspill
+- [ ] Patient Pathways chart fills available viewport height
+- [ ] Filter modals are aesthetically polished with readable chip sizes
+- [ ] `python run_dash.py` starts cleanly
+- [ ] No regressions in existing functionality
+
+---
+
 ## Key Reference Files
 
 | File | Purpose |
