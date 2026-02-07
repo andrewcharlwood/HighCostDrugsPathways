@@ -130,3 +130,38 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - The `_smart_legend()` helper should: >15 items → vertical right legend; ≤15 → horizontal with dynamic bottom margin.
 ### Blocked items:
 - None
+
+## Iteration 3 — 2026-02-07
+### Task: A.3 — Fix legend overflow in 4 charts
+### Why this task:
+- A.3 is the next Phase A task after A.1 and A.2. It has no blockers and was explicitly recommended by Iteration 2. It addresses the legend overflow bug reported for charts with 42 drugs.
+### Status: COMPLETE
+### What was done:
+- **Created `_smart_legend(n_items, legend_title)` helper**: Returns legend dict with adaptive positioning. >15 items → vertical right legend (orientation="v", x=1.02, xanchor="left"). ≤15 items → horizontal below chart (orientation="h", y=-0.12, xanchor="center").
+- **Created `_smart_legend_margin(n_items)` helper**: Returns margin dict. >15 items → r=140, b=40. ≤15 items → dynamic b based on estimated row count (~6 items per row), r=24.
+- **`create_market_share_figure()`**: Replaced local `nhs_colours` with `DRUG_PALETTE`. Replaced manual layout block with `_base_layout()` + `_smart_legend()`. Replaced hardcoded `GRID_COLOR` reference.
+- **`create_trust_market_share_figure()`**: Same treatment. Also replaced Unicode escapes (`\u00a3`, `\u2014`) with literal characters (`£`, `—`).
+- **`create_dosing_figure()`**: Replaced local `nhs_colours` with `DRUG_PALETTE`. Legend adapts to trace count using `sum(1 for t in fig.data if t.showlegend is not False)`. Uses `_base_layout()`.
+- **`create_trust_duration_figure()`**: Replaced local `nhs_colours` with `TRUST_PALETTE` (7 maximally-distinct colors — also satisfies A.4 subtask). Fixed `l=200` → `l=8` + automargin. Uses `_base_layout()`.
+- **Note**: This also completed two A.4 subtasks: `create_trust_duration_figure()` now uses `TRUST_PALETTE`, and `create_trust_market_share_figure()` now uses `DRUG_PALETTE`.
+### Validation results:
+- Tier 1 (Code): All imports pass. `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): Functional tests confirm: 20-drug chart → vertical right legend; 5-drug → horizontal; 7-trust → horizontal with TRUST_PALETTE colors [#005EB8, #DA291C, #009639, #ED8B00, #7C2855, #00A499, #330072].
+- Tier 3 (Functional): All 4 chart functions produce correct figures with sample data. Legend orientation switches at 15-item threshold.
+### Files changed:
+- `src/visualization/plotly_generator.py` — added `_smart_legend()` + `_smart_legend_margin()`, refactored 4 chart functions
+- `IMPLEMENTATION_PLAN.md` — marked A.3 subtasks [x], updated A.4 for completed subtasks
+### Committed: 90de24c "fix: adaptive legends + _base_layout for 4 chart functions (Task A.3)"
+### Patterns discovered:
+- Plotly trace.showlegend defaults to None (not True), so checking `t.showlegend is not False` correctly identifies visible legend items.
+- The `_smart_legend_margin()` helper returns only `b` and `r` keys, allowing callers to merge with their own `t` and `l` via `dict(t=60, l=8, **legend_margins)`.
+- Net code reduction of 48 lines across 4 functions by replacing repeated layout blocks with `_base_layout()`.
+- Several A.4 subtasks were completed opportunistically during A.3 (replacing nhs_colours with palette constants).
+### Next iteration should:
+- Start with Task A.4: Fix remaining trust comparison color differentiation. Two subtasks remain:
+  1. Add `is_trust_comparison=False` param to `create_cost_waterfall_figure()` — use `TRUST_PALETTE` when True. Update `tc_cost_waterfall` callback to pass `is_trust_comparison=True`.
+  2. Fix `_dosing_by_drug()` blue→blue interpolation: replace with `plotly.colors.sample_colorscale("Viridis", ...)` for meaningful gradient.
+- The `create_trust_duration_figure()` TRUST_PALETTE fix and `create_trust_market_share_figure()` DRUG_PALETTE fix are already done (marked [x] in plan).
+- Search for `create_cost_waterfall_figure` and `_dosing_by_drug` by function name (line numbers have shifted).
+### Blocked items:
+- None
