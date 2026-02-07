@@ -1273,7 +1273,9 @@ def create_heatmap_figure(
 
     # Cap columns to top 25 drugs for readability
     max_drugs = 25
+    total_drug_count = len(drugs)
     drugs = drugs[:max_drugs]
+    capped = total_drug_count > max_drugs
 
     metric_labels = {
         "patients": "Patients",
@@ -1282,13 +1284,15 @@ def create_heatmap_figure(
     }
     metric_label = metric_labels.get(metric, "Patients")
 
-    # Build 2D arrays for z-values and hover text
+    # Build 2D arrays for z-values, hover text, and cell annotations
     z_values = []
     hover_texts = []
+    text_values = []
 
     for d in directories:
         row_z = []
         row_hover = []
+        row_text = []
         dir_data = matrix.get(d, {})
         for drug in drugs:
             cell = dir_data.get(drug)
@@ -1305,24 +1309,34 @@ def create_heatmap_figure(
                     f"Total cost: £{cost:,.0f}<br>"
                     f"Cost p.a.: £{cpp:,.0f}"
                 )
+                # Cell annotation text, formatted per metric
+                if metric == "cost":
+                    row_text.append(f"£{cost / 1000:.0f}k" if cost >= 1000 else f"£{cost:.0f}")
+                elif metric == "cost_pp_pa":
+                    row_text.append(f"£{cpp:,.0f}")
+                else:
+                    row_text.append(f"{patients:,}")
             else:
                 row_z.append(0)
                 row_hover.append(
                     f"<b>{drug}</b><br>{d}<br>No patients"
                 )
+                row_text.append("")
         z_values.append(row_z)
         hover_texts.append(row_hover)
+        text_values.append(row_text)
 
-    # NHS blue colorscale for the heatmap
+    # Linear 5-stop NHS blue colorscale
     colorscale = [
-        [0.0, "#F0F4F8"],
-        [0.01, "#E3F2FD"],
-        [0.1, "#90CAF9"],
-        [0.3, "#42A5F5"],
-        [0.5, "#1E88E5"],
-        [0.7, "#0066CC"],
+        [0.0, "#E3F2FD"],
+        [0.25, "#90CAF9"],
+        [0.5, "#42A5F5"],
+        [0.75, "#1E88E5"],
         [1.0, "#003087"],
     ]
+
+    n_drugs = len(drugs)
+    gap = 1 if n_drugs > 15 else 2
 
     fig = go.Figure(
         data=go.Heatmap(
@@ -1330,6 +1344,10 @@ def create_heatmap_figure(
             x=drugs,
             y=directories,
             colorscale=colorscale,
+            zmin=0,
+            text=text_values,
+            texttemplate="%{text}",
+            textfont=dict(size=10),
             hovertext=hover_texts,
             hovertemplate="%{hovertext}<extra></extra>",
             colorbar=dict(
@@ -1340,8 +1358,8 @@ def create_heatmap_figure(
                 thickness=15,
                 len=0.8,
             ),
-            xgap=2,
-            ygap=2,
+            xgap=gap,
+            ygap=gap,
         )
     )
 
@@ -1349,22 +1367,11 @@ def create_heatmap_figure(
     if title:
         chart_title = f"{chart_title} — {title}"
 
-    n_drugs = len(drugs)
     n_dirs = len(directories)
-    fig_width = max(700, 80 + n_drugs * 55)
     fig_height = max(400, 80 + n_dirs * 40)
 
-    fig.update_layout(
-        title=dict(
-            text=chart_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#003087",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
+    layout = _base_layout(chart_title)
+    layout.update(
         xaxis=dict(
             title="",
             tickfont=dict(size=11, color="#425563"),
@@ -1375,14 +1382,22 @@ def create_heatmap_figure(
             title="",
             tickfont=dict(size=12, color="#425563"),
             autorange="reversed",
+            automargin=True,
         ),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Source Sans 3, system-ui, sans-serif"),
-        margin=dict(t=60, l=200, r=80, b=120),
-        width=fig_width,
+        margin=dict(t=60, l=8, r=80, b=120),
         height=fig_height,
     )
+    fig.update_layout(**layout)
+
+    # Add subtitle when drug cap is reached
+    if capped:
+        fig.add_annotation(
+            text=f"Showing top {max_drugs} of {total_drug_count} drugs",
+            xref="paper", yref="paper",
+            x=0.5, y=1.02,
+            showarrow=False,
+            font=dict(size=12, color=ANNOTATION_COLOR),
+        )
 
     return fig
 
@@ -1661,12 +1676,14 @@ def create_trust_heatmap_figure(
     if not trusts or not drugs:
         return go.Figure()
 
+    total_drug_count = len(drugs)
     drugs = drugs[:25]
+    capped = total_drug_count > 25
 
     metric_labels = {
         "patients": "Patients",
-        "cost": "Total Cost (\u00a3)",
-        "cost_pp_pa": "Cost per Patient p.a. (\u00a3)",
+        "cost": "Total Cost (£)",
+        "cost_pp_pa": "Cost per Patient p.a. (£)",
     }
     metric_label = metric_labels.get(metric, "Patients")
 
@@ -1675,10 +1692,12 @@ def create_trust_heatmap_figure(
 
     z_values = []
     hover_texts = []
+    text_values = []
 
     for t in trusts:
         row_z = []
         row_hover = []
+        row_text = []
         trust_data = matrix.get(t, {})
         for drug in drugs:
             cell = trust_data.get(drug)
@@ -1692,57 +1711,77 @@ def create_trust_heatmap_figure(
                     f"<b>{drug}</b><br>"
                     f"{short_trust(t)}<br>"
                     f"Patients: {patients:,}<br>"
-                    f"Total cost: \u00a3{cost:,.0f}<br>"
-                    f"Cost p.a.: \u00a3{cpp:,.0f}"
+                    f"Total cost: £{cost:,.0f}<br>"
+                    f"Cost p.a.: £{cpp:,.0f}"
                 )
+                if metric == "cost":
+                    row_text.append(f"£{cost / 1000:.0f}k" if cost >= 1000 else f"£{cost:.0f}")
+                elif metric == "cost_pp_pa":
+                    row_text.append(f"£{cpp:,.0f}")
+                else:
+                    row_text.append(f"{patients:,}")
             else:
                 row_z.append(0)
                 row_hover.append(f"<b>{drug}</b><br>{short_trust(t)}<br>No patients")
+                row_text.append("")
         z_values.append(row_z)
         hover_texts.append(row_hover)
+        text_values.append(row_text)
 
+    # Linear 5-stop NHS blue colorscale
     colorscale = [
-        [0.0, "#F0F4F8"], [0.01, "#E3F2FD"], [0.1, "#90CAF9"],
-        [0.3, "#42A5F5"], [0.5, "#1E88E5"], [0.7, "#0066CC"], [1.0, "#003087"],
+        [0.0, "#E3F2FD"],
+        [0.25, "#90CAF9"],
+        [0.5, "#42A5F5"],
+        [0.75, "#1E88E5"],
+        [1.0, "#003087"],
     ]
 
     display_trusts = [short_trust(t) for t in trusts]
+    n_drugs = len(drugs)
+    gap = 1 if n_drugs > 15 else 2
 
     fig = go.Figure(
         data=go.Heatmap(
             z=z_values, x=drugs, y=display_trusts,
             colorscale=colorscale,
+            zmin=0,
+            text=text_values,
+            texttemplate="%{text}",
+            textfont=dict(size=10),
             hovertext=hover_texts,
             hovertemplate="%{hovertext}<extra></extra>",
             colorbar=dict(
                 title=dict(text=metric_label, font=dict(size=12, color="#425563")),
                 thickness=15, len=0.8,
             ),
-            xgap=2, ygap=2,
+            xgap=gap, ygap=gap,
         )
     )
 
-    chart_title = f"Trust \u00d7 Drug \u2014 {metric_label}"
+    chart_title = f"Trust × Drug — {metric_label}"
     if title:
-        chart_title = f"{chart_title} \u2014 {title}"
+        chart_title = f"{chart_title} — {title}"
 
-    n_drugs = len(drugs)
     n_trusts = len(trusts)
 
-    fig.update_layout(
-        title=dict(
-            text=chart_title,
-            font=dict(family="Source Sans 3, system-ui, sans-serif", size=16, color="#003087"),
-            x=0.5, xanchor="center",
-        ),
+    layout = _base_layout(chart_title)
+    layout.update(
         xaxis=dict(title="", tickfont=dict(size=11, color="#425563"), tickangle=-45, side="bottom"),
-        yaxis=dict(title="", tickfont=dict(size=12, color="#425563"), autorange="reversed"),
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Source Sans 3, system-ui, sans-serif"),
-        margin=dict(t=60, l=200, r=80, b=120),
-        width=max(700, 80 + n_drugs * 55),
+        yaxis=dict(title="", tickfont=dict(size=12, color="#425563"), autorange="reversed", automargin=True),
+        margin=dict(t=60, l=8, r=80, b=120),
         height=max(300, 80 + n_trusts * 50),
     )
+    fig.update_layout(**layout)
+
+    if capped:
+        fig.add_annotation(
+            text=f"Showing top 25 of {total_drug_count} drugs",
+            xref="paper", yref="paper",
+            x=0.5, y=1.02,
+            showarrow=False,
+            font=dict(size=12, color=ANNOTATION_COLOR),
+        )
 
     return fig
 

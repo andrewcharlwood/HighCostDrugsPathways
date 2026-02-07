@@ -53,7 +53,7 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: `python run_dash.py` starts, icicle chart unchanged visually
 
 ### A.2 Fix heatmap colorscale + cell annotations (Patient Pathways)
-- [ ] In `create_heatmap_figure()` (~L1189):
+- [x] In `create_heatmap_figure()` (~L1189):
   1. Replace non-linear colorscale with linear 5-stop: `[0.0 #E3F2FD, 0.25 #90CAF9, 0.5 #42A5F5, 0.75 #1E88E5, 1.0 #003087]`
   2. Add `text=text_values, texttemplate="%{text}"` with formatted values per metric (patients: `"N"`, cost: `"£Nk"`, cost_pp_pa: `"£N"`)
   3. Set `zmin=0` explicitly
@@ -61,8 +61,8 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
   5. Replace `l=200` with `l=8` + `yaxis automargin=True`
   6. Add subtitle annotation when 25-drug cap is hit: `"Showing top 25 of N drugs"`
   7. Reduce `xgap/ygap` from 2→1 when >15 columns
-- [ ] Apply same fixes to `create_trust_heatmap_figure()` (~L1582)
-- [ ] Apply `_base_layout()` to both heatmap functions
+- [x] Apply same fixes to `create_trust_heatmap_figure()` (~L1582)
+- [x] Apply `_base_layout()` to both heatmap functions
 - **Checkpoint**: Heatmaps show linear color gradient, cell text visible, no fixed width overflow
 
 ### A.3 Fix legend overflow in 4 charts
