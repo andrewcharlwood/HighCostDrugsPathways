@@ -277,21 +277,21 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: 3 sidebar items visible. Clicking "Trends" switches to empty trends view. `python run_dash.py` starts cleanly. PASSED.
 
 ### E.3 Create Trends landing page — directorate-level trends
-- [ ] Create `dash_app/components/trends.py`:
+- [x] Create `dash_app/components/trends.py`:
   - `make_trends_landing()` — container with title, description, metric toggle (`dmc.SegmentedControl` id: `trends-view-metric-toggle`, options: Patients / Cost per Patient / Cost per Patient p.a.), and `dcc.Graph(id="trends-overview-chart")` wrapped in `dcc.Loading`
   - `make_trends_detail()` — hidden container with back button (id: `trends-back-btn`), title (id: `trends-detail-title`), same metric toggle, and `dcc.Graph(id="trends-detail-chart")` wrapped in `dcc.Loading`
-- [ ] Update `get_trend_data()` in `pathway_queries.py` to support `group_by` parameter:
+- [x] Update `get_trend_data()` in `pathway_queries.py` to support `group_by` parameter:
   - `group_by="drug"` (default, existing behavior): one line per drug
   - `group_by="directory"`: one line per directory (aggregate drugs within each directory)
   - When `group_by="directory"`: `SELECT period_end, directory AS name, SUM(...) ... GROUP BY period_end, directory`
-- [ ] Update thin wrapper in `dash_app/data/queries.py` to pass `group_by` param
-- [ ] Create `dash_app/callbacks/trends.py` with `register_trends_callbacks(app)`:
+- [x] Update thin wrapper in `dash_app/data/queries.py` to pass `group_by` param
+- [x] Create `dash_app/callbacks/trends.py` with `register_trends_callbacks(app)`:
   - Callback to render directorate-level chart: Input `app-state` + `trends-view-metric-toggle` → Output `trends-overview-chart` figure. Calls `get_trend_data(group_by="directory", metric=...)` → `create_trend_figure(data, title, metric)`.
   - Only fires when `active_view == "trends"` and `selected_trends_directorate` is None.
-- [ ] Register in `dash_app/callbacks/__init__.py`
-- [ ] Rename "Cost" label to "Cost per Patient" in the metric toggle options (value stays `total_cost`)
-- [ ] Wire `trends-view` div in `app.py` to contain `make_trends_landing()` + `make_trends_detail()`
-- **Checkpoint**: Trends view shows directorate-level line chart. Metric toggle switches y-axis. Lines show one per directorate.
+- [x] Register in `dash_app/callbacks/__init__.py`
+- [x] Rename "Cost" label to "Cost per Patient" in the metric toggle options (value stays `total_cost`)
+- [x] Wire `trends-view` div in `app.py` to contain `make_trends_landing()` + `make_trends_detail()`
+- **Checkpoint**: Trends view shows directorate-level line chart. Metric toggle switches y-axis. Lines show one per directorate. PASSED.
 
 ### E.4 Add drug drill-down within Trends view
 - [ ] Add `selected_trends_directorate` key (default `None`) to `app-state` initial data in `app.py`
@@ -356,11 +356,11 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ### Phase E
 - [x] Trends tab removed from Patient Pathways (9 tabs remain)
 - [x] 3rd sidebar item "Trends" visible and functional
-- [ ] Trends landing page shows directorate-level line chart with metric toggle
+- [x] Trends landing page shows directorate-level line chart with metric toggle
 - [ ] Clicking a directorate drills into drug-level trends
 - [ ] Back button returns to directorate overview
 - [ ] Charts fill available viewport height (no fixed 500px cutoff)
-- [ ] "Cost" renamed to "Cost per Patient" in metric toggles
+- [x] "Cost" renamed to "Cost per Patient" in metric toggles
 - [ ] `python run_dash.py` starts cleanly
 
 ---

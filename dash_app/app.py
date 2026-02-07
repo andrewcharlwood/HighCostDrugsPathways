@@ -10,6 +10,7 @@ from dash_app.components.chart_card import make_chart_card
 from dash_app.components.footer import make_footer
 from dash_app.components.modals import make_modals
 from dash_app.components.trust_comparison import make_tc_landing, make_tc_dashboard
+from dash_app.components.trends import make_trends_landing, make_trends_detail
 
 app = Dash(
     __name__,
@@ -70,7 +71,8 @@ app.layout = dmc.MantineProvider(
                             id="trends-view",
                             style={"display": "none"},
                             children=[
-                                html.H3("Trends", style={"padding": "24px"}),
+                                make_trends_landing(),
+                                make_trends_detail(),
                             ],
                         ),
                     ],
