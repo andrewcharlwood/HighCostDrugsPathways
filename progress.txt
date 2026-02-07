@@ -586,3 +586,60 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 ### Blocked items:
 - D.1: BLOCKED — guardrail-protected file modifications required + needs ≥2 refresh cycles
 - D.4: BLOCKED — source data file (`ta-recommendations.xlsx`) missing + guardrail-protected file modifications required
+
+## Manual Intervention — 2026-02-07
+### Reason: Unblock D.1 with historical snapshots approach, remove D.4
+### Changes made:
+- `IMPLEMENTATION_PLAN.md` — rewrote D.1 as two subtasks (D.1a: CLI script, D.1b: Dash tab), removed D.4 entirely, updated completion criteria
+- `guardrails.md` — updated DB guardrail exception for trends CLI script, added new guardrail about using existing pipeline functions as-is
+- `progress.txt` — this entry
+### Tasks reset: None (D.1 was already blocked `[B]`, now unblocked as `[ ]`)
+### Tasks added: None (D.1 rewritten in-place as D.1a + D.1b)
+### Tasks removed: D.4 (NICE TA compliance — source data doesn't exist, not viable)
+### Context for next iteration:
+- D.1a is the next task: create `cli/compute_trends.py` standalone CLI script
+- The script imports `fetch_and_transform_data()` and `process_pathway_for_date_filter()` from `pathway_pipeline.py` — calls them, does NOT modify them
+- Creates `pathway_trends` table via `CREATE TABLE IF NOT EXISTS` in pathways.db
+- Loops over 6-month endpoints (2021-06-30 through 2025-12-31) using `all_6mo` date filter config with different `max_date` values
+- For each endpoint: run pathway computation, extract level 3 node summaries (drug, directory, patients, cost, cost_pp_pa)
+- The key insight: `compute_date_ranges(config, max_date)` and `process_pathway_for_date_filter(df, config, ..., max_date=...)` already accept `max_date` as a parameter — no pipeline changes needed
+- This requires Snowflake access (fetches all activity data once, then filters locally for each period)
+- After D.1a, D.1b adds the Dash tab using the standard 6-step pattern
+### New guardrails added:
+- "Trend computation uses existing pipeline functions as-is" — import and call, don't modify
+
+## Iteration 16 — 2026-02-07
+### Task: D.1 — Temporal trend analysis (D.1a + D.1b combined)
+### Why this task:
+- D.1 is the only remaining task. D.1a (CLI script) and D.1b (Dash tab) are both needed to complete D.1. Manual intervention unblocked D.1 by rewriting it as a standalone CLI that imports existing pipeline functions without modifying them.
+### Status: COMPLETE
+### What was done:
+- **D.1a — `cli/compute_trends.py`**: Standalone CLI script. Imports `fetch_and_transform_data()` and `process_pathway_for_date_filter()` from `pathway_pipeline.py`. Creates `pathway_trends` table via `CREATE TABLE IF NOT EXISTS`. Generates period endpoints from 2021-06-30 to 2025-12-31 at configurable intervals (default 6 months). For each endpoint: runs pathway computation with `max_date=endpoint`, extracts level 3 node summaries (drug, directory, patients, total_cost, cost_pp_pa). Supports `--dry-run`, `--start/--end`, `--interval`, `--verbose`.
+- **D.1b — Trends tab (6-step pattern)**:
+  1. `get_trend_data()` in `pathway_queries.py` — checks table existence first, aggregates by drug (or directory), supports directory/drug filters, handles cost_pp_pa as weighted average
+  2. Thin wrapper in `dash_app/data/queries.py`
+  3. `create_trend_figure()` in `plotly_generator.py` — line chart with `go.Scatter` (lines+markers), one trace per drug/directory, `_base_layout()` + `_smart_legend()`, empty state shows "Run python -m cli.compute_trends" message
+  4. Added "Trends" tab to `TAB_DEFINITIONS` (10th tab: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network, Timeline, Doses, Trends)
+  5. Added `_render_trends()` helper + dispatch case. Trends tab handles empty data independently of chart-data store.
+  6. Added `dmc.SegmentedControl` metric toggle (patients/cost/cost_pp_pa) in chart card header, visible only when trends tab active
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly on http://127.0.0.1:8050/. `python -m cli.compute_trends --help` works.
+- Tier 2 (Visual): Empty data figure shows "No trend data available. Run python -m cli.compute_trends to generate." Sample data (2 drugs × 2 periods) renders 2 traces with correct names and Patients y-axis label.
+- Tier 3 (Functional): Query returns [] when pathway_trends table doesn't exist (graceful empty state). Tab switching wired via dynamic `_TAB_IDS`. Metric toggle shows/hides based on active tab. 10 tabs visible.
+### Files changed:
+- `src/cli/compute_trends.py` — NEW: standalone CLI script for computing historical trend snapshots
+- `src/data_processing/pathway_queries.py` — added `get_trend_data()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_trend_figure()`
+- `dash_app/components/chart_card.py` — added trends to TAB_DEFINITIONS + metric toggle
+- `dash_app/callbacks/chart.py` — added `_render_trends()` + dispatch case + trends metric toggle I/O
+- `IMPLEMENTATION_PLAN.md` — marked D.1a, D.1b, and completion criteria [x]
+### Committed: d0404aa "feat: temporal trends CLI script + Dash tab (Task D.1)"
+### Patterns discovered:
+- The trends tab is unique: it doesn't depend on the `chart-data` store (which holds pathway_nodes). It queries `pathway_trends` directly. The dispatch case checks for "trends" before the "no nodes" check.
+- `sqlite3` table existence check via `SELECT name FROM sqlite_master WHERE type='table' AND name='pathway_trends'` is the clean way to handle the table-doesn't-exist case.
+- Adding a new Output/Input to an existing callback requires updating ALL return paths (4 return sites in update_chart).
+### Next iteration should:
+- ALL TASKS ARE COMPLETE. Check completion criteria in IMPLEMENTATION_PLAN.md.
+### Blocked items:
+- None — all tasks complete
