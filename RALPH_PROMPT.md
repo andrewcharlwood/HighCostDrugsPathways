@@ -1,8 +1,8 @@
-# Ralph Wiggum Loop — Dash Application Maintenance
+# Ralph Wiggum Loop — Dash Application: Additional Analytics Charts
 
-You are operating inside an automated loop maintaining an NHS patient pathway analysis tool built with Dash (Plotly) + Dash Mantine Components. Each iteration you receive fresh context — you have NO memory of previous iterations. Your only memory is the filesystem.
+You are operating inside an automated loop adding analytics charts to an NHS patient pathway analysis tool built with Dash (Plotly) + Dash Mantine Components. Each iteration you receive fresh context — you have NO memory of previous iterations. Your only memory is the filesystem.
 
-**Current Focus**: Maintain and enhance the Dash application in `dash_app/`. The backend (`src/`) provides shared data access and visualization functions. The design target is `01_nhs_classic.html`.
+**Current Focus**: Phase 9 — Add 7 new analytics chart tabs alongside the existing icicle chart. Tab bar in chart_card.py, lazy rendering, shared query/figure functions in `src/`. See IMPLEMENTATION_PLAN.md Phase 9 for full task list.
 
 ## First Actions Every Iteration
 
@@ -24,10 +24,15 @@ Then run `git log --oneline -5` to see recent commits.
 - Match the design as closely as possible — `className` in Dash = `class` in HTML
 
 **When building data loading or chart callbacks**, reference the shared functions in `src/`:
-- `src/data_processing/pathway_queries.py`: `load_initial_data()` and `load_pathway_nodes()` — shared query functions
-- `src/visualization/plotly_generator.py`: `create_icicle_from_nodes()` — icicle chart from list-of-dicts
+- `src/data_processing/pathway_queries.py`: `load_initial_data()`, `load_pathway_nodes()`, and 7 new chart-specific query functions (Phase 9)
+- `src/visualization/plotly_generator.py`: `create_icicle_from_nodes()` — icicle chart from list-of-dicts. Add new figure functions here for each chart type.
 - `dash_app/data/queries.py`: Thin wrapper calling shared functions with correct DB path
 - The original logic is archived in `archive/pathways_app/pathways_app.py` for reference.
+
+**When building new analytics charts (Phase 9)**, also read:
+- `AdditionalAnalytics.md` — Full specification for each chart: data source, visualization type, interaction, parsing requirements
+- `src/data_processing/pathway_queries.py` — Existing query patterns to follow. All new queries go here.
+- Key data columns: `level` (0=root, 1=trust, 2=directory, 3=drug, 4+=pathway), `ids` (hierarchy path), `cost_pp_pa`, `avg_days`, `average_spacing`, `average_administered`
 
 ## Narration
 
@@ -80,8 +85,9 @@ html.Div(className="top-header", children=[...])
 
 # Mantine components for rich UI
 import dash_mantine_components as dmc
-dmc.Drawer(id="drug-drawer", position="right", size="480px", children=[...])
+dmc.Modal(id="drug-modal", opened=False, centered=True, size="lg", children=[...])
 dmc.Accordion(children=[dmc.AccordionItem(...)])
+dmc.ChipGroup(id="all-drugs-chips", multiple=True, children=[dmc.Chip(...)])
 
 # State management
 dcc.Store(id="app-state", storage_type="session", data={})
@@ -94,6 +100,9 @@ dcc.Store(id="app-state", storage_type="session", data={})
 def load_pathway_data(app_state):
     ...
 ```
+
+### Important: Use frontend-developer agent for UX decisions
+When building modals, filter bar layout, or other UX-sensitive components, spawn the `frontend-developer` agent to review data shapes and recommend optimal patterns. Data shapes: 42 drugs, 7 trusts, 19 directorates × 163 indications.
 
 ### Database Access Pattern
 
@@ -224,6 +233,9 @@ DO NOT output it if any task is still `[ ]` or `[B]` or `[~]`.
 - **dcc.Store for state** — no server-side globals
 - **Unidirectional callbacks** — app-state → chart-data → UI
 - **Port icicle_figure exactly** — same customdata, colorscale, templates
+- **Lazy tab rendering** — only compute the active tab's chart, not all 8
+- **New figure functions** go in `src/visualization/`, not in `dash_app/callbacks/`
+- **New query functions** go in `src/data_processing/pathway_queries.py` with thin wrappers in `dash_app/data/queries.py`
 - Keep commits atomic and well-described
 - If stuck for 2+ attempts, document in progress.txt and move on
 - `python run_dash.py` must work after every task

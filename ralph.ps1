@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Ralph Wiggum Loop - Reflex UI Redesign variant.
+    Ralph Wiggum Loop - Dash Migration variant.
 
 .DESCRIPTION
-    Outer loop for iterative Reflex frontend development.
+    Outer loop for iterative Dash frontend development (Reflex -> Dash migration).
     Each iteration spawns a fresh `claude --print` invocation.
     Memory persists via filesystem only: git commits, progress.txt, IMPLEMENTATION_PLAN.md, guardrails.md.
 
@@ -15,7 +15,7 @@
     - Same error repeated N consecutive iterations (stuck)
 
 .PARAMETER Model
-    Claude model to use. Default: "sonnet".
+    Claude model to use. Default: "opus".
 
 .PARAMETER BranchName
     Optional git branch name. If provided, creates/checks out the branch before starting.
@@ -27,10 +27,10 @@
     Number of consecutive iterations with the same error before circuit breaker trips. Default: 3.
 
 .EXAMPLE
-    .\ralph.ps1 -Model "sonnet" -BranchName "feature/ui-redesign"
+    .\ralph.ps1 -Model "opus" -BranchName "feature/dash-migration"
 
 .EXAMPLE
-    .\ralph.ps1 -Model "opus" -MaxNoProgress 2
+    .\ralph.ps1 -Model "sonnet" -MaxNoProgress 2
 #>
 
 param(
@@ -45,7 +45,6 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $promptFile = Join-Path $scriptDir "RALPH_PROMPT.md"
 $planFile = Join-Path $scriptDir "IMPLEMENTATION_PLAN.md"
-$designFile = Join-Path $scriptDir "DESIGN_SYSTEM.md"
 $guardrailsFile = Join-Path $scriptDir "guardrails.md"
 $progressFile = Join-Path $scriptDir "progress.txt"
 $logDir = Join-Path $scriptDir "logs"
@@ -59,11 +58,6 @@ if (-not (Test-Path $promptFile)) {
 
 if (-not (Test-Path $planFile)) {
     Write-Error "IMPLEMENTATION_PLAN.md not found at $planFile"
-    exit 1
-}
-
-if (-not (Test-Path $designFile)) {
-    Write-Error "DESIGN_SYSTEM.md not found at $designFile"
     exit 1
 }
 
@@ -147,7 +141,7 @@ if (Test-Path $progressFile) {
 }
 
 Write-Host ""
-Write-Host "===== Ralph Wiggum Loop (Reflex UI) =====" -ForegroundColor Cyan
+Write-Host "===== Ralph Wiggum Loop (Dash Migration) =====" -ForegroundColor Cyan
 Write-Host "Model: $Model | Runs until COMPLETE" -ForegroundColor Cyan
 Write-Host "Circuit breakers: no-progress=$MaxNoProgress, same-error=$MaxSameError" -ForegroundColor Cyan
 if ($BranchName) { Write-Host "Branch: $BranchName" -ForegroundColor Cyan }
@@ -334,7 +328,7 @@ while ($true) {
     if ($outputString -match "<promise>COMPLETE</promise>") {
         Write-Host ""
         Write-Host "===== COMPLETE =====" -ForegroundColor Green
-        Write-Host "UI redesign finished after $i iteration(s) this run ($totalIteration total)." -ForegroundColor Green
+        Write-Host "Dash migration finished after $i iteration(s) this run ($totalIteration total)." -ForegroundColor Green
         exit 0
     }
 
