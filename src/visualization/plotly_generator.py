@@ -17,6 +17,78 @@ from core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Shared styling constants
+# ---------------------------------------------------------------------------
+
+CHART_FONT_FAMILY = "Source Sans 3, system-ui, sans-serif"
+CHART_TITLE_SIZE = 18
+CHART_TITLE_COLOR = "#1E293B"
+GRID_COLOR = "#E2E8F0"
+ANNOTATION_COLOR = "#768692"
+
+# 7 maximally-distinct colours for trust-comparison charts
+TRUST_PALETTE = [
+    "#005EB8",  # NHS Blue
+    "#DA291C",  # Red
+    "#009639",  # Green
+    "#ED8B00",  # Orange
+    "#7C2855",  # Plum
+    "#00A499",  # Teal
+    "#330072",  # Purple
+]
+
+# 15 distinct colours for drug-level charts
+DRUG_PALETTE = [
+    "#005EB8", "#DA291C", "#009639", "#ED8B00", "#7C2855",
+    "#00A499", "#330072", "#E06666", "#6FA8DC", "#93C47D",
+    "#F6B26B", "#8E7CC3", "#C27BA0", "#76A5AF", "#FFD966",
+]
+
+
+def _base_layout(title: str, **overrides) -> dict:
+    """Return a dict of shared Plotly layout properties.
+
+    All chart functions should call this to get consistent styling, then
+    update the result with chart-specific overrides.
+
+    Args:
+        title: Display title for the chart.
+        **overrides: Any key accepted by ``fig.update_layout()``; these are
+            merged on top of the base dict so callers can override margins,
+            height, etc.
+
+    Returns:
+        Dict ready to be unpacked into ``fig.update_layout(**layout)``.
+    """
+    layout = dict(
+        title=dict(
+            text=title,
+            font=dict(
+                family=CHART_FONT_FAMILY,
+                size=CHART_TITLE_SIZE,
+                color=CHART_TITLE_COLOR,
+            ),
+            x=0.5,
+            xanchor="center",
+        ),
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            bordercolor="#CBD5E1",
+            font=dict(
+                family=CHART_FONT_FAMILY,
+                size=13,
+                color=CHART_TITLE_COLOR,
+            ),
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        autosize=True,
+        font=dict(family=CHART_FONT_FAMILY),
+    )
+    layout.update(overrides)
+    return layout
+
 
 def create_icicle_figure(ice_df: pd.DataFrame, title: str) -> go.Figure:
     """
@@ -204,7 +276,7 @@ def create_icicle_from_nodes(nodes: list[dict], title: str = "") -> go.Figure:
                 "<extra></extra>"
             ),
             textfont=dict(
-                family="Source Sans 3, system-ui, sans-serif",
+                family=CHART_FONT_FAMILY,
                 size=12,
             ),
         )
@@ -212,32 +284,21 @@ def create_icicle_from_nodes(nodes: list[dict], title: str = "") -> go.Figure:
 
     display_title = f"Patient Pathways \u2014 {title}" if title else "Patient Pathways"
 
-    fig.update_layout(
-        title=dict(
-            text=display_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#1E293B",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
+    layout = _base_layout(
+        display_title,
         margin=dict(t=40, l=8, r=8, b=24),
         hoverlabel=dict(
             bgcolor="#FFFFFF",
             bordercolor="#CBD5E1",
             font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
+                family=CHART_FONT_FAMILY,
                 size=14,
-                color="#1E293B",
+                color=CHART_TITLE_COLOR,
             ),
         ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        autosize=True,
         clickmode="event+select",
     )
+    fig.update_layout(**layout)
 
     fig.update_traces(sort=False)
 

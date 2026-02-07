@@ -29,7 +29,7 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ## Phase A: Core Fixes + Shared Constants
 
 ### A.1 Extract shared styling constants + `_base_layout()` helper
-- [ ] Add module-level constants to top of `src/visualization/plotly_generator.py`:
+- [x] Add module-level constants to top of `src/visualization/plotly_generator.py`:
   ```python
   CHART_FONT_FAMILY = "Source Sans 3, system-ui, sans-serif"
   CHART_TITLE_SIZE = 18
@@ -48,8 +48,8 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
       "#F6B26B", "#8E7CC3", "#C27BA0", "#76A5AF", "#FFD966",
   ]
   ```
-- [ ] Create `_base_layout(title, **overrides)` helper returning a dict with shared layout properties (title font, hoverlabel, paper/plot bgcolor, autosize, font family)
-- [ ] Apply `_base_layout()` to `create_icicle_from_nodes()` as a proof-of-concept (keep all existing behavior, just DRY the layout dict)
+- [x] Create `_base_layout(title, **overrides)` helper returning a dict with shared layout properties (title font, hoverlabel, paper/plot bgcolor, autosize, font family)
+- [x] Apply `_base_layout()` to `create_icicle_from_nodes()` as a proof-of-concept (keep all existing behavior, just DRY the layout dict)
 - **Checkpoint**: `python run_dash.py` starts, icicle chart unchanged visually
 
 ### A.2 Fix heatmap colorscale + cell annotations (Patient Pathways)

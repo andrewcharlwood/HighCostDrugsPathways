@@ -74,3 +74,32 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - _dosing_by_drug interpolates from one blue to another blue
 
 ## Iteration Log
+
+## Iteration 1 — 2026-02-07
+### Task: A.1 — Extract shared styling constants + `_base_layout()` helper
+### Why this task:
+- A.1 is the foundation for all subsequent Phase A tasks (A.2-A.4 all reference `_base_layout()` and the palette constants). Must be done first.
+### Status: COMPLETE
+### What was done:
+- Added 7 module-level constants after `logger` line: `CHART_FONT_FAMILY`, `CHART_TITLE_SIZE`, `CHART_TITLE_COLOR`, `GRID_COLOR`, `ANNOTATION_COLOR`, `TRUST_PALETTE` (7 colors), `DRUG_PALETTE` (15 colors)
+- Created `_base_layout(title, **overrides)` helper returning dict with: title (font family/size/color, centered), hoverlabel (white bg, #CBD5E1 border, font), paper/plot bgcolor transparent, autosize=True, base font family
+- Applied `_base_layout()` to `create_icicle_from_nodes()` — replaced 20-line explicit layout block with `_base_layout()` call + 3 overrides (margin, hoverlabel size=14, clickmode)
+- Also replaced hardcoded `"Source Sans 3, system-ui, sans-serif"` in icicle textfont with `CHART_FONT_FAMILY` constant
+### Validation results:
+- Tier 1 (Code): all imports pass, `python run_dash.py` starts cleanly
+- Tier 2 (Visual): icicle figure title correct ("Patient Pathways — By Directory"), font family/size/color all match expected values
+### Files changed:
+- `src/visualization/plotly_generator.py` — added constants + `_base_layout()` + refactored icicle layout
+- `IMPLEMENTATION_PLAN.md` — marked A.1 subtasks [x]
+### Committed: 63c1801 "feat: add shared styling constants and _base_layout() helper (Task A.1)"
+### Patterns discovered:
+- The `_base_layout()` returns a plain dict that gets unpacked via `fig.update_layout(**layout)`. Callers pass chart-specific overrides as kwargs.
+- Icicle hoverlabel uses `size=14` (slightly larger than base `13`) — preserved as override.
+- Constants are at module level, so all functions in the file can reference them directly.
+- Line numbers in IMPLEMENTATION_PLAN.md are now stale (shifted ~70 lines due to constants/helper insertion). Future iterations should search by function name.
+### Next iteration should:
+- Start with Task A.2: Fix heatmap colorscale + cell annotations. Read `create_heatmap_figure()` and `create_trust_heatmap_figure()` functions by searching for their names (line numbers have shifted).
+- The `_base_layout()` and palette constants are now available — A.2 should use `_base_layout()` for both heatmap functions.
+- Key heatmap fixes: linear 5-stop colorscale, cell text annotations, zmin=0, autosize, automargin, subtitle when >25 drugs.
+### Blocked items:
+- None
