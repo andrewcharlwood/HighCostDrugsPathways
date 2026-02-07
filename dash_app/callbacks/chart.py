@@ -342,6 +342,31 @@ def _render_scatter(app_state, title):
     return create_duration_cost_scatter_figure(data, title)
 
 
+def _render_network(app_state, title):
+    """Build the drug co-occurrence network graph from current filter state."""
+    from dash_app.data.queries import get_drug_network
+    from visualization.plotly_generator import create_drug_network_figure
+
+    filter_id = (app_state or {}).get("date_filter_id", "all_6mo")
+    chart_type = (app_state or {}).get("chart_type", "directory")
+
+    selected_dirs = (app_state or {}).get("selected_directorates") or []
+    selected_trusts = (app_state or {}).get("selected_trusts") or []
+    directory = selected_dirs[0] if len(selected_dirs) == 1 else None
+    trust = selected_trusts[0] if len(selected_trusts) == 1 else None
+
+    try:
+        data = get_drug_network(filter_id, chart_type, directory, trust)
+    except Exception:
+        log.exception("Failed to load drug network data")
+        return _empty_figure("Failed to load drug network data.")
+
+    if not data.get("nodes"):
+        return _empty_figure("No drug network data available.\nTry adjusting your filters.")
+
+    return create_drug_network_figure(data, title)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -490,6 +515,9 @@ def register_chart_callbacks(app):
 
         elif active_tab == "scatter":
             fig = _render_scatter(app_state, title)
+
+        elif active_tab == "network":
+            fig = _render_network(app_state, title)
 
         else:
             # Placeholder for charts not yet implemented

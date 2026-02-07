@@ -1285,6 +1285,94 @@ def get_duration_cost_scatter(
         conn.close()
 
 
+def get_drug_network(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> dict:
+    """Build undirected drug co-occurrence network from pathway data.
+
+    Unlike get_drug_transitions() (directed, with ordinal suffixes for Sankey),
+    this returns plain drug names with undirected edges representing co-occurrence
+    in patient pathways.
+
+    Returns dict with:
+        nodes: [{name, total_patients}] — unique drug names sorted by patient count
+        edges: [{source, target, patients}] — undirected co-occurrence links
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["date_filter_id = ?", "chart_type = ?", "level >= 4"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            where.append("directory = ?")
+            params.append(directory)
+        if trust:
+            where.append("trust_name = ?")
+            params.append(trust)
+
+        query = f"""
+            SELECT value AS patients, drug_sequence
+            FROM pathway_nodes
+            WHERE {' AND '.join(where)}
+        """
+        rows = conn.execute(query, params).fetchall()
+
+        # Also get level 3 nodes for per-drug patient totals
+        where_l3 = ["date_filter_id = ?", "chart_type = ?", "level = 3"]
+        params_l3: list = [date_filter_id, chart_type]
+        if directory:
+            where_l3.append("directory = ?")
+            params_l3.append(directory)
+        if trust:
+            where_l3.append("trust_name = ?")
+            params_l3.append(trust)
+
+        query_l3 = f"""
+            SELECT labels AS drug, SUM(value) AS total_patients
+            FROM pathway_nodes
+            WHERE {' AND '.join(where_l3)}
+            GROUP BY labels
+        """
+        l3_rows = conn.execute(query_l3, params_l3).fetchall()
+        node_patients = {r["drug"]: r["total_patients"] or 0 for r in l3_rows}
+
+        # Build undirected edges from pathway sequences
+        edge_agg = {}
+        for r in rows:
+            drugs = [d for d in (r["drug_sequence"] or "").split("|") if d]
+            patients = r["patients"] or 0
+            if len(drugs) < 2 or patients == 0:
+                continue
+
+            # Adjacent drug pairs (undirected: sort to avoid A→B and B→A duplicates)
+            for i in range(len(drugs) - 1):
+                pair = tuple(sorted([drugs[i], drugs[i + 1]]))
+                edge_agg[pair] = edge_agg.get(pair, 0) + patients
+
+        # Build result
+        nodes = [
+            {"name": name, "total_patients": pts}
+            for name, pts in sorted(node_patients.items(), key=lambda x: -x[1])
+            if pts > 0
+        ]
+
+        edges = [
+            {"source": src, "target": tgt, "patients": pts}
+            for (src, tgt), pts in sorted(edge_agg.items(), key=lambda x: -x[1])
+        ]
+
+        return {"nodes": nodes, "edges": edges}
+    except sqlite3.Error:
+        return {"nodes": [], "edges": []}
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,

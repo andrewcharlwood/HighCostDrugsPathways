@@ -175,14 +175,14 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Scatter tab shows drugs by duration vs cost with directorate coloring
 
 ### C.4 Drug switching network graph
-- [ ] Create modified variant of `get_drug_transitions()` in pathway_queries.py that returns undirected edges without ordinal suffixes:
-  - `get_drug_network(db_path, filter_id, chart_type, directory, trust)` → `{nodes: [{name, total_patients}], edges: [{source, target, patients}]}`
-- [ ] Add thin wrapper in `dash_app/data/queries.py`
-- [ ] Create `create_drug_network_figure(data, title)` in `src/visualization/plotly_generator.py`:
-  - Use `go.Scatter` for nodes (circular layout) + edges (lines)
-  - Node size = total patients, edge width = switching flow
-  - `DRUG_PALETTE` for node colors
-- [ ] Add as sub-toggle within Sankey tab (e.g., "Flow" vs "Network" toggle) or as separate "Network" tab
+- [x] Create `get_drug_network()` in pathway_queries.py — undirected edges without ordinal suffixes, node patients from level 3, edge co-occurrence from level 4+
+- [x] Add thin wrapper in `dash_app/data/queries.py`
+- [x] Create `create_drug_network_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Circular layout using `go.Scatter` for nodes + individual edge traces as lines
+  - Node size = total patients (12–50px), edge width = switching flow (0.5–6px), edge opacity scales with strength
+  - `DRUG_PALETTE` for node colors, NHS Blue (`rgba(0,94,184,...)`) for edges
+- [x] Added as separate "Network" tab (7th tab: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network)
+- [x] Added `_render_network()` helper and dispatch case in `chart.py`
 - **Checkpoint**: Network view shows drug switching as a graph alternative to Sankey
 
 ---

@@ -11,6 +11,7 @@ TAB_DEFINITIONS = [
     ("funnel", "Funnel"),
     ("depth", "Depth"),
     ("scatter", "Scatter"),
+    ("network", "Network"),
 ]
 
 # Full set retained for Trust Comparison dashboard (Phase 10.8)
