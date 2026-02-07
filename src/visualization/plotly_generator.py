@@ -1891,3 +1891,109 @@ def create_pathway_depth_figure(
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_duration_cost_scatter_figure(
+    data: list[dict],
+    title: str = "",
+) -> go.Figure:
+    """Create a Duration vs Cost scatter plot from drug-level data.
+
+    Each point represents a drug (within a directory). x=avg treatment days,
+    y=annualised cost per patient, size=patient count, color=directory.
+    Quadrant lines at median values divide into 4 regions.
+    """
+    if not data:
+        return go.Figure()
+
+    import statistics
+
+    display_title = f"Duration vs Cost — {title}" if title else "Duration vs Cost"
+
+    # Assign colors by directory
+    directories = sorted(set(d["directory"] for d in data))
+    dir_colors = {
+        d: DRUG_PALETTE[i % len(DRUG_PALETTE)]
+        for i, d in enumerate(directories)
+    }
+
+    # Global max patients for consistent sizing across directories
+    global_max_p = max((d["patients"] for d in data), default=1) or 1
+
+    # Build one trace per directory for legend grouping
+    fig = go.Figure()
+    for directory in directories:
+        subset = [d for d in data if d["directory"] == directory]
+        patients = [d["patients"] for d in subset]
+
+        # Scale marker size: min 8, max 40, relative to global max
+        sizes = [max(8, min(40, 8 + 32 * (p / global_max_p))) for p in patients]
+
+        fig.add_trace(go.Scatter(
+            x=[d["avg_days"] for d in subset],
+            y=[d["cost_pp_pa"] for d in subset],
+            mode="markers",
+            name=directory,
+            marker=dict(
+                size=sizes,
+                color=dir_colors[directory],
+                opacity=0.75,
+                line=dict(width=1, color="white"),
+            ),
+            text=[d["drug"] for d in subset],
+            customdata=[[d["patients"], d["directory"], d["avg_days"], d["cost_pp_pa"]] for d in subset],
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                "Directory: %{customdata[1]}<br>"
+                "Avg duration: %{customdata[2]} days<br>"
+                "Cost p.a.: £%{customdata[3]:,.0f}<br>"
+                "Patients: %{customdata[0]:,}<br>"
+                "<extra></extra>"
+            ),
+        ))
+
+    # Quadrant lines at median values
+    all_days = [d["avg_days"] for d in data]
+    all_costs = [d["cost_pp_pa"] for d in data]
+    med_days = statistics.median(all_days)
+    med_cost = statistics.median(all_costs)
+
+    fig.add_hline(
+        y=med_cost, line_dash="dash", line_color=ANNOTATION_COLOR,
+        line_width=1,
+        annotation_text=f"Median £{med_cost:,.0f}",
+        annotation_position="top left",
+        annotation_font=dict(size=10, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
+    )
+    fig.add_vline(
+        x=med_days, line_dash="dash", line_color=ANNOTATION_COLOR,
+        line_width=1,
+        annotation_text=f"Median {med_days:.0f} days",
+        annotation_position="top right",
+        annotation_font=dict(size=10, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
+    )
+
+    n_dirs = len(directories)
+    legend = _smart_legend(n_dirs, "Directory")
+    legend_margins = _smart_legend_margin(n_dirs)
+
+    layout = _base_layout(display_title)
+    layout.update(
+        margin=dict(t=60, l=8, **legend_margins),
+        xaxis=dict(
+            title="Average Treatment Duration (days)",
+            gridcolor=GRID_COLOR,
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title="Cost per Patient per Annum (£)",
+            gridcolor=GRID_COLOR,
+            automargin=True,
+            zeroline=False,
+        ),
+        legend=legend,
+        height=550,
+    )
+    fig.update_layout(**layout)
+
+    return fig

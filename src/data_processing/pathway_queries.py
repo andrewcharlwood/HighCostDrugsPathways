@@ -1209,6 +1209,82 @@ def get_pathway_depth_distribution(
         conn.close()
 
 
+def get_duration_cost_scatter(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Level 3 drug nodes with avg_days and cost_pp_pa for scatter plot.
+
+    Returns list of dicts: [{drug, directory, avg_days, cost_pp_pa, patients}]
+    Excludes nodes missing avg_days or cost_pp_pa. Aggregates across trusts
+    using weighted averages.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["date_filter_id = ?", "chart_type = ?", "level = 3",
+                 "avg_days IS NOT NULL", "cost_pp_pa IS NOT NULL"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            where.append("directory = ?")
+            params.append(directory)
+        if trust:
+            where.append("trust_name = ?")
+            params.append(trust)
+
+        query = f"""
+            SELECT labels AS drug, directory,
+                   value AS patients, avg_days, cost_pp_pa
+            FROM pathway_nodes
+            WHERE {' AND '.join(where)}
+        """
+        rows = conn.execute(query, params).fetchall()
+
+        # Aggregate across trusts: weighted average of avg_days and cost_pp_pa
+        agg = {}
+        for r in rows:
+            key = (r["directory"] or "", r["drug"])
+            patients = r["patients"] or 0
+            days = _safe_float(r["avg_days"])
+            cost = _safe_float(r["cost_pp_pa"])
+            if patients == 0 or days == 0:
+                continue
+
+            if key not in agg:
+                agg[key] = {
+                    "drug": r["drug"],
+                    "directory": r["directory"] or "",
+                    "weighted_days": 0.0,
+                    "weighted_cost": 0.0,
+                    "total_patients": 0,
+                }
+            agg[key]["weighted_days"] += days * patients
+            agg[key]["weighted_cost"] += cost * patients
+            agg[key]["total_patients"] += patients
+
+        result = []
+        for v in agg.values():
+            tp = v["total_patients"]
+            if tp > 0:
+                result.append({
+                    "drug": v["drug"],
+                    "directory": v["directory"],
+                    "avg_days": round(v["weighted_days"] / tp, 1),
+                    "cost_pp_pa": round(v["weighted_cost"] / tp, 0),
+                    "patients": tp,
+                })
+
+        return result
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,

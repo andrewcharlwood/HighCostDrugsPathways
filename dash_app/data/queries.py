@@ -26,6 +26,7 @@ from data_processing.pathway_queries import (
     get_directorate_summary as _get_directorate_summary,
     get_retention_funnel as _get_retention_funnel,
     get_pathway_depth_distribution as _get_pathway_depth_distribution,
+    get_duration_cost_scatter as _get_duration_cost_scatter,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -205,3 +206,13 @@ def get_pathway_depth_distribution(
 ) -> list[dict]:
     """Patients who stopped at each treatment line depth (exclusive counts)."""
     return _get_pathway_depth_distribution(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_duration_cost_scatter(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Drug-level avg_days and cost_pp_pa for scatter plot."""
+    return _get_duration_cost_scatter(DB_PATH, date_filter_id, chart_type, directory, trust)

@@ -160,16 +160,18 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Depth tab shows patient distribution by treatment line count
 
 ### C.3 Duration vs Cost scatter plot
-- [ ] Create `get_duration_cost_scatter()` in `src/data_processing/pathway_queries.py`:
-  - Query level 3 nodes for drug-level data
+- [x] Create `get_duration_cost_scatter()` in `src/data_processing/pathway_queries.py`:
+  - Query level 3 nodes for drug-level data with avg_days and cost_pp_pa
+  - Aggregates across trusts using weighted averages
   - Return: `[{drug, directory, avg_days, cost_pp_pa, patients}, ...]`
-- [ ] Add thin wrapper in `dash_app/data/queries.py`
-- [ ] Create `create_duration_cost_scatter_figure(data, title)` in `src/visualization/plotly_generator.py`:
-  - Scatter: x=avg_days, y=cost_pp_pa, size=patients, color=directory
-  - Add quadrant lines at median values (4 quadrants: cheap/short, cheap/long, expensive/short, expensive/long)
+- [x] Add thin wrapper in `dash_app/data/queries.py`
+- [x] Create `create_duration_cost_scatter_figure(data, title)` in `src/visualization/plotly_generator.py`:
+  - Scatter: x=avg_days, y=cost_pp_pa, size=patients (global max), color=directory
+  - One trace per directory for legend grouping using DRUG_PALETTE
+  - Quadrant lines at median values with annotations
   - Hover shows drug name, directory, all values
-- [ ] Add "Scatter" tab to `TAB_DEFINITIONS` in `chart_card.py`
-- [ ] Add `_render_scatter()` helper and tab dispatch in `dash_app/callbacks/chart.py`
+- [x] Add "Scatter" tab to `TAB_DEFINITIONS` in `chart_card.py` (6 tabs: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter)
+- [x] Add `_render_scatter()` helper and tab dispatch in `dash_app/callbacks/chart.py`
 - **Checkpoint**: Scatter tab shows drugs by duration vs cost with directorate coloring
 
 ### C.4 Drug switching network graph
