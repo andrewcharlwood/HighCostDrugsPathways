@@ -744,3 +744,45 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - CRITICAL: The trends callback must check `active_view == "trends"` before computing — otherwise it fires on every app-state change
 ### Blocked items:
 - None
+
+## Iteration 19 — 2026-02-07
+### Task: E.3 — Create Trends landing page with directorate overview chart
+### Why this task:
+- E.3 is the next Phase E task after E.1 and E.2. Iteration 18 explicitly recommended it with detailed guidance. It creates the Trends landing page component, wires the directorate-level overview chart, and adds the metric toggle.
+### Status: COMPLETE
+### What was done:
+- **`dash_app/components/trends.py`** (NEW): Created `make_trends_landing()` and `make_trends_detail()` functions. Landing has: title, description, metric toggle (Patients / Cost per Patient / Cost per Patient p.a.), `dcc.Graph(id="trends-overview-chart")` in `dcc.Loading`. Detail has: back button, title, separate metric toggle, `dcc.Graph(id="trends-detail-chart")`.
+- **`pathway_queries.py`**: Added `group_by` parameter to `get_trend_data()` — `"drug"` (default) or `"directory"`.
+- **`dash_app/data/queries.py`**: Added `get_trend_data` import and thin wrapper.
+- **`dash_app/callbacks/trends.py`** (NEW): 2 callbacks — landing/detail toggle + overview chart rendering with metric toggle.
+- **`callbacks/__init__.py`**: Registered trends callbacks.
+- **`app.py`**: Replaced placeholder H3 with `make_trends_landing()` + `make_trends_detail()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly.
+- Tier 2 (Visual): Landing page shows title, description, metric toggle, chart placeholder.
+- Tier 3 (Functional): 22 callbacks registered. Guards prevent firing on non-trends views.
+### Files changed:
+- `dash_app/components/trends.py` — NEW
+- `dash_app/callbacks/trends.py` — NEW
+- `dash_app/callbacks/__init__.py` — register trends callbacks
+- `dash_app/app.py` — wire trends-view
+- `dash_app/data/queries.py` — added get_trend_data wrapper
+- `src/data_processing/pathway_queries.py` — added group_by param
+- `IMPLEMENTATION_PLAN.md` — marked E.3 subtasks [x]
+### Committed: c253e05 "feat: Trends landing page with directorate overview chart (Task E.3)"
+### Patterns discovered:
+- Trends uses same landing/detail toggle pattern as Trust Comparison (check `selected_*_directorate` in app-state).
+- Separate metric toggle IDs for landing (`trends-view-metric-toggle`) vs detail (`trends-detail-metric-toggle`) avoids callback conflicts.
+- `prevent_initial_call=True` + `active_view == "trends"` guard prevents unnecessary queries.
+### Next iteration should:
+- Do Task E.4: Add drug drill-down within Trends view. Key steps:
+  1. The drill-down needs a way to set `selected_trends_directorate` in app-state when a directorate line is clicked on the overview chart.
+  2. **Recommended approach**: Add `Input("trends-overview-chart", "clickData")` and `Input("trends-back-btn", "n_clicks")` to `update_app_state()` in `filters.py`. Extract directorate name from `clickData["points"][0]["curveNumber"]` — but this won't directly give the name. Better: check the trace `name` via the figure data, or use `customdata` on the trace.
+  3. **Alternative approach**: Since `create_trend_figure()` sets `name=name` on each trace, `clickData["points"][0]["customdata"]` won't have the name. Instead, the point's parent trace can be identified: each point in clickData has keys like `curveNumber`. But we can't access the figure's trace names from the callback directly.
+  4. **Simplest approach**: In `create_trend_figure()`, add `customdata=[name]*len(periods)` to each trace's `go.Scatter`. Then in the callback, extract `clickData["points"][0]["customdata"]` as the directorate name.
+  5. Add detail chart callback in `trends.py`: Input `app-state` + `trends-detail-metric-toggle` → `trends-detail-chart`. Calls `get_trend_data(directory=selected, metric=..., group_by="drug")` → `create_trend_figure()`.
+  6. Back button: `Input("trends-back-btn", "n_clicks")` in `update_app_state()` → clear `selected_trends_directorate`.
+- **Key files**: `dash_app/callbacks/filters.py` (add clickData + back btn inputs), `dash_app/callbacks/trends.py` (add detail chart callback), `src/visualization/plotly_generator.py` (add customdata to trend traces)
+- CRITICAL: When adding Inputs to `update_app_state()`, the function signature and `_nav_trends_clicks` parameter must be updated. There is only 1 return path so impact is minimal.
+### Blocked items:
+- None
