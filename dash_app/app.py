@@ -29,6 +29,7 @@ app.layout = dmc.MantineProvider(
             "selected_trusts": [],
             "active_view": "patient-pathways",
             "selected_comparison_directorate": None,
+            "selected_trends_directorate": None,
         }),
         dcc.Store(id="chart-data", storage_type="memory"),
         dcc.Store(id="reference-data", storage_type="session"),
@@ -62,6 +63,14 @@ app.layout = dmc.MantineProvider(
                             children=[
                                 make_tc_landing(),
                                 make_tc_dashboard(),
+                            ],
+                        ),
+                        # Trends view (hidden initially)
+                        html.Div(
+                            id="trends-view",
+                            style={"display": "none"},
+                            children=[
+                                html.H3("Trends", style={"padding": "24px"}),
                             ],
                         ),
                     ],

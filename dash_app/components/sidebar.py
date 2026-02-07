@@ -20,6 +20,7 @@ def _svg_icon(svg_body):
 _ICONS = {
     "pathway": '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
     "compare": '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    "trends": '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
 }
 
 
@@ -40,6 +41,10 @@ def make_sidebar():
                     _sidebar_item(
                         "Trust Comparison", "compare",
                         active=False, item_id="nav-trust-comparison",
+                    ),
+                    _sidebar_item(
+                        "Trends", "trends",
+                        active=False, item_id="nav-trends",
                     ),
                 ],
             ),

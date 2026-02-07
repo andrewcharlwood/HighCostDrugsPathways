@@ -265,16 +265,16 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Patient Pathways has 9 tabs (Icicle through Doses, no Trends). `python run_dash.py` starts cleanly. PASSED.
 
 ### E.2 Add Trends sidebar nav item + view container
-- [ ] Add `"trends"` icon SVG to `_ICONS` dict in `dash_app/components/sidebar.py` — use a line chart icon: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`
-- [ ] Add `_sidebar_item("Trends", "trends", active=False, item_id="nav-trends")` to sidebar children
-- [ ] Add `html.Div(id="trends-view", style={"display": "none"}, children=[...])` to `app.py` layout inside `view-container`, after `trust-comparison-view`
-- [ ] Update `switch_view()` in `dash_app/callbacks/navigation.py`:
+- [x] Add `"trends"` icon SVG to `_ICONS` dict in `dash_app/components/sidebar.py` — use a line chart icon: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`
+- [x] Add `_sidebar_item("Trends", "trends", active=False, item_id="nav-trends")` to sidebar children
+- [x] Add `html.Div(id="trends-view", style={"display": "none"}, children=[...])` to `app.py` layout inside `view-container`, after `trust-comparison-view`
+- [x] Update `switch_view()` in `dash_app/callbacks/navigation.py`:
   - Add `Output("trends-view", "style")` and `Output("nav-trends", "className")` — now 3 views, 3 nav items (6 outputs total)
   - Handle 3-way switching: `"patient-pathways"`, `"trust-comparison"`, `"trends"`
-- [ ] Update `update_app_state()` in `dash_app/callbacks/filters.py`:
+- [x] Update `update_app_state()` in `dash_app/callbacks/filters.py`:
   - Add `Input("nav-trends", "n_clicks")`
   - Add `elif triggered_id == "nav-trends": active_view = "trends"` case
-- **Checkpoint**: 3 sidebar items visible. Clicking "Trends" switches to empty trends view. `python run_dash.py` starts cleanly.
+- **Checkpoint**: 3 sidebar items visible. Clicking "Trends" switches to empty trends view. `python run_dash.py` starts cleanly. PASSED.
 
 ### E.3 Create Trends landing page — directorate-level trends
 - [ ] Create `dash_app/components/trends.py`:
@@ -354,8 +354,8 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] `python run_dash.py` starts cleanly
 
 ### Phase E
-- [ ] Trends tab removed from Patient Pathways (9 tabs remain)
-- [ ] 3rd sidebar item "Trends" visible and functional
+- [x] Trends tab removed from Patient Pathways (9 tabs remain)
+- [x] 3rd sidebar item "Trends" visible and functional
 - [ ] Trends landing page shows directorate-level line chart with metric toggle
 - [ ] Clicking a directorate drills into drug-level trends
 - [ ] Back button returns to directorate overview

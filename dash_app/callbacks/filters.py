@@ -75,13 +75,14 @@ def register_filter_callbacks(app):
         Input("trust-chips", "value"),
         Input("nav-patient-pathways", "n_clicks"),
         Input("nav-trust-comparison", "n_clicks"),
+        Input("nav-trends", "n_clicks"),
         Input({"type": "tc-selector", "index": ALL}, "n_clicks"),
         Input("tc-back-btn", "n_clicks"),
         State("app-state", "data"),
     )
     def update_app_state(
         _dir_clicks, _ind_clicks, initiated, last_seen, selected_drugs,
-        selected_trusts, _nav_pp_clicks, _nav_tc_clicks,
+        selected_trusts, _nav_pp_clicks, _nav_tc_clicks, _nav_trends_clicks,
         _tc_selector_clicks, _tc_back_clicks, current_state
     ):
         """Update app-state when any filter, nav, or TC selector changes."""
@@ -96,6 +97,7 @@ def register_filter_callbacks(app):
                 "selected_trusts": [],
                 "active_view": "patient-pathways",
                 "selected_comparison_directorate": None,
+                "selected_trends_directorate": None,
             }
 
         triggered_id = ctx.triggered_id
@@ -114,6 +116,8 @@ def register_filter_callbacks(app):
             active_view = "patient-pathways"
         elif triggered_id == "nav-trust-comparison":
             active_view = "trust-comparison"
+        elif triggered_id == "nav-trends":
+            active_view = "trends"
 
         # Trust Comparison directorate selection
         selected_comparison_directorate = current_state.get("selected_comparison_directorate")
