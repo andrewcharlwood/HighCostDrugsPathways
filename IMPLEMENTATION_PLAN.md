@@ -101,11 +101,11 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: All chart titles use consistent font, size, and color
 
 ### B.2 Cost effectiveness smooth gradient
-- [ ] In `create_cost_effectiveness_figure()` (~L428-435):
-  - Replace 3-bin hard threshold (green/amber/red) with smooth RGB interpolation
+- [x] In `create_cost_effectiveness_figure()`:
+  - Replaced 3-bin hard threshold with smooth `_lerp_color()` RGB interpolation
   - Green (#009639) → Amber (#ED8B00) for ratio 0–0.5
   - Amber (#ED8B00) → Red (#DA291C) for ratio 0.5–1.0
-- [ ] Apply `_base_layout()` to the function
+- [x] `_base_layout()` already applied in B.1
 - **Checkpoint**: Lollipop dots show smooth green→amber→red gradient
 
 ### B.3 Sankey narrow-screen fix

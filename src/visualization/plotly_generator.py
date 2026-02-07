@@ -494,15 +494,24 @@ def create_cost_effectiveness_figure(
     min_cost = min(costs) if costs else 0
     cost_range = max_cost - min_cost if max_cost != min_cost else 1
 
-    colours = []
-    for c in costs:
-        ratio = (c - min_cost) / cost_range
-        if ratio < 0.33:
-            colours.append("#009639")  # NHS green
-        elif ratio < 0.66:
-            colours.append("#ED8B00")  # NHS warm yellow
+    def _lerp_color(ratio: float) -> str:
+        """Smooth green→amber→red gradient via linear RGB interpolation."""
+        green = (0x00, 0x96, 0x39)
+        amber = (0xED, 0x8B, 0x00)
+        red = (0xDA, 0x29, 0x1C)
+        ratio = max(0.0, min(1.0, ratio))
+        if ratio <= 0.5:
+            t = ratio / 0.5
+            c1, c2 = green, amber
         else:
-            colours.append("#DA291C")  # NHS red
+            t = (ratio - 0.5) / 0.5
+            c1, c2 = amber, red
+        r = int(c1[0] + (c2[0] - c1[0]) * t)
+        g = int(c1[1] + (c2[1] - c1[1]) * t)
+        b = int(c1[2] + (c2[2] - c1[2]) * t)
+        return f"rgb({r},{g},{b})"
+
+    colours = [_lerp_color((c - min_cost) / cost_range) for c in costs]
 
     # Dot size scaled by patient count (min 8, max 30)
     max_pts = max(patients) if patients else 1
