@@ -369,3 +369,42 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - The query logic for "stopped at depth N" is: patients_at_level_N - patients_at_level_(N+1). The last level has no children so stopped = total.
 ### Blocked items:
 - None
+
+## Iteration 10 — 2026-02-07
+### Task: C.2 — Pathway depth distribution chart
+### Why this task:
+- C.2 is the next Phase C task after C.1. Iteration 9 explicitly recommended it. Same 6-step pattern as C.1.
+### Status: COMPLETE
+### What was done:
+- **`get_pathway_depth_distribution()`** in `pathway_queries.py`: Queries level 3+ nodes grouped by level, then subtracts next-level counts to get exclusive "stopped at depth N" patients. Supports directory/trust filters. Returns list of dicts with depth, label, patients, pct.
+- **Thin wrapper** in `dash_app/data/queries.py`: Imports and delegates with DB_PATH resolution.
+- **`create_pathway_depth_figure()`** in `plotly_generator.py`: Horizontal bar chart (`go.Bar` with `orientation="h"`) with NHS blue gradient (#003087→#005EB8→#1E88E5). Text inside bars shows "N (pct%)". Uses `_base_layout()`. Dynamic height based on depth count. Y-axis reversed so depth 1 (most patients) is at top.
+- **TAB_DEFINITIONS**: Added `("depth", "Depth")` — now 5 tabs: Icicle, Sankey, Heatmap, Funnel, Depth.
+- **`_render_depth()`** in `chart.py`: Reads filter state, calls query, passes to figure function. Handles empty data and errors.
+- **Dispatch case**: Added `elif active_tab == "depth"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly. 20 callbacks registered.
+- Tier 2 (Visual): Depth chart shows 3 levels: 1 drug only (8,677, 80.2%), 2 drugs only (1,966, 18.2%), 3 drugs only (176, 1.6%). NHS blue gradient applied. Autosize + automargin.
+- Tier 3 (Functional): Directory filter works (RHEUMATOLOGY: 2,897/501/50). Indication chart type works (9,263/1,394/125). Empty data returns empty figure. Tab switching wired via dynamic `_TAB_IDS`.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_pathway_depth_distribution()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_pathway_depth_figure()`
+- `dash_app/components/chart_card.py` — added depth to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_depth()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked C.2 subtasks [x]
+### Committed: 55c9af2 "feat: pathway depth distribution chart tab (Task C.2)"
+### Patterns discovered:
+- The depth calculation (cumulative - next level) is simple: iterate pairs and subtract. Total of exclusive counts equals the level 3 total, confirming correctness (8,677 + 1,966 + 176 = 10,819 = funnel total).
+- `autorange="reversed"` on yaxis puts depth 1 at the top of the horizontal bar chart, matching the natural reading order (most patients first).
+- The 6-step pattern continues to work cleanly for new tabs. Each step is small and independently verifiable.
+### Next iteration should:
+- Do Task C.3: Duration vs Cost scatter plot. Same 6-step pattern:
+  1. Create `get_duration_cost_scatter()` in `pathway_queries.py` — query level 3 nodes for drug-level data (drug, directory, avg_days, cost_pp_pa, patients)
+  2. Add thin wrapper in `queries.py`
+  3. Create `create_duration_cost_scatter_figure(data, title)` in `plotly_generator.py` — scatter: x=avg_days, y=cost_pp_pa, size=patients, color=directory. Add quadrant lines at median values.
+  4. Add "Scatter" tab to TAB_DEFINITIONS (6th tab)
+  5. Wire `_render_scatter()` + dispatch
+- Key design decision: use `go.Scatter` with marker size proportional to patient count. Color by directory (use DRUG_PALETTE cycling or assign by directory). Quadrant lines use median avg_days and median cost_pp_pa as thresholds.
+### Blocked items:
+- None
