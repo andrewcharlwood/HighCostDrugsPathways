@@ -2622,3 +2622,54 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Recommend 11.3 next as it's a smaller CSS change
 ### Blocked items:
 - None
+
+## Iteration 46 — 2026-02-07
+### Task: 11.3 — Patient Pathways chart fill available screen height
+### Why this task:
+- Recommended by iteration 45 as the next logical step
+- CSS-only change (smaller scope than 11.4)
+- Independent of 11.4
+- The issue: `flex: 1` on the dcc.Graph had no effect because parent containers weren't flex columns
+### Status: COMPLETE
+### What was done:
+- **nhs.css**: Changed `.main` from `min-height` to `height: calc(100vh - var(--header-total-h))` + `overflow-y: auto`
+  - `height` (not `min-height`) constrains the container so `flex: 1` children fill exactly the viewport
+  - `overflow-y: auto` allows Trust Comparison view to scroll when content exceeds viewport
+- **nhs.css**: Added flex chain CSS for `#view-container` and `#patient-pathways-view` — both get `flex: 1; display: flex; flex-direction: column; min-height: 0`
+- **nhs.css**: Added `.chart-card { min-height: 0 }` to allow proper flex shrinking
+- **nhs.css**: Added `#chart-container { flex: 1; display: flex; flex-direction: column; min-height: 0 }` for the chart wrapper div
+- **nhs.css**: Added `#pathway-chart { flex: 1; min-height: 0 }` for the dcc.Graph element itself
+- **nhs.css**: Added `.chart-card > .dash-loading-callback` and nested `> div` selectors to propagate flex through the dcc.Loading wrapper
+- **chart_card.py**: Changed `dcc.Graph` style from `{"minHeight": "500px", "flex": "1"}` to `{"flex": "1", "minHeight": "0"}` + added `responsive=True`
+  - `responsive=True` makes Plotly auto-resize to fill its container
+  - `minHeight: "0"` is the standard CSS flex idiom for allowing flex items to shrink below their content size
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks
+- Tier 1 (App starts): `uv run python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): Full flex chain from `.main` → `#view-container` → `#patient-pathways-view` → `.chart-card` → loading wrapper → `#chart-container` → `#pathway-chart`
+- Tier 3 (Functional): Icicle figure has `autosize=True` with no hardcoded height — will fill container. Sankey has dynamic height which acts as minimum; responsive=True allows Plotly to stretch.
+### Files changed:
+- `dash_app/assets/nhs.css` — Added flex chain CSS, changed .main to fixed height + overflow
+- `dash_app/components/chart_card.py` — dcc.Graph responsive=True, minHeight 0
+- `IMPLEMENTATION_PLAN.md` — Task 11.3 marked [x]
+### Committed: 10d47d6 "style: make Patient Pathways chart fill available viewport height (Task 11.3)"
+### Patterns discovered:
+- The full flex chain for a dcc.Graph to fill remaining viewport height requires: every ancestor in the flex chain must have `display: flex; flex-direction: column; flex: 1; min-height: 0`. Missing any one element breaks the chain.
+- `dcc.Loading` wraps children in a `.dash-loading-callback > div` structure. These generated wrappers must also participate in the flex chain (via CSS selectors targeting `.chart-card > .dash-loading-callback` and its nested div).
+- Using `height` instead of `min-height` on the main container is essential — `min-height` doesn't constrain the container, so `flex: 1` children grow beyond the viewport instead of filling it.
+- `responsive=True` on dcc.Graph makes Plotly fill its container dimensions. Combined with `autosize=True` in the figure layout (already set in icicle figure), the chart scales to any container size.
+- `overflow-y: auto` on `.main` handles the Trust Comparison case where 6 charts (500px each) exceed the viewport — content scrolls naturally.
+### Next iteration should:
+- Work on Task 11.4 — Filter modals aesthetics for large screens
+- This is the last remaining Phase 11 task
+- Key sub-steps:
+  1. Spawn frontend-developer agent to review modal layout for 42 drugs, 7 trusts, 19 directorates × 163 indications
+  2. Increase chip sizes from "xs" to "sm" or "md"
+  3. Increase drug modal size from "lg" to "xl" or fixed width (900px+)
+  4. Increase trust modal size from "sm" to "md"
+  5. Add responsive modal sizing for large screens
+  6. Review accordion spacing in directorate modal
+  7. Update CSS for modal chips and layout
+- Files to modify: `dash_app/components/modals.py`, `dash_app/assets/nhs.css`
+### Blocked items:
+- None
