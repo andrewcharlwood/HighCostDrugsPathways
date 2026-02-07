@@ -408,3 +408,41 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Key design decision: use `go.Scatter` with marker size proportional to patient count. Color by directory (use DRUG_PALETTE cycling or assign by directory). Quadrant lines use median avg_days and median cost_pp_pa as thresholds.
 ### Blocked items:
 - None
+
+## Iteration 11 — 2026-02-07
+### Task: C.3 — Duration vs Cost scatter plot
+### Why this task:
+- C.3 is the next Phase C task after C.1 and C.2. Iteration 10 explicitly recommended it with design details. Same 6-step pattern.
+### Status: COMPLETE
+### What was done:
+- **`get_duration_cost_scatter()`** in `pathway_queries.py`: Queries level 3 nodes with avg_days and cost_pp_pa, aggregates across trusts using weighted averages. Supports directory/trust filters. Returns list of dicts.
+- **Thin wrapper** in `dash_app/data/queries.py`: Standard import + DB_PATH delegation.
+- **`create_duration_cost_scatter_figure()`** in `plotly_generator.py`: `go.Scatter` with one trace per directory for legend grouping. Marker size proportional to patient count (global max for consistent sizing). DRUG_PALETTE for directory colors. Quadrant lines at median avg_days and median cost_pp_pa with annotations. Uses `_base_layout()` + `_smart_legend()`.
+- **TAB_DEFINITIONS**: Added `("scatter", "Scatter")` — now 6 tabs: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter.
+- **`_render_scatter()`** in `chart.py`: Standard render helper with filter extraction and error handling.
+- **Dispatch case**: Added `elif active_tab == "scatter"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly.
+- Tier 2 (Visual): 59 data points across 12 directories. Days range 48–2237, cost range £994–£162k. Median quadrant lines at 928 days and £4,629. Marker sizes proportional (8–40px).
+- Tier 3 (Functional): Directory filter works (RHEUMATOLOGY: 16 drugs). Indication chart type works (108 points). Empty data returns empty figure. Tab switching wired via dynamic `_TAB_IDS`.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_duration_cost_scatter()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_duration_cost_scatter_figure()`
+- `dash_app/components/chart_card.py` — added scatter to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_scatter()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked C.3 subtasks [x]
+### Committed: d8df416 "feat: duration vs cost scatter plot tab (Task C.3)"
+### Patterns discovered:
+- `statistics.median()` imported inside the function to avoid module-level import for a stdlib module only used by one function.
+- Marker size must use global max (not per-directory max) for consistent visual comparison across all directories. Initially coded per-directory, fixed before commit.
+- `fig.add_hline()` and `fig.add_vline()` are the clean Plotly API for quadrant lines — they create shape objects and annotation objects automatically.
+### Next iteration should:
+- Do Task C.4: Drug switching network graph. This is the last Phase C task. Options from IMPLEMENTATION_PLAN.md:
+  1. Create `get_drug_network()` in `pathway_queries.py` — returns undirected edges (source, target, patients) and nodes (name, total_patients). Different from `get_drug_transitions()` which returns directed Sankey data.
+  2. Create `create_drug_network_figure(data, title)` using `go.Scatter` for circular layout nodes + edges as lines.
+  3. Add as separate "Network" tab or sub-toggle within Sankey tab.
+  4. The plan says "Add as sub-toggle within Sankey tab or as separate Network tab" — separate tab is simpler (follows established pattern).
+- After C.4, Phase D begins (backend work: trends, dose distribution, timeline, NICE compliance).
+### Blocked items:
+- None
