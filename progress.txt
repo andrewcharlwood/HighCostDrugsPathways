@@ -165,3 +165,35 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Search for `create_cost_waterfall_figure` and `_dosing_by_drug` by function name (line numbers have shifted).
 ### Blocked items:
 - None
+
+## Iteration 4 — 2026-02-07
+### Task: A.4 — Fix trust comparison color differentiation (remaining 3 subtasks)
+### Why this task:
+- A.4 is the last Phase A task. A.1-A.3 are complete. Two A.4 subtasks were already done opportunistically in A.3. The remaining 3 subtasks complete Phase A.
+### Status: COMPLETE
+### What was done:
+- **`create_cost_waterfall_figure()`**: Added `is_trust_comparison=False` parameter. When True, uses `TRUST_PALETTE` (7 distinct colors) instead of `DRUG_PALETTE`. Replaced local `nhs_colours` list. Applied `_base_layout()` — removed 20+ lines of hardcoded layout. Updated annotation fonts to use `ANNOTATION_COLOR` and `CHART_FONT_FAMILY` constants. Used `GRID_COLOR` constant for gridcolor.
+- **`tc_cost_waterfall` callback**: Updated call to pass `is_trust_comparison=True`, so Trust Comparison cost waterfall now uses 7 maximally-distinct trust colors.
+- **`_dosing_by_drug()`**: Replaced manual RGB interpolation (blue `#005EB8` → blue `#41B6E6`) with `plotly.colors.sample_colorscale("Viridis", ratios)`. Result: bars now range from yellow (high interval) through teal to purple (low interval) — clearly distinguishable.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): Cost waterfall normal mode uses DRUG_PALETTE colors (#005EB8, #DA291C, #009639...). Trust mode uses TRUST_PALETTE. Dosing by drug uses Viridis: rgb(253,231,37), rgb(34,144,140), rgb(59,81,138) — visually distinct.
+- Tier 3 (Functional): is_trust_comparison=False (default) preserves existing behavior. is_trust_comparison=True switches to TRUST_PALETTE. Viridis sampling produces correct gradients.
+### Files changed:
+- `src/visualization/plotly_generator.py` — `create_cost_waterfall_figure()` + `_dosing_by_drug()`
+- `dash_app/callbacks/trust_comparison.py` — `tc_cost_waterfall` callback
+- `IMPLEMENTATION_PLAN.md` — marked A.4 subtasks [x]
+### Committed: 950d93b "fix: trust palette for cost waterfall + Viridis dosing gradient (Task A.4)"
+### Patterns discovered:
+- `plotly.colors.sample_colorscale("Viridis", ratios)` returns a list of `rgb(r,g,b)` strings — can be passed directly to `marker.color` as a list. Very clean replacement for manual interpolation.
+- The `_base_layout()` + `layout.update()` pattern removed ~30 lines from `create_cost_waterfall_figure()` (net -33 lines in diff). Each function converted gets simpler.
+- Phase A is now COMPLETE. All 4 tasks (A.1-A.4) are done.
+### Next iteration should:
+- Start with Task B.1: Fix title inconsistencies across all charts. This requires:
+  1. Apply `_base_layout()` to remaining unconverted chart functions: `create_sankey_figure()`, `create_cost_effectiveness_figure()`, `create_duration_figure()`
+  2. These functions still have hardcoded `#003087` title colors and `"Source Sans 3"` font strings
+  3. Some Trust Comparison functions may still use `size=16` instead of `CHART_TITLE_SIZE` (18)
+  4. Search for `def create_sankey_figure`, `def create_cost_effectiveness_figure`, `def create_duration_figure` to find current line numbers
+- After B.1, the next tasks are B.2 (cost effectiveness gradient) and B.3 (Sankey narrow-screen fix) — both are small and independent.
+### Blocked items:
+- None
