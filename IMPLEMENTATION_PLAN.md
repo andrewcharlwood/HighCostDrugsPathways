@@ -66,23 +66,24 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Heatmaps show linear color gradient, cell text visible, no fixed width overflow
 
 ### A.3 Fix legend overflow in 4 charts
-- [ ] Create `_smart_legend(n_items)` helper that returns legend dict:
+- [x] Create `_smart_legend(n_items)` helper that returns legend dict:
   - When >15 items: vertical legend on right (`orientation="v", x=1.02, y=1, xanchor="left"`) with dynamic right margin
   - When ≤15: horizontal legend with dynamic bottom margin based on estimated row count
-- [ ] Apply to `create_market_share_figure()` (~L350)
-- [ ] Apply to `create_trust_market_share_figure()` (~L1564)
-- [ ] Apply to `create_dosing_figure()` (~L913)
-- [ ] Apply to `create_trust_duration_figure()` (~L1771)
-- [ ] Apply `_base_layout()` to all 4 functions
+- [x] Also created `_smart_legend_margin(n_items)` helper returning margin dict with dynamic b/r values
+- [x] Apply to `create_market_share_figure()` — also replaced local nhs_colours with DRUG_PALETTE
+- [x] Apply to `create_trust_market_share_figure()` — also replaced local nhs_colours with DRUG_PALETTE, fixed Unicode escapes to literal chars
+- [x] Apply to `create_dosing_figure()` — replaced local nhs_colours with DRUG_PALETTE, legend adapts to trace count
+- [x] Apply to `create_trust_duration_figure()` — replaced local nhs_colours with TRUST_PALETTE, fixed l=200→l=8+automargin
+- [x] Apply `_base_layout()` to all 4 functions
 - **Checkpoint**: Legends don't overlap chart content with 42 drugs or 7 trusts
 
 ### A.4 Fix trust comparison color differentiation
-- [ ] In `create_trust_duration_figure()`: replace `nhs_colours` list with `TRUST_PALETTE`
+- [x] In `create_trust_duration_figure()`: replace `nhs_colours` list with `TRUST_PALETTE` (done in A.3)
 - [ ] Add `is_trust_comparison=False` param to `create_cost_waterfall_figure()` — use `TRUST_PALETTE` when True
 - [ ] Update `tc_cost_waterfall` callback in `dash_app/callbacks/trust_comparison.py` (~L165) to pass `is_trust_comparison=True`
 - [ ] Fix `_dosing_by_drug()` blue→blue interpolation: replace with `plotly.colors.sample_colorscale("Viridis", ...)` for meaningful gradient
-- [ ] Replace `nhs_colours` in `create_trust_market_share_figure()` with `DRUG_PALETTE` for drug traces
-- [ ] Apply `_base_layout()` to all affected functions
+- [x] Replace `nhs_colours` in `create_trust_market_share_figure()` with `DRUG_PALETTE` for drug traces (done in A.3)
+- [x] Apply `_base_layout()` to all affected functions (done in A.3 for trust_market_share and trust_duration)
 - **Checkpoint**: Trust Comparison charts have 7 visually distinct trust colors; dosing has meaningful gradient
 
 ---
