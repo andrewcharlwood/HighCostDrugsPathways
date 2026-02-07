@@ -284,3 +284,48 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Key files to read: `dash_app/components/chart_card.py` (for PP toggle placement), `dash_app/components/trust_comparison.py` (for TC toggle placement), `dash_app/callbacks/chart.py` (for `_render_heatmap`), `dash_app/callbacks/trust_comparison.py` (for `tc_heatmap`).
 ### Blocked items:
 - None
+
+## Iteration 8 — 2026-02-07
+### Task: B.4 — Heatmap metric toggle (both views)
+### Why this task:
+- B.4 is the last Phase B task. B.1-B.3 are complete. Iteration 7 explicitly recommended B.4. It requires adding `dmc.SegmentedControl` components and wiring them into callbacks.
+### Status: COMPLETE
+### What was done:
+- **chart_card.py**: Added "heatmap" to `TAB_DEFINITIONS` (was only in `ALL_TAB_DEFINITIONS`). Added `dmc.SegmentedControl` (id: `heatmap-metric-toggle`) in `heatmap-metric-wrapper` div inside chart card header, hidden by default (`display: none`).
+- **trust_comparison.py**: Replaced generic `_tc_chart_cell` for heatmap with custom inline layout containing `dmc.SegmentedControl` (id: `tc-heatmap-metric-toggle`) in a flex row next to the title.
+- **chart.py**: Updated `_render_heatmap()` to accept `metric` parameter (default "patients"). Updated `update_chart` callback to:
+  - Add `Output("heatmap-metric-wrapper", "style")` — controls toggle visibility
+  - Add `Input("heatmap-metric-toggle", "value")` — reads metric selection
+  - Show toggle when `active_tab == "heatmap"`, hide otherwise
+  - Pass metric to `_render_heatmap()` when heatmap tab is active
+- **trust_comparison.py callbacks**: Updated `tc_heatmap` callback to add `Input("tc-heatmap-metric-toggle", "value")` and pass `metric=heatmap_metric` to `create_trust_heatmap_figure()`.
+- Both `create_heatmap_figure()` and `create_trust_heatmap_figure()` already accept `metric` param — no changes needed in plotly_generator.py.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` passes. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): N/A — toggle components rendered in layout, heatmap functions already tested in A.2.
+- Tier 3 (Functional): Callback wiring verified — `update_chart` has 3 Outputs (figure, subtitle, toggle style) and 4 Inputs (chart-data, active-tab, app-state, heatmap-metric-toggle). TC heatmap callback has 2 Inputs (app-state, tc-heatmap-metric-toggle). Toggle options: patients, cost, cost_pp_pa.
+### Files changed:
+- `dash_app/components/chart_card.py` — added heatmap to TAB_DEFINITIONS, added SegmentedControl
+- `dash_app/components/trust_comparison.py` — custom heatmap cell with SegmentedControl
+- `dash_app/callbacks/chart.py` — updated _render_heatmap + update_chart callback
+- `dash_app/callbacks/trust_comparison.py` — updated tc_heatmap callback
+- `IMPLEMENTATION_PLAN.md` — marked B.4 subtasks [x]
+### Committed: 8e2e2b7 "feat: heatmap metric toggle for both PP and TC views (Task B.4)"
+### Patterns discovered:
+- Adding a new Output to an existing callback (e.g., `heatmap-metric-wrapper` style) requires updating ALL return paths in that callback to include the new output value. The toggle_style is computed once at the top and returned in every code path.
+- `dmc.SegmentedControl` with `size="xs"` fits nicely in chart headers without overwhelming the title.
+- The heatmap tab was missing from PP `TAB_DEFINITIONS` — only in `ALL_TAB_DEFINITIONS`. Adding it to `TAB_DEFINITIONS` automatically creates the tab button and wires it into `switch_tab` because `_TAB_IDS` is built dynamically.
+- Phase B is now COMPLETE. All 4 tasks (B.1-B.4) are done.
+### Next iteration should:
+- Start Phase C: New Analytics (Existing Data). Task C.1 (Retention funnel chart) is the first task.
+- C.1 requires the 6-step pattern for adding a new chart tab:
+  1. Create `get_retention_funnel()` in `src/data_processing/pathway_queries.py` — query level 4+ nodes, aggregate by treatment line depth
+  2. Add thin wrapper in `dash_app/data/queries.py`
+  3. Create `create_retention_funnel_figure(data, title)` in `src/visualization/plotly_generator.py` — use `go.Funnel`
+  4. Add "Funnel" tab to `TAB_DEFINITIONS` in `chart_card.py`
+  5. Add `_render_funnel()` helper in `dash_app/callbacks/chart.py`
+  6. Add elif case in `update_chart()` dispatch
+- Key: The query should count patients at each treatment line depth (1-drug, 2-drug, 3-drug, etc.) using the level column in pathway_nodes. Level 3 = 1st drug, level 4 = 2-drug pathway, etc.
+- Use `_base_layout()` and NHS blue gradient for the funnel figure.
+### Blocked items:
+- None
