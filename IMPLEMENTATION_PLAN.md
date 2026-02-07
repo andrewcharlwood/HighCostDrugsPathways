@@ -109,9 +109,9 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Lollipop dots show smooth green→amber→red gradient
 
 ### B.3 Sankey narrow-screen fix
-- [ ] In `create_sankey_figure()` (~L788):
-  - Change `arrangement="snap"` → `arrangement="freeform"`
-  - Increase `pad` from 20 → 25
+- [x] In `create_sankey_figure()` (~L808):
+  - Changed `arrangement="snap"` → `arrangement="freeform"`
+  - Increased `pad` from 20 → 25
 - **Checkpoint**: Sankey nodes don't overlap on narrow viewports
 
 ### B.4 Heatmap metric toggle (both views)

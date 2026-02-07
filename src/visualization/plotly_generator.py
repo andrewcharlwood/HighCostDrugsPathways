@@ -805,9 +805,9 @@ def create_sankey_figure(
 
     fig = go.Figure(
         go.Sankey(
-            arrangement="snap",
+            arrangement="freeform",
             node=dict(
-                pad=20,
+                pad=25,
                 thickness=25,
                 line=dict(color="#FFFFFF", width=1),
                 label=node_labels,
