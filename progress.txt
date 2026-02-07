@@ -703,3 +703,44 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - CRITICAL: `update_app_state()` has multiple return paths — ensure ALL handle the new "trends" active_view case.
 ### Blocked items:
 - None
+
+## Iteration 18 — 2026-02-07
+### Task: E.2 — Add Trends sidebar nav item + view container
+### Why this task:
+- E.2 is the next Phase E task after E.1. Progress.txt from Iteration 17 explicitly recommended it with detailed guidance. It adds the 3rd sidebar navigation item and empty view container, required before E.3 (landing page) and E.4 (drill-down).
+### Status: COMPLETE
+### What was done:
+- **sidebar.py**: Added `"trends"` icon (`<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`) to `_ICONS` dict. Added 3rd `_sidebar_item("Trends", "trends", active=False, item_id="nav-trends")`.
+- **app.py**: Added `selected_trends_directorate: None` to app-state initial data. Added `html.Div(id="trends-view", style={"display": "none"}, children=[...])` with placeholder H3 after trust-comparison-view.
+- **navigation.py**: Extended `switch_view()` from 4 to 6 Outputs (3 view styles + 3 nav classNames). Added 3-way switching: patient-pathways, trust-comparison, trends. All 3 return paths (+ fallback) return 6-tuples.
+- **filters.py**: Added `Input("nav-trends", "n_clicks")` to `update_app_state()`. Added `_nav_trends_clicks` parameter. Added `elif triggered_id == "nav-trends": active_view = "trends"` case. Added `selected_trends_directorate: None` to fallback state dict.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly on http://127.0.0.1:8050/.
+- Tier 2 (Visual): 3 sidebar items: Patient Pathways, Trust Comparison, Trends.
+- Tier 3 (Functional): `switch_view` has 6 Outputs confirmed. `update_app_state` has `nav-trends` Input confirmed. `selected_trends_directorate` present in app-state initial data. Trends view toggles show/hide correctly.
+### Files changed:
+- `dash_app/components/sidebar.py` — added trends icon + nav item
+- `dash_app/app.py` — added trends-view div + selected_trends_directorate
+- `dash_app/callbacks/navigation.py` — 3-way switch_view (6 outputs)
+- `dash_app/callbacks/filters.py` — nav-trends input + trends active_view case
+- `IMPLEMENTATION_PLAN.md` — marked E.2 subtasks [x]
+### Committed: 190aefd "feat: add Trends sidebar nav item + 3-view switching (Task E.2)"
+### Patterns discovered:
+- The `**current_state` spread in `updated_state` dict automatically preserves `selected_trends_directorate` without needing an explicit entry — it carries through from the initial state.
+- The 3-view `switch_view()` pattern uses explicit `elif` for each view rather than a dict lookup — matches the existing binary pattern style and is easy to audit for correctness.
+- `update_app_state()` only has 1 return path (line 159), so adding `selected_trends_directorate` to the initial data was sufficient — no need to update multiple returns.
+### Next iteration should:
+- Do Task E.3: Create Trends landing page with directorate-level trends. Key steps:
+  1. Create `dash_app/components/trends.py` with `make_trends_landing()` and `make_trends_detail()` functions
+  2. Update `get_trend_data()` in `pathway_queries.py` to support `group_by="directory"` parameter
+  3. Update thin wrapper in `dash_app/data/queries.py` to pass `group_by`
+  4. Create `dash_app/callbacks/trends.py` with `register_trends_callbacks(app)` — callback to render directorate overview chart
+  5. Register in `dash_app/callbacks/__init__.py`
+  6. Wire `trends-view` div in `app.py` to contain `make_trends_landing()` + `make_trends_detail()`
+  7. Rename "Cost" to "Cost per Patient" in metric toggle labels
+- Key files to read: `dash_app/components/trust_comparison.py` (reference pattern for landing/detail), existing `get_trend_data()` in `pathway_queries.py`, `create_trend_figure()` in `plotly_generator.py`
+- The `make_trends_landing()` should have: title, description, `dmc.SegmentedControl(id="trends-view-metric-toggle")`, and `dcc.Graph(id="trends-overview-chart")` wrapped in `dcc.Loading`
+- The `make_trends_detail()` should have: back button (id: `trends-back-btn`), title (id: `trends-detail-title`), and `dcc.Graph(id="trends-detail-chart")` wrapped in `dcc.Loading`
+- CRITICAL: The trends callback must check `active_view == "trends"` before computing — otherwise it fires on every app-state change
+### Blocked items:
+- None
