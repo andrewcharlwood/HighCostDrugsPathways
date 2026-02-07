@@ -205,14 +205,18 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Trends tab shows drug usage over time (requires at least 2 refresh cycles for meaningful data)
 
 ### D.2 Average administered doses analysis
-- [ ] Create `parse_average_administered(json_str)` parsing function in `src/data_processing/parsing.py`:
-  - Extract dose count arrays from the JSON `average_administered` column
-- [ ] Create `get_dosing_distribution()` query in `pathway_queries.py`:
-  - Level 3 nodes with parsed `average_administered` JSON
-- [ ] Create `create_dosing_distribution_figure(data, title)` in plotly_generator.py:
-  - Box/violin plot showing dose count distribution per drug
-- [ ] Add as sub-option within Dosing tab or as separate tab
-- **Checkpoint**: Dose distribution visible as box/violin plots
+- [x] Create `get_dosing_distribution()` query in `pathway_queries.py`:
+  - Level 3 nodes with parsed `average_administered` JSON (position 0 = avg doses for drug)
+  - Aggregates across trusts using weighted averages by patient count
+  - Supports directory/trust filters. Returns `[{drug, directory, avg_doses, patients}]`
+- [x] Add thin wrapper in `dash_app/data/queries.py`
+- [x] Create `create_dosing_distribution_figure(data, title)` in plotly_generator.py:
+  - Horizontal bar chart (avg doses per drug, one bar per drug x directory)
+  - Colored by directory using DRUG_PALETTE, `_base_layout()` + `_smart_legend()`
+  - Dynamic height, patient count in hover
+- [x] Add "Doses" tab to TAB_DEFINITIONS (9th tab)
+- [x] Add `_render_doses()` helper + dispatch in `chart.py`
+- **Checkpoint**: Doses tab shows average administered doses per drug, responds to filters
 
 ### D.3 Drug timeline (Gantt chart)
 - [x] Create `get_drug_timeline()` query in `pathway_queries.py`:

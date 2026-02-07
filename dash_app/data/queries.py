@@ -29,6 +29,7 @@ from data_processing.pathway_queries import (
     get_duration_cost_scatter as _get_duration_cost_scatter,
     get_drug_network as _get_drug_network,
     get_drug_timeline as _get_drug_timeline,
+    get_dosing_distribution as _get_dosing_distribution,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -238,3 +239,13 @@ def get_drug_timeline(
 ) -> list[dict]:
     """Drug timeline data (first_seen, last_seen) for Gantt chart."""
     return _get_drug_timeline(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_dosing_distribution(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Average administered dose counts per drug."""
+    return _get_dosing_distribution(DB_PATH, date_filter_id, chart_type, directory, trust)

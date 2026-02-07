@@ -2206,3 +2206,94 @@ def create_drug_timeline_figure(data: list[dict], title: str = "") -> go.Figure:
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_dosing_distribution_figure(
+    data: list[dict], title: str = ""
+) -> go.Figure:
+    """Create horizontal bar chart of average administered doses per drug.
+
+    Args:
+        data: list of dicts with keys: drug, directory, avg_doses, patients
+        title: chart title suffix
+    """
+    if not data:
+        return go.Figure()
+
+    display_title = f"Average Administered Doses — {title}" if title else "Average Administered Doses"
+
+    # Group by directory for coloring
+    directories = sorted(set(d["directory"] for d in data))
+    dir_colors = {
+        d: DRUG_PALETTE[i % len(DRUG_PALETTE)]
+        for i, d in enumerate(directories)
+    }
+
+    single_directory = len(directories) == 1
+
+    # Sort by avg_doses descending
+    sorted_data = sorted(data, key=lambda x: x["avg_doses"])
+
+    # Build y-labels
+    if single_directory:
+        y_labels = [d["drug"] for d in sorted_data]
+    else:
+        y_labels = [f"{d['drug']} ({d['directory']})" for d in sorted_data]
+
+    fig = go.Figure()
+
+    # One trace per directory for legend grouping
+    shown_dirs = set()
+    for i, row in enumerate(sorted_data):
+        d = row["directory"]
+        show_legend = d not in shown_dirs
+        shown_dirs.add(d)
+
+        fig.add_trace(go.Bar(
+            y=[y_labels[i]],
+            x=[row["avg_doses"]],
+            orientation="h",
+            marker_color=dir_colors[d],
+            name=d,
+            showlegend=show_legend,
+            legendgroup=d,
+            text=[f"{row['avg_doses']:.0f}"],
+            textposition="inside",
+            textfont=dict(color="white", size=11),
+            hovertemplate=(
+                f"<b>{row['drug']}</b><br>"
+                f"Directory: {d}<br>"
+                f"Avg doses: {row['avg_doses']:.1f}<br>"
+                f"Patients: {row['patients']:,}"
+                "<extra></extra>"
+            ),
+        ))
+
+    n_bars = len(sorted_data)
+    bar_height = 24
+    dynamic_height = max(400, n_bars * bar_height + 120)
+
+    n_dirs = len(directories)
+    legend_margins = _smart_legend_margin(n_dirs)
+    legend = _smart_legend(n_dirs, legend_title="Directory")
+
+    layout = _base_layout(display_title)
+    layout.update(
+        xaxis=dict(
+            title="Average Doses Administered",
+            gridcolor=GRID_COLOR,
+            zeroline=False,
+        ),
+        yaxis=dict(
+            automargin=True,
+            tickfont=dict(size=11),
+        ),
+        barmode="overlay",
+        height=dynamic_height,
+        margin=dict(t=60, l=8, **legend_margins),
+        legend=legend,
+        bargap=0.3,
+    )
+    fig.update_layout(**layout)
+
+    return fig

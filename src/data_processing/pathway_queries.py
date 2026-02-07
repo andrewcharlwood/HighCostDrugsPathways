@@ -1443,6 +1443,93 @@ def get_drug_timeline(
         conn.close()
 
 
+def get_dosing_distribution(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Level 3 drug nodes with average administered dose counts.
+
+    Parses the average_administered JSON array (position 0 = avg doses for the drug).
+    Aggregates across trusts using weighted averages by patient count.
+
+    Returns list of dicts sorted by avg_doses desc:
+        [{drug, directory, avg_doses, patients}]
+    """
+    import json
+
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["date_filter_id = ?", "chart_type = ?", "level = 3",
+                 "average_administered IS NOT NULL", "average_administered != ''"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            where.append("directory = ?")
+            params.append(directory)
+        if trust:
+            where.append("trust_name = ?")
+            params.append(trust)
+
+        query = f"""
+            SELECT labels AS drug, directory, trust_name,
+                   value AS patients, average_administered
+            FROM pathway_nodes
+            WHERE {' AND '.join(where)}
+            ORDER BY labels, directory
+        """
+        rows = conn.execute(query, params).fetchall()
+
+        # Aggregate across trusts: weighted average of dose count
+        agg = {}
+        for r in rows:
+            patients = r["patients"] or 0
+            if patients == 0:
+                continue
+
+            try:
+                arr = json.loads(r["average_administered"].replace("NaN", "null"))
+            except (json.JSONDecodeError, AttributeError):
+                continue
+
+            # Position 0 is average doses for this drug
+            avg_doses = arr[0] if arr and arr[0] is not None else None
+            if avg_doses is None or avg_doses <= 0:
+                continue
+
+            key = (r["directory"] or "", r["drug"])
+            if key not in agg:
+                agg[key] = {
+                    "drug": r["drug"],
+                    "directory": r["directory"] or "",
+                    "weighted_doses": 0.0,
+                    "total_patients": 0,
+                }
+            agg[key]["weighted_doses"] += avg_doses * patients
+            agg[key]["total_patients"] += patients
+
+        result = []
+        for v in agg.values():
+            tp = v["total_patients"]
+            if tp > 0:
+                result.append({
+                    "drug": v["drug"],
+                    "directory": v["directory"],
+                    "avg_doses": round(v["weighted_doses"] / tp, 1),
+                    "patients": tp,
+                })
+
+        result.sort(key=lambda x: -x["avg_doses"])
+        return result
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,
