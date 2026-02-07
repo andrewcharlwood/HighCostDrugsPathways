@@ -2532,3 +2532,58 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - N/A — ALL TASKS COMPLETE. The project is finished.
 ### Blocked items:
 - None
+
+## Manual Intervention — 2026-02-07
+### Reason: User feedback on 4 layout/aesthetics issues after reviewing the completed app
+### Changes made:
+- `IMPLEMENTATION_PLAN.md` — Added Phase 11 with 4 new tasks (11.1–11.4)
+- `progress.txt` — Added this intervention entry with context for next iteration
+### Tasks reset: None (all additive changes)
+### Tasks added:
+- 11.1: Move "Clear All Filters" button to left side (next to filter buttons, not right-aligned)
+- 11.2: Trust Comparison charts — fix overspill and increase chart size (currently 320px, text/axes overflow)
+- 11.3: Patient Pathways chart — fill available screen height (currently only uses 500px min-height)
+- 11.4: Filter modals — improve aesthetics for large screens (chips too small at xs, broken text spacing, modals too small)
+### Context for next iteration:
+- Phase 10 is fully complete (iteration 43). Phase 11 is entirely NEW tasks — no regressions to worry about.
+- All 4 tasks are independent CSS/layout changes. They can be done in any order.
+- Key files to modify: `dash_app/components/filter_bar.py`, `dash_app/components/trust_comparison.py`, `dash_app/components/chart_card.py`, `dash_app/components/modals.py`, `dash_app/assets/nhs.css`, possibly `dash_app/app.py` (for flex layout on view containers)
+- User has a large screen (likely 1920px+) — modals and charts should be proportionally sized
+- Task 11.4 instructs using the frontend-developer agent for modal UX review
+- The `.pathway-filters` CSS currently uses `justify-content: space-between` which pushes Clear All to the right — fix by grouping all buttons together
+- Trust Comparison `dcc.Graph` has inline `style={"height": "320px"}` — increase this
+- Patient Pathways `dcc.Graph` has `style={"minHeight": "500px", "flex": "1"}` but the parent containers aren't flex, so `flex: 1` doesn't work. Need to make `#patient-pathways-view` and `.chart-card` proper flex columns.
+- Chip sizes in modals are `"xs"` — increase to `"sm"` or `"md"`. Drug modal is `size="lg"`, trust is `size="sm"` — both too small for large screens.
+### New guardrails added:
+- None
+
+## Iteration 44 — 2026-02-07
+### Task: 11.1 — Move "Clear All Filters" button to left side
+### Why this task:
+- Phase 11 has 4 independent tasks (11.1–11.4), all CSS/layout fixes from user feedback
+- 11.1 is the simplest and most self-contained — a good first task for Phase 11
+- No dependencies on other Phase 11 tasks
+### Status: COMPLETE
+### What was done:
+- **filter_bar.py**: Moved the "Clear All" button from a separate sibling of `.pathway-filters__buttons` into the div, so it now sits alongside Drugs, Trusts, Directorates buttons
+- Added a `.pathway-filters__separator` span (thin vertical line) between Directorates and Clear All for visual distinction
+- **nhs.css**: Removed `justify-content: space-between` from `.pathway-filters` (no longer needed — all items grouped left)
+- Added `.pathway-filters__separator` rule: 1px wide × 24px tall, pale grey background, 4px horizontal margin
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): Clear All button is now inside the button group, left-aligned with a separator
+### Files changed:
+- `dash_app/components/filter_bar.py` — moved Clear All into pathway-filters__buttons, added separator span
+- `dash_app/assets/nhs.css` — removed space-between, added separator style
+- `IMPLEMENTATION_PLAN.md` — Task 11.1 marked [x]
+### Committed: 99ccddb "style: move Clear All button to left side next to filter buttons (Task 11.1)"
+### Patterns discovered:
+- None new — straightforward CSS/layout change
+### Next iteration should:
+- Pick any of the 3 remaining Phase 11 tasks (11.2, 11.3, 11.4) — all independent
+- 11.2 (Trust Comparison chart sizing) and 11.3 (Patient Pathways height) are pure CSS
+- 11.4 (modal aesthetics) is the most involved — requires frontend-developer agent review
+- Recommend 11.2 or 11.3 next as they're CSS-only changes
+### Blocked items:
+- None
