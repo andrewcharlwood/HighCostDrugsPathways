@@ -579,26 +579,17 @@ def create_cost_effectiveness_figure(
                 showarrow=False,
                 xanchor="left",
                 xshift=10,
-                font=dict(size=10, color="#768692", family="Source Sans 3"),
+                font=dict(size=10, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
             )
             annotation_count += 1
 
-    fig.update_layout(
-        title=dict(
-            text=display_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#1E293B",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
+    layout = _base_layout(display_title)
+    layout.update(
         xaxis=dict(
             title="£ per patient per annum",
             tickprefix="£",
             tickformat=",",
-            gridcolor="#E2E8F0",
+            gridcolor=GRID_COLOR,
             zeroline=True,
             zerolinecolor="#CBD5E1",
         ),
@@ -608,23 +599,9 @@ def create_cost_effectiveness_figure(
             tickfont=dict(size=11),
         ),
         margin=dict(t=50, l=8, r=24, b=40),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        autosize=True,
-        hoverlabel=dict(
-            bgcolor="#FFFFFF",
-            bordercolor="#CBD5E1",
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=13,
-                color="#1E293B",
-            ),
-        ),
-        font=dict(
-            family="Source Sans 3, system-ui, sans-serif",
-        ),
         height=max(450, len(filtered) * 28 + 150),
     )
+    fig.update_layout(**layout)
 
     return fig
 
@@ -767,13 +744,6 @@ def create_sankey_figure(
     if not nodes or not links:
         return go.Figure()
 
-    # NHS colour palette — one colour per unique base drug name
-    nhs_colours = [
-        "#005EB8", "#003087", "#41B6E6", "#0066CC", "#1E88E5",
-        "#4FC3F7", "#009639", "#ED8B00", "#768692", "#AE2573",
-        "#8A1538", "#330072", "#DA291C", "#00A499", "#425563",
-    ]
-
     # Extract base drug name (strip ordinal suffix) for colour consistency
     def base_drug(name: str) -> str:
         return re.sub(r"\s*\(\d+(?:st|nd|rd|th)\)\s*$", "", name)
@@ -783,7 +753,7 @@ def create_sankey_figure(
         b = base_drug(n["name"])
         if b not in unique_bases:
             unique_bases.append(b)
-    base_colour_map = {b: nhs_colours[i % len(nhs_colours)] for i, b in enumerate(unique_bases)}
+    base_colour_map = {b: DRUG_PALETTE[i % len(DRUG_PALETTE)] for i, b in enumerate(unique_bases)}
 
     # Node colours — same drug gets same colour regardless of treatment line
     node_colours = [base_colour_map[base_drug(n["name"])] for n in nodes]
@@ -851,26 +821,13 @@ def create_sankey_figure(
     if title:
         chart_title = f"{chart_title} — {title}"
 
-    fig.update_layout(
-        title=dict(
-            text=chart_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#003087",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
-        font=dict(
-            family="Source Sans 3, system-ui, sans-serif",
-            size=12,
-        ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+    layout = _base_layout(chart_title)
+    layout.update(
+        font=dict(family=CHART_FONT_FAMILY, size=12),
         margin=dict(t=60, l=30, r=30, b=30),
         height=max(500, len(unique_bases) * 35 + 200),
     )
+    fig.update_layout(**layout)
 
     return fig
 
@@ -1453,27 +1410,18 @@ def create_duration_figure(
             text=f"n={pts:,}",
             showarrow=False,
             xshift=45,
-            font=dict(size=9, color="#768692", family="Source Sans 3"),
+            font=dict(size=9, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
         )
 
     chart_title = "Treatment Duration by Drug"
     if title:
-        chart_title += f"<br><span style='font-size:13px;color:#768692'>{title}</span>"
+        chart_title += f"<br><span style='font-size:13px;color:{ANNOTATION_COLOR}'>{title}</span>"
 
     n_bars = len(data)
     fig_height = max(400, 40 + n_bars * 28)
 
-    fig.update_layout(
-        title=dict(
-            text=chart_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#003087",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
+    layout = _base_layout(chart_title)
+    layout.update(
         xaxis=dict(
             title="Average Duration (days)",
             titlefont=dict(size=13, color="#425563"),
@@ -1485,15 +1433,14 @@ def create_duration_figure(
         yaxis=dict(
             title="",
             tickfont=dict(size=11, color="#425563"),
+            automargin=True,
             autorange="reversed",
         ),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Source Sans 3, system-ui, sans-serif"),
-        margin=dict(t=60, l=200, r=80, b=50),
+        margin=dict(t=60, l=8, r=80, b=50),
         height=fig_height,
         showlegend=False,
     )
+    fig.update_layout(**layout)
 
     return fig
 

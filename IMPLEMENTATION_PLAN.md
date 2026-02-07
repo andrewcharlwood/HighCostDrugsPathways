@@ -91,12 +91,13 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 ## Phase B: Visual Polish
 
 ### B.1 Fix title inconsistencies across all charts
-- [ ] Sankey (~L817): title color `"#003087"` → `CHART_TITLE_COLOR`
-- [ ] Dosing (~L885): title color `"#003087"` → `CHART_TITLE_COLOR`
-- [ ] Patient Pathways heatmap (~L1300): title color `"#003087"` → `CHART_TITLE_COLOR`
-- [ ] Duration (~L1449): title color `"#003087"` → `CHART_TITLE_COLOR`
-- [ ] All Trust Comparison functions: title `size=16` → `CHART_TITLE_SIZE` (18)
-- [ ] Apply `_base_layout()` to all remaining chart functions not yet converted
+- [x] Sankey: replaced local nhs_colours with DRUG_PALETTE, title color `"#003087"` → `CHART_TITLE_COLOR` via `_base_layout()`
+- [x] Dosing: already converted in A.3 — uses `_base_layout()` with CHART_TITLE_COLOR
+- [x] Patient Pathways heatmap: already converted in A.2 — uses `_base_layout()` with CHART_TITLE_COLOR
+- [x] Duration: title color `"#003087"` → `CHART_TITLE_COLOR`, fixed l=200→l=8+automargin, used constants for annotations
+- [x] All Trust Comparison functions: already use `_base_layout()` (A.2-A.4), title size=18 via CHART_TITLE_SIZE
+- [x] Applied `_base_layout()` to all remaining chart functions: Sankey, Cost Effectiveness, Duration
+- [x] Cost Effectiveness: replaced 38-line manual layout with `_base_layout()`, hardcoded colors/fonts → constants
 - **Checkpoint**: All chart titles use consistent font, size, and color
 
 ### B.2 Cost effectiveness smooth gradient
