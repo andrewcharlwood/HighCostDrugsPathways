@@ -257,3 +257,30 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - After B.3, Task B.4 (heatmap metric toggle) is the last Phase B task — it's more involved (adding SegmentedControl components + callback wiring).
 ### Blocked items:
 - None
+
+## Iteration 7 — 2026-02-07
+### Task: B.3 — Sankey narrow-screen fix
+### Why this task:
+- B.3 is the next uncompleted Phase B task. Iteration 6 explicitly recommended it. It's a small, focused change with no dependencies.
+### Status: COMPLETE
+### What was done:
+- **`create_sankey_figure()`** (line 808): Changed `arrangement="snap"` → `arrangement="freeform"` so users can drag nodes freely on narrow screens. Increased `pad` from 20 → 25 for more spacing between nodes.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly.
+- Tier 2 (Visual): Functional test confirms arrangement="freeform" and pad=25 on generated figure.
+### Files changed:
+- `src/visualization/plotly_generator.py` — Sankey arrangement + pad
+- `IMPLEMENTATION_PLAN.md` — marked B.3 [x]
+### Committed: fb30f5f "fix: Sankey freeform arrangement + increased padding (Task B.3)"
+### Patterns discovered:
+- `arrangement="freeform"` allows users to manually reposition Sankey nodes by dragging, which is useful when nodes overlap on narrow viewports. `"snap"` constrains nodes to columns.
+### Next iteration should:
+- Do Task B.4: Heatmap metric toggle (both views). This is the last Phase B task and is more involved:
+  1. Add `dmc.SegmentedControl` component next to Patient Pathways heatmap (id: `heatmap-metric-toggle`, visible only when heatmap tab active). Add to `dash_app/components/chart_card.py`.
+  2. Add `dmc.SegmentedControl` next to Trust Comparison heatmap (id: `tc-heatmap-metric-toggle`). Add to `dash_app/components/trust_comparison.py`.
+  3. Update `_render_heatmap()` in `dash_app/callbacks/chart.py` to read the metric toggle value.
+  4. Update `tc_heatmap` callback in `dash_app/callbacks/trust_comparison.py` to read the metric toggle value.
+  5. Both heatmap functions (`create_heatmap_figure`, `create_trust_heatmap_figure`) already accept a `metric` parameter — the toggle just needs to pass the selected metric through.
+- Key files to read: `dash_app/components/chart_card.py` (for PP toggle placement), `dash_app/components/trust_comparison.py` (for TC toggle placement), `dash_app/callbacks/chart.py` (for `_render_heatmap`), `dash_app/callbacks/trust_comparison.py` (for `tc_heatmap`).
+### Blocked items:
+- None
