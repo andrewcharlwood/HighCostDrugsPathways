@@ -2297,3 +2297,89 @@ def create_dosing_distribution_figure(
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_trend_figure(
+    data: list[dict],
+    title: str = "",
+    metric: str = "patients",
+) -> go.Figure:
+    """Create a line chart showing trends over time from pathway_trends data.
+
+    Args:
+        data: List of dicts with keys: period_end, name, value
+        title: Chart title
+        metric: "patients", "total_cost", or "cost_pp_pa" (for y-axis label)
+    """
+    if not data:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No trend data available.<br>Run <b>python -m cli.compute_trends</b> to generate.",
+            xref="paper", yref="paper", x=0.5, y=0.5,
+            showarrow=False,
+            font=dict(size=16, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
+        )
+        layout = _base_layout(title or "Temporal Trends")
+        fig.update_layout(**layout)
+        return fig
+
+    display_title = title or "Temporal Trends"
+
+    # Group data by name (drug or directory)
+    from collections import defaultdict
+    series = defaultdict(lambda: {"periods": [], "values": []})
+    for row in data:
+        name = row.get("name", "")
+        series[name]["periods"].append(row["period_end"])
+        series[name]["values"].append(row.get("value", 0))
+
+    n_series = len(series)
+    fig = go.Figure()
+
+    for i, (name, s) in enumerate(sorted(series.items())):
+        colour = DRUG_PALETTE[i % len(DRUG_PALETTE)]
+        fig.add_trace(go.Scatter(
+            x=s["periods"],
+            y=s["values"],
+            mode="lines+markers",
+            name=name,
+            line=dict(color=colour, width=2),
+            marker=dict(color=colour, size=6),
+            hovertemplate=(
+                f"<b>{name}</b><br>"
+                "Period: %{x}<br>"
+                "Value: %{y:,.0f}<extra></extra>"
+            ),
+        ))
+
+    metric_labels = {
+        "patients": "Patients",
+        "total_cost": "Total Cost (£)",
+        "cost_pp_pa": "Cost per Patient p.a. (£)",
+    }
+    y_label = metric_labels.get(metric, "Value")
+
+    legend = _smart_legend(n_series)
+    legend_margins = _smart_legend_margin(n_series)
+
+    layout = _base_layout(display_title)
+    layout.update(
+        xaxis=dict(
+            title="Period",
+            gridcolor=GRID_COLOR,
+            type="category",
+        ),
+        yaxis=dict(
+            title=y_label,
+            gridcolor=GRID_COLOR,
+            zeroline=True,
+            zerolinecolor=GRID_COLOR,
+        ),
+        height=500,
+        margin=dict(t=60, l=8, **legend_margins),
+        legend=legend,
+        hovermode="x unified",
+    )
+    fig.update_layout(**layout)
+
+    return fig

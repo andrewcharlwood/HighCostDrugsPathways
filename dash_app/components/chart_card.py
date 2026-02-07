@@ -14,6 +14,7 @@ TAB_DEFINITIONS = [
     ("network", "Network"),
     ("timeline", "Timeline"),
     ("doses", "Doses"),
+    ("trends", "Trends"),
 ]
 
 # Full set retained for Trust Comparison dashboard (Phase 10.8)
@@ -87,6 +88,23 @@ def make_chart_card():
                                 data=[
                                     {"value": "patients", "label": "Patients"},
                                     {"value": "cost", "label": "Cost"},
+                                    {"value": "cost_pp_pa", "label": "Cost p.a."},
+                                ],
+                                value="patients",
+                                size="xs",
+                            ),
+                        ],
+                    ),
+                    # Trends metric toggle — visible only when trends tab active
+                    html.Div(
+                        id="trends-metric-wrapper",
+                        style={"display": "none"},
+                        children=[
+                            dmc.SegmentedControl(
+                                id="trends-metric-toggle",
+                                data=[
+                                    {"value": "patients", "label": "Patients"},
+                                    {"value": "total_cost", "label": "Cost"},
                                     {"value": "cost_pp_pa", "label": "Cost p.a."},
                                 ],
                                 value="patients",

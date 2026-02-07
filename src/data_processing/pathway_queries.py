@@ -1584,3 +1584,88 @@ def get_directorate_summary(
         return []
     finally:
         conn.close()
+
+
+def get_trend_data(
+    db_path: Path,
+    metric: str = "patients",
+    directory: Optional[str] = None,
+    drug: Optional[str] = None,
+) -> list[dict]:
+    """
+    Query pathway_trends table for time-series data.
+
+    Returns list of dicts with: period_end, name (drug or directory), value.
+    Groups by drug (one line per drug) unless aggregating by directory.
+
+    Args:
+        db_path: Path to pathways.db
+        metric: "patients", "total_cost", or "cost_pp_pa"
+        directory: Optional directory filter
+        drug: Optional drug filter
+
+    Returns:
+        List of dicts: [{period_end, name, value}, ...]
+        Empty list if pathway_trends table doesn't exist or has no data.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+
+    try:
+        # Check if the table exists
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='pathway_trends'"
+        )
+        if not cursor.fetchone():
+            return []
+
+        valid_metrics = {"patients", "total_cost", "cost_pp_pa"}
+        if metric not in valid_metrics:
+            metric = "patients"
+
+        # Build query — group by drug (one line per drug over time)
+        where_clauses = []
+        params = []
+
+        if directory:
+            where_clauses.append("directory = ?")
+            params.append(directory)
+        if drug:
+            where_clauses.append("drug = ?")
+            params.append(drug)
+
+        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+        # Aggregate across directories per drug per period (or per directory if filtering by drug)
+        if drug:
+            # One line per directory for a specific drug
+            group_col = "directory"
+        else:
+            # One line per drug (aggregate across directories)
+            group_col = "drug"
+
+        if metric == "cost_pp_pa":
+            # Weighted average for cost_pp_pa
+            agg = "SUM(cost_pp_pa * patients) / NULLIF(SUM(patients), 0)"
+        elif metric == "total_cost":
+            agg = "SUM(total_cost)"
+        else:
+            agg = "SUM(patients)"
+
+        sql = f"""
+            SELECT period_end, {group_col} AS name, {agg} AS value
+            FROM pathway_trends
+            WHERE {where_sql}
+            GROUP BY period_end, {group_col}
+            ORDER BY period_end, {group_col}
+        """
+
+        cursor.execute(sql, params)
+        rows = [dict(row) for row in cursor.fetchall()]
+        return rows
+
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()

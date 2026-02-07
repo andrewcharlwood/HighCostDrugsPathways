@@ -417,6 +417,25 @@ def _render_doses(app_state, title):
     return create_dosing_distribution_figure(data, title)
 
 
+def _render_trends(app_state, title, metric="patients"):
+    """Build the temporal trends line chart."""
+    from dash_app.data.queries import get_trend_data
+    from visualization.plotly_generator import create_trend_figure
+
+    selected_dirs = (app_state or {}).get("selected_directorates") or []
+    selected_drugs = (app_state or {}).get("selected_drugs") or []
+    directory = selected_dirs[0] if len(selected_dirs) == 1 else None
+    drug = selected_drugs[0] if len(selected_drugs) == 1 else None
+
+    try:
+        data = get_trend_data(metric=metric, directory=directory, drug=drug)
+    except Exception:
+        log.exception("Failed to load trend data")
+        return _empty_figure("Failed to load trend data.")
+
+    return create_trend_figure(data, title, metric=metric)
+
+
 def register_chart_callbacks(app):
     """Register tab switching, pathway data loading, and chart rendering callbacks."""
 
@@ -496,18 +515,21 @@ def register_chart_callbacks(app):
         Output("pathway-chart", "figure"),
         Output("chart-subtitle", "children"),
         Output("heatmap-metric-wrapper", "style"),
+        Output("trends-metric-wrapper", "style"),
         Input("chart-data", "data"),
         Input("active-tab", "data"),
         Input("app-state", "data"),
         Input("heatmap-metric-toggle", "value"),
+        Input("trends-metric-toggle", "value"),
     )
-    def update_chart(chart_data, active_tab, app_state, heatmap_metric):
+    def update_chart(chart_data, active_tab, app_state, heatmap_metric, trends_metric):
         """Render the active tab's chart from chart-data nodes."""
         active_tab = active_tab or "icicle"
         chart_type = (app_state or {}).get("chart_type", "directory")
 
-        # Show/hide heatmap metric toggle based on active tab
-        toggle_style = {} if active_tab == "heatmap" else {"display": "none"}
+        # Show/hide metric toggles based on active tab
+        heatmap_toggle_style = {} if active_tab == "heatmap" else {"display": "none"}
+        trends_toggle_style = {} if active_tab == "trends" else {"display": "none"}
 
         if chart_type == "indication":
             subtitle = "Trust \u2192 Indication \u2192 Drug \u2192 Patient Pathway"
@@ -515,17 +537,24 @@ def register_chart_callbacks(app):
             subtitle = "Trust \u2192 Directorate \u2192 Drug \u2192 Patient Pathway"
 
         if not chart_data:
-            return no_update, no_update, toggle_style
+            return no_update, no_update, heatmap_toggle_style, trends_toggle_style
 
         error_msg = chart_data.get("error")
         if error_msg:
-            return _empty_figure(error_msg), subtitle, toggle_style
+            return _empty_figure(error_msg), subtitle, heatmap_toggle_style, trends_toggle_style
+
+        # Trends tab doesn't depend on chart-data nodes
+        if active_tab == "trends":
+            title = _generate_chart_title(app_state) if app_state else ""
+            metric = trends_metric or "patients"
+            fig = _render_trends(app_state, title, metric=metric)
+            return fig, subtitle, heatmap_toggle_style, trends_toggle_style
 
         if not chart_data.get("nodes"):
             return _empty_figure(
                 "No matching pathways found.\n"
                 "Try adjusting your filters."
-            ), subtitle, toggle_style
+            ), subtitle, heatmap_toggle_style, trends_toggle_style
 
         # Lazy rendering — only compute the active tab's chart
         title = _generate_chart_title(app_state) if app_state else ""
@@ -580,4 +609,4 @@ def register_chart_callbacks(app):
             tab_label = dict(TAB_DEFINITIONS).get(active_tab, active_tab)
             fig = _empty_figure(f"{tab_label} chart — coming soon")
 
-        return fig, subtitle, toggle_style
+        return fig, subtitle, heatmap_toggle_style, trends_toggle_style

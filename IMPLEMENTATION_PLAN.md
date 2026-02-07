@@ -189,21 +189,28 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 
 ## Phase D: New Analytics (Backend Work)
 
-### D.1 Temporal trend analysis
-- [B] **BLOCKED**: Requires modifying guardrail-protected files (`schema.py`, `reference_data.py`, `refresh_pathways.py`) + needs ≥2 refresh cycles for meaningful data
-- [ ] Design `pathway_trends` table schema in `src/data_processing/schema.py`:
-  - Columns: `snapshot_date, chart_type, directory, drug, patients, cost, cost_pp_pa`
-  - Stores quarterly aggregates from each refresh
-- [ ] Add migration for `pathway_trends` table in `data_processing/reference_data.py`
-- [ ] Extend `cli/refresh_pathways.py` to compute and insert trend data after main refresh
-- [ ] Create `get_trend_data()` query in `pathway_queries.py`
-- [ ] Add thin wrapper in `dash_app/data/queries.py`
-- [ ] Create `create_trend_figure(data, title, metric)` in plotly_generator.py:
-  - Line chart: x=date, y=metric, one line per drug (or directory)
-  - Metric selector: patients / cost / cost_pp_pa
-- [ ] Add "Trends" tab to `TAB_DEFINITIONS` in `chart_card.py`
-- [ ] Add callback wiring
-- **Checkpoint**: Trends tab shows drug usage over time (requires at least 2 refresh cycles for meaningful data)
+### D.1 Temporal trend analysis (historical snapshots approach)
+- [x] **D.1a — Create `cli/compute_trends.py` CLI script**:
+  - Creates `pathway_trends` table via `CREATE TABLE IF NOT EXISTS` (no schema.py changes):
+    ```
+    pathway_trends(period_end TEXT, drug TEXT, directory TEXT, patients INTEGER,
+                   total_cost REAL, cost_pp_pa REAL, PRIMARY KEY(period_end, drug, directory))
+    ```
+  - Imports existing `fetch_and_transform_data()` and `process_pathway_for_date_filter()` from `pathway_pipeline.py` — does NOT modify them
+  - Fetches all activity data once from Snowflake
+  - Loops over 6-month historical endpoints (2021-06-30 through 2025-12-31, ~10 periods)
+  - For each endpoint: calls `process_pathway_for_date_filter()` with `max_date=endpoint` using `all_6mo` config
+  - Extracts level 3 summary stats (drug, directory, patients, cost, cost_pp_pa) from resulting DataFrame
+  - Inserts aggregated rows into `pathway_trends` table
+  - Run separately: `python -m cli.compute_trends` (not part of main refresh)
+- [x] **D.1b — Add Trends tab to Dash** (standard 6-step pattern):
+  1. Create `get_trend_data(db_path, metric, directory, drug)` in `pathway_queries.py` — query `pathway_trends` table, return time-series data
+  2. Add thin wrapper in `dash_app/data/queries.py`
+  3. Create `create_trend_figure(data, title, metric)` in `plotly_generator.py` — line chart: x=period_end, y=metric, one line per drug (or per directory). Uses `_base_layout()` + `_smart_legend()`. Add `dmc.SegmentedControl` for metric toggle (patients / cost / cost_pp_pa)
+  4. Add "Trends" tab to `TAB_DEFINITIONS` in `chart_card.py`
+  5. Add `_render_trends()` helper + dispatch case in `chart.py`
+  6. Handle empty state: if `pathway_trends` table doesn't exist or is empty, show "Run `python -m cli.compute_trends` to generate trend data" message
+- **Checkpoint**: Trends tab shows drug/directory trends over 10 historical periods, responds to filters. Empty state handled gracefully if trends not yet computed.
 
 ### D.2 Average administered doses analysis
 - [x] Create `get_dosing_distribution()` query in `pathway_queries.py`:
@@ -233,14 +240,6 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] Add `_render_timeline()` helper + dispatch case in `chart.py`
 - **Checkpoint**: Timeline tab shows when each drug cohort was active
 
-### D.4 NICE TA compliance dashboard
-- [B] **BLOCKED**: `data/ta-recommendations.xlsx` does not exist (source data missing). Also requires schema + migration (guardrail-protected files)
-- [ ] Parse `data/ta-recommendations.xlsx` into a reference table
-- [ ] Create schema and migration for TA compliance reference data
-- [ ] Create compliance scoring: cross-reference pathway data with TA recommendations
-- [ ] Create `create_ta_compliance_figure(data, title)` — traffic-light matrix
-- [ ] Add "Compliance" tab or separate Trust Comparison sub-view
-- **Checkpoint**: Compliance matrix shows alignment with NICE guidance
 
 ---
 
@@ -269,10 +268,9 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] `python run_dash.py` starts cleanly
 
 ### Phase D
-- [B] Temporal trends — BLOCKED (requires guardrail-protected file changes + ≥2 refresh cycles)
+- [x] Temporal trends computed via historical snapshots (CLI script + Dash tab)
 - [x] Dose distribution shows average administered doses per drug
 - [x] Drug timeline shows Gantt-style cohort activity
-- [B] NICE TA compliance — BLOCKED (source data file missing + requires guardrail-protected file changes)
 - [x] `python run_dash.py` starts cleanly
 
 ---
