@@ -522,3 +522,42 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Recommendation: Try D.2 next if `average_administered` data is available and parseable. If the JSON format is too complex or data is sparse, mark D.2 as [B] and assess D.4.
 ### Blocked items:
 - D.1: Likely blocked — requires modifying guardrail-protected files (schema.py, reference_data.py, refresh_pathways.py) + needs multiple refresh cycles for meaningful data.
+
+## Iteration 14 — 2026-02-07
+### Task: D.2 — Average administered doses analysis
+### Why this task:
+- D.2 was explicitly recommended by Iteration 13. The `average_administered` JSON data exists (2031 rows, simple array format) and requires no schema changes. D.1 is blocked (guardrail-protected files). D.4 is complex (schema + migration + Excel parsing). D.2 was the cleanest ready task.
+### Status: COMPLETE
+### What was done:
+- **`get_dosing_distribution()`** in `pathway_queries.py`: Queries level 3 nodes with `average_administered` JSON, parses position 0 (average dose count for the drug), aggregates across trusts using weighted averages by patient count. Supports directory/trust filters. Returns `[{drug, directory, avg_doses, patients}]`.
+- **Thin wrapper** in `dash_app/data/queries.py`: Standard import + DB_PATH delegation.
+- **`create_dosing_distribution_figure()`** in `plotly_generator.py`: Horizontal bar chart (`go.Bar` with `orientation="h"`) showing average administered doses per drug. One trace per bar with legend grouped by directory. Colors from `DRUG_PALETTE`. Dynamic height (24px per bar). `_base_layout()` + `_smart_legend()`. Hover shows drug, directory, avg doses, patients.
+- **TAB_DEFINITIONS**: Added `("doses", "Doses")` — now 9 tabs: Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network, Timeline, Doses.
+- **`_render_doses()`** in `chart.py`: Standard render helper with directory/trust filter extraction and error handling.
+- **Dispatch case**: Added `elif active_tab == "doses"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `uv run python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): 59 data points across 12 directories. Top: TOCILIZUMAB (RHEUMATOLOGY) avg 70.5 doses, INFLIXIMAB (OPHTHALMOLOGY) 47.7, EVOLOCUMAB (CHEMICAL PATHOLOGY) 46.6. Dynamic height 1536px for all, 504px for single directory.
+- Tier 3 (Functional): Directory filter works (RHEUMATOLOGY: 16 drugs). Empty data returns empty figure. Tab switching wired via dynamic `_TAB_IDS`. 9 tabs visible.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_dosing_distribution()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_dosing_distribution_figure()`
+- `dash_app/components/chart_card.py` — added doses to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_doses()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked D.2 subtasks [x]
+### Committed: c7e9398 "feat: average administered doses chart tab (Task D.2)"
+### Patterns discovered:
+- The `average_administered` column is a JSON array of floats (with NaN as string). Position 0 = average doses for the drug at that node. Level 3 nodes have only position 0, level 4 has positions 0+1, etc.
+- `json.loads(s.replace("NaN", "null"))` safely handles NaN values in the JSON. Returns None for NaN positions.
+- No need for a separate parsing function in `parsing.py` — the JSON parsing is simple enough to inline in the query function (3 lines).
+- With 59 bars (one per drug×directory), the chart is readable with 24px per bar and legend grouped by directory.
+### Next iteration should:
+- Two Phase D tasks remain: D.1 (Temporal trends) and D.4 (NICE TA compliance).
+- **D.1** is very likely blocked: requires modifying `schema.py`, `reference_data.py`, and `refresh_pathways.py` — all in the guardrails DO NOT MODIFY list. Also needs multiple refresh cycles. Recommend marking D.1 as [B] (blocked).
+- **D.4** (NICE TA compliance): Check if `data/ta-recommendations.xlsx` exists and inspect its contents. This requires: (1) parsing the Excel into a reference table, (2) creating schema + migration (guardrail-protected), (3) compliance scoring algorithm, (4) figure function, (5) tab/callback wiring. Steps 1-2 are also likely blocked by guardrails.
+- If both D.1 and D.4 are blocked, the project may be effectively complete for the current scope. Mark them [B] and check completion criteria.
+- Alternatively: assess whether D.4 can be done without schema changes by keeping TA data in memory (load Excel directly from disk, no migration needed).
+### Blocked items:
+- D.1: Blocked — requires modifying guardrail-protected files + needs multiple refresh cycles.
+- D.4: Potentially blocked — requires schema + migration for TA reference data (guardrail-protected files).
