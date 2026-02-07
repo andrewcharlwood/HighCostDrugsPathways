@@ -79,9 +79,9 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 
 ### A.4 Fix trust comparison color differentiation
 - [x] In `create_trust_duration_figure()`: replace `nhs_colours` list with `TRUST_PALETTE` (done in A.3)
-- [ ] Add `is_trust_comparison=False` param to `create_cost_waterfall_figure()` — use `TRUST_PALETTE` when True
-- [ ] Update `tc_cost_waterfall` callback in `dash_app/callbacks/trust_comparison.py` (~L165) to pass `is_trust_comparison=True`
-- [ ] Fix `_dosing_by_drug()` blue→blue interpolation: replace with `plotly.colors.sample_colorscale("Viridis", ...)` for meaningful gradient
+- [x] Add `is_trust_comparison=False` param to `create_cost_waterfall_figure()` — use `TRUST_PALETTE` when True
+- [x] Update `tc_cost_waterfall` callback in `dash_app/callbacks/trust_comparison.py` to pass `is_trust_comparison=True`
+- [x] Fix `_dosing_by_drug()` blue→blue interpolation: replaced with `plotly.colors.sample_colorscale("Viridis", ...)` for meaningful gradient
 - [x] Replace `nhs_colours` in `create_trust_market_share_figure()` with `DRUG_PALETTE` for drug traces (done in A.3)
 - [x] Apply `_base_layout()` to all affected functions (done in A.3 for trust_market_share and trust_duration)
 - **Checkpoint**: Trust Comparison charts have 7 visually distinct trust colors; dosing has meaningful gradient

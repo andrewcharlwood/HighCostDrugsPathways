@@ -632,6 +632,7 @@ def create_cost_effectiveness_figure(
 def create_cost_waterfall_figure(
     data: list[dict],
     title: str = "",
+    is_trust_comparison: bool = False,
 ) -> go.Figure:
     """Create waterfall chart showing cost per patient by directorate/indication.
 
@@ -652,15 +653,8 @@ def create_cost_waterfall_figure(
     patients_list = [d["patients"] for d in data]
     total_costs = [d["total_cost"] for d in data]
 
-    # NHS colour palette for bars
-    nhs_colours = [
-        "#005EB8", "#003087", "#41B6E6", "#0066CC", "#1E88E5",
-        "#4FC3F7", "#009639", "#ED8B00", "#768692", "#425563",
-        "#DA291C", "#7C2855",
-    ]
-
-    # Assign colours cycling through palette
-    bar_colours = [nhs_colours[i % len(nhs_colours)] for i in range(len(data))]
+    palette = TRUST_PALETTE if is_trust_comparison else DRUG_PALETTE
+    bar_colours = [palette[i % len(palette)] for i in range(len(data))]
 
     hover_texts = []
     for d in data:
@@ -699,7 +693,7 @@ def create_cost_waterfall_figure(
             text=f"n={pts:,}",
             showarrow=False,
             yshift=-18,
-            font=dict(size=10, color="#768692", family="Source Sans 3"),
+            font=dict(size=10, color=ANNOTATION_COLOR, family=CHART_FONT_FAMILY),
         )
 
     # Grand total line
@@ -715,7 +709,7 @@ def create_cost_waterfall_figure(
             annotation_text=f"Weighted avg: £{weighted_avg:,.0f}",
             annotation_position="top right",
             annotation_font=dict(
-                size=11, color="#DA291C", family="Source Sans 3"
+                size=11, color="#DA291C", family=CHART_FONT_FAMILY
             ),
         )
 
@@ -724,17 +718,8 @@ def create_cost_waterfall_figure(
         else "Cost per Patient by Directorate"
     )
 
-    fig.update_layout(
-        title=dict(
-            text=display_title,
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=18,
-                color="#1E293B",
-            ),
-            x=0.5,
-            xanchor="center",
-        ),
+    layout = _base_layout(display_title)
+    layout.update(
         xaxis=dict(
             title="",
             tickangle=-45 if len(data) > 6 else 0,
@@ -745,30 +730,16 @@ def create_cost_waterfall_figure(
             title="£ per patient",
             tickprefix="£",
             tickformat=",",
-            gridcolor="#E2E8F0",
+            gridcolor=GRID_COLOR,
             zeroline=True,
             zerolinecolor="#CBD5E1",
         ),
         margin=dict(t=60, l=8, r=24, b=40),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        autosize=True,
         showlegend=False,
-        hoverlabel=dict(
-            bgcolor="#FFFFFF",
-            bordercolor="#CBD5E1",
-            font=dict(
-                family="Source Sans 3, system-ui, sans-serif",
-                size=13,
-                color="#1E293B",
-            ),
-        ),
-        font=dict(
-            family="Source Sans 3, system-ui, sans-serif",
-        ),
-        height=max(450, 500),
+        height=500,
         bargap=0.25,
     )
+    fig.update_layout(**layout)
 
     return fig
 
@@ -1005,16 +976,12 @@ def _dosing_by_drug(data: list[dict], colours: list[str]) -> go.Figure:
             f"Patients: {tp:,}"
         )
 
-    # Colour bars by interval: lower = more frequent dosing = NHS blue, higher = lighter
+    # Colour bars by interval: lower = more frequent dosing, higher = less frequent
+    # Use Viridis colorscale for meaningful gradient (replaces blue→blue interpolation)
+    import plotly.colors as pc
     max_interval = max(intervals) if intervals else 1
-    bar_colours = []
-    for iv in intervals:
-        ratio = iv / max_interval if max_interval > 0 else 0
-        # Interpolate NHS blue (#005EB8) to light blue (#41B6E6)
-        r = int(0x00 + (0x41 - 0x00) * ratio)
-        g = int(0x5E + (0xB6 - 0x5E) * ratio)
-        b = int(0xB8 + (0xE6 - 0xB8) * ratio)
-        bar_colours.append(f"rgb({r},{g},{b})")
+    ratios = [iv / max_interval if max_interval > 0 else 0 for iv in intervals]
+    bar_colours = pc.sample_colorscale("Viridis", ratios)
 
     fig = go.Figure()
     fig.add_trace(go.Bar(

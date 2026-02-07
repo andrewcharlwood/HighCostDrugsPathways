@@ -164,7 +164,7 @@ def register_trust_comparison_callbacks(app):
         # Reuse existing waterfall figure — map trust_name to directory key
         mapped = [{"directory": d["trust_name"], "patients": d["patients"],
                     "total_cost": d["total_cost"], "cost_pp": d["cost_pp"]} for d in data]
-        return create_cost_waterfall_figure(mapped, _tc_title(app_state))
+        return create_cost_waterfall_figure(mapped, _tc_title(app_state), is_trust_comparison=True)
 
     # 3. Dosing — drug dosing intervals by trust
     @app.callback(
