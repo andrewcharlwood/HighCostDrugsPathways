@@ -1373,6 +1373,76 @@ def get_drug_network(
         conn.close()
 
 
+def get_drug_timeline(
+    db_path: Path,
+    date_filter_id: str,
+    chart_type: str,
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Get drug timeline data for Gantt-style chart.
+
+    Queries level 3 nodes and aggregates across trusts to get the earliest
+    first_seen and latest last_seen per drug × directory.
+
+    Returns list of dicts sorted by directory then first_seen:
+        [{"drug": "ADALIMUMAB", "directory": "RHEUMATOLOGY",
+          "first_seen": "2019-04-04T00:00:00", "last_seen": "2025-12-30T00:00:00",
+          "patients": 2053, "cost_pp_pa": 2170.5}, ...]
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        conditions = ["date_filter_id = ?", "chart_type = ?", "level = 3"]
+        params: list = [date_filter_id, chart_type]
+
+        if directory:
+            conditions.append("directory = ?")
+            params.append(directory)
+        if trust:
+            conditions.append("trust_name = ?")
+            params.append(trust)
+
+        where = " AND ".join(conditions)
+        query = f"""
+            SELECT
+                labels AS drug,
+                directory,
+                MIN(first_seen) AS first_seen,
+                MAX(last_seen) AS last_seen,
+                SUM(value) AS patients,
+                CASE
+                    WHEN SUM(value) > 0
+                    THEN ROUND(SUM(CAST(cost_pp_pa AS REAL) * value) / SUM(value), 2)
+                    ELSE 0
+                END AS cost_pp_pa
+            FROM pathway_nodes
+            WHERE {where}
+                AND first_seen IS NOT NULL AND first_seen != ''
+                AND last_seen IS NOT NULL AND last_seen != ''
+            GROUP BY labels, directory
+            ORDER BY directory, first_seen
+        """
+
+        rows = conn.execute(query, params).fetchall()
+        return [
+            {
+                "drug": r["drug"],
+                "directory": r["directory"],
+                "first_seen": r["first_seen"],
+                "last_seen": r["last_seen"],
+                "patients": r["patients"] or 0,
+                "cost_pp_pa": r["cost_pp_pa"] or 0,
+            }
+            for r in rows
+            if r["patients"] and r["patients"] > 0
+        ]
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
 def get_directorate_summary(
     db_path: Path,
     date_filter_id: str,

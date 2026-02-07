@@ -28,6 +28,7 @@ from data_processing.pathway_queries import (
     get_pathway_depth_distribution as _get_pathway_depth_distribution,
     get_duration_cost_scatter as _get_duration_cost_scatter,
     get_drug_network as _get_drug_network,
+    get_drug_timeline as _get_drug_timeline,
 )
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
@@ -227,3 +228,13 @@ def get_drug_network(
 ) -> dict:
     """Undirected drug co-occurrence network for network graph."""
     return _get_drug_network(DB_PATH, date_filter_id, chart_type, directory, trust)
+
+
+def get_drug_timeline(
+    date_filter_id: str = "all_6mo",
+    chart_type: str = "directory",
+    directory: Optional[str] = None,
+    trust: Optional[str] = None,
+) -> list[dict]:
+    """Drug timeline data (first_seen, last_seen) for Gantt chart."""
+    return _get_drug_timeline(DB_PATH, date_filter_id, chart_type, directory, trust)

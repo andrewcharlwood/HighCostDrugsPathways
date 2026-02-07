@@ -215,13 +215,17 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Dose distribution visible as box/violin plots
 
 ### D.3 Drug timeline (Gantt chart)
-- [ ] Create `get_drug_timeline()` query in `pathway_queries.py`:
+- [x] Create `get_drug_timeline()` query in `pathway_queries.py`:
   - Level 3 nodes with `first_seen`, `last_seen`, `labels`, `value` per drug × directory
-- [ ] Create `create_drug_timeline_figure(data, title)` in plotly_generator.py:
+  - Aggregates across trusts: MIN(first_seen), MAX(last_seen), SUM(value), weighted avg cost_pp_pa
+  - Supports directory/trust filters
+- [x] Create `create_drug_timeline_figure(data, title)` in plotly_generator.py:
   - Gantt-style using `go.Bar` (horizontal bars from first_seen to last_seen)
-  - Grouped by directory, colored by patient count
-- [ ] Add "Timeline" tab to `TAB_DEFINITIONS` in `chart_card.py`
-- [ ] Add callback wiring
+  - One trace per bar, grouped by directory with legend grouping
+  - Colored by directory using `DRUG_PALETTE`, patient count as bar text
+  - Dynamic height (28px per bar), `_base_layout()` + `_smart_legend()`
+- [x] Add "Timeline" tab to `TAB_DEFINITIONS` in `chart_card.py` (8th tab)
+- [x] Add `_render_timeline()` helper + dispatch case in `chart.py`
 - **Checkpoint**: Timeline tab shows when each drug cohort was active
 
 ### D.4 NICE TA compliance dashboard

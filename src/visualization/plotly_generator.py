@@ -2085,3 +2085,124 @@ def create_drug_network_figure(data: dict, title: str = "") -> go.Figure:
     fig.update_layout(**layout)
 
     return fig
+
+
+def create_drug_timeline_figure(data: list[dict], title: str = "") -> go.Figure:
+    """Create a Gantt-style timeline showing when each drug cohort was active.
+
+    Each horizontal bar spans from first_seen to last_seen for a drug,
+    grouped by directory, with color indicating directory and text showing
+    patient count.
+
+    Args:
+        data: List of dicts with keys: drug, directory, first_seen, last_seen,
+              patients, cost_pp_pa.
+        title: Chart title.
+
+    Returns:
+        Plotly Figure with horizontal bars.
+    """
+    if not data:
+        return go.Figure()
+
+    from datetime import datetime
+
+    display_title = title or "Drug Timeline"
+
+    # Parse dates and sort by directory then first_seen
+    for d in data:
+        d["_fs"] = datetime.fromisoformat(d["first_seen"])
+        d["_ls"] = datetime.fromisoformat(d["last_seen"])
+        d["_duration_days"] = max(1, (d["_ls"] - d["_fs"]).days)
+
+    # Sort: by directory alphabetically, then by first_seen ascending
+    data.sort(key=lambda d: (d["directory"], d["_fs"]))
+
+    # Assign colors by directory
+    directories = list(dict.fromkeys(d["directory"] for d in data))
+    dir_colors = {
+        d: DRUG_PALETTE[i % len(DRUG_PALETTE)]
+        for i, d in enumerate(directories)
+    }
+
+    # Build y-axis labels: "Drug (Directory)" for multi-directory views, just "Drug" for single
+    single_directory = len(directories) == 1
+    y_labels = []
+    for d in data:
+        if single_directory:
+            y_labels.append(d["drug"])
+        else:
+            y_labels.append(f"{d['drug']} ({d['directory']})")
+
+    # Build one trace per directory for legend grouping
+    fig = go.Figure()
+    dir_legend_shown = set()
+
+    for i, d in enumerate(data):
+        show_legend = d["directory"] not in dir_legend_shown
+        dir_legend_shown.add(d["directory"])
+
+        duration_ms = d["_duration_days"] * 86_400_000  # days → milliseconds
+        patients = d["patients"]
+        cost = d["cost_pp_pa"]
+
+        fig.add_trace(
+            go.Bar(
+                y=[y_labels[i]],
+                x=[duration_ms],
+                base=[d["_fs"]],
+                orientation="h",
+                marker=dict(
+                    color=dir_colors[d["directory"]],
+                    line=dict(width=0),
+                ),
+                name=d["directory"],
+                legendgroup=d["directory"],
+                showlegend=show_legend,
+                text=f"{patients:,}",
+                textposition="inside",
+                textfont=dict(color="white", size=10),
+                hovertemplate=(
+                    f"<b>{d['drug']}</b><br>"
+                    f"Directory: {d['directory']}<br>"
+                    f"First seen: {d['_fs'].strftime('%b %Y')}<br>"
+                    f"Last seen: {d['_ls'].strftime('%b %Y')}<br>"
+                    f"Duration: {d['_duration_days']:,} days<br>"
+                    f"Patients: {patients:,}<br>"
+                    f"Cost p.a.: £{cost:,.0f}"
+                    "<extra></extra>"
+                ),
+            )
+        )
+
+    # Layout
+    n_bars = len(data)
+    bar_height = 28
+    dynamic_height = max(400, n_bars * bar_height + 120)
+
+    n_dirs = len(directories)
+    legend_margins = _smart_legend_margin(n_dirs)
+    legend = _smart_legend(n_dirs, legend_title="Directory")
+
+    layout = _base_layout(display_title)
+    layout.update(
+        xaxis=dict(
+            type="date",
+            gridcolor=GRID_COLOR,
+            dtick="M6",
+            tickformat="%b\n%Y",
+        ),
+        yaxis=dict(
+            automargin=True,
+            autorange="reversed",
+            tickfont=dict(size=11),
+        ),
+        barmode="overlay",
+        height=dynamic_height,
+        margin=dict(t=60, l=8, **legend_margins),
+        legend=legend,
+        bargap=0.3,
+    )
+    fig.update_layout(**layout)
+
+    return fig

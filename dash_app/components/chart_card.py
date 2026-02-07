@@ -12,6 +12,7 @@ TAB_DEFINITIONS = [
     ("depth", "Depth"),
     ("scatter", "Scatter"),
     ("network", "Network"),
+    ("timeline", "Timeline"),
 ]
 
 # Full set retained for Trust Comparison dashboard (Phase 10.8)
