@@ -689,7 +689,7 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - `dash_app/callbacks/chart.py` — removed _render_trends + trends dispatch + trends I/O
 - `dash_app/data/queries.py` — removed get_trend_data import + wrapper
 - `IMPLEMENTATION_PLAN.md` — marked E.1 subtasks [x]
-### Committed: [pending]
+### Committed: d052d2b "refactor: remove Trends tab from Patient Pathways (Task E.1)"
 ### Patterns discovered:
 - Removing a callback Output/Input required updating exactly 4 return paths: (1) no chart_data, (2) error_msg, (3) no nodes, (4) final return with fig. Guardrail about counting return paths before/after was essential.
 - The `dmc` import in chart_card.py is still needed for the heatmap metric toggle — only the trends toggle was removed.
