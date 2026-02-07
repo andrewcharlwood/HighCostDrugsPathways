@@ -103,3 +103,30 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Key heatmap fixes: linear 5-stop colorscale, cell text annotations, zmin=0, autosize, automargin, subtitle when >25 drugs.
 ### Blocked items:
 - None
+
+## Iteration 2 — 2026-02-07
+### Task: A.2 — Fix heatmap colorscale + cell annotations
+### Why this task:
+- A.2 is the next Phase A task after A.1. It depends on `_base_layout()` (done in A.1). It addresses the most-reported heatmap bugs: non-linear colorscale, missing cell text, fixed width overflow, fixed left margin.
+### Status: COMPLETE
+### What was done:
+- **create_heatmap_figure()**: Replaced non-linear 7-stop colorscale with linear 5-stop `[0.0 #E3F2FD, 0.25 #90CAF9, 0.5 #42A5F5, 0.75 #1E88E5, 1.0 #003087]`. Added `text=text_values, texttemplate="%{text}"` with metric-specific formatting (patients: `N`, cost: `£Nk`, cost_pp_pa: `£N`). Set `zmin=0`. Removed fixed `width`, using `autosize=True` from `_base_layout()`. Replaced `l=200` with `l=8` + `yaxis automargin=True`. Added subtitle annotation when 25-drug cap is hit. Reduced `xgap/ygap` to 1 when >15 columns.
+- **create_trust_heatmap_figure()**: Applied identical fixes. Also fixed Unicode escapes (`\u00a3`, `\u00d7`, `\u2014`) back to literal characters.
+- Both functions now use `_base_layout(chart_title)` for consistent styling — title color is now `#1E293B` (CHART_TITLE_COLOR) instead of old hardcoded `#003087`, title size is 18 (CHART_TITLE_SIZE) for both (trust heatmap was 16 before).
+### Validation results:
+- Tier 1 (Code): imports pass, `uv run python -c "from dash_app.app import app"` OK, `uv run python run_dash.py` starts cleanly
+- Tier 2 (Visual): Functional test confirms: zmin=0, text present, texttemplate="%{text}", 5-stop colorscale, autosize=True, yaxis automargin=True, title color #1E293B
+### Files changed:
+- `src/visualization/plotly_generator.py` — both heatmap functions rewritten
+- `IMPLEMENTATION_PLAN.md` — marked A.2 subtasks [x]
+### Committed: 56ca11e "fix: heatmap linear colorscale, cell annotations, autosize (Task A.2)"
+### Patterns discovered:
+- The `_base_layout()` helper makes chart function updates significantly easier — just `layout = _base_layout(title)` + `layout.update(...)` + `fig.update_layout(**layout)`. No need to repeat font/bgcolor/autosize.
+- `textfont=dict(size=10)` on the heatmap trace controls cell annotation size — needs to be small enough not to overflow cells.
+- Cost formatting: `£Nk` for cost ≥ 1000, `£N` for small values. This avoids `£125,000` flooding cells.
+### Next iteration should:
+- Start with Task A.3: Fix legend overflow in 4 charts. This requires creating `_smart_legend(n_items)` helper and applying it + `_base_layout()` to: `create_market_share_figure()`, `create_trust_market_share_figure()`, `create_dosing_figure()`, `create_trust_duration_figure()`.
+- Search for these function names by `def create_market_share_figure` etc. — line numbers have shifted again.
+- The `_smart_legend()` helper should: >15 items → vertical right legend; ≤15 → horizontal with dynamic bottom margin.
+### Blocked items:
+- None
