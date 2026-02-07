@@ -197,3 +197,32 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - After B.1, the next tasks are B.2 (cost effectiveness gradient) and B.3 (Sankey narrow-screen fix) — both are small and independent.
 ### Blocked items:
 - None
+
+## Iteration 5 — 2026-02-07
+### Task: B.1 — Fix title inconsistencies across all charts
+### Why this task:
+- B.1 is the first Phase B task. Phase A is complete. Progress.txt from Iteration 4 explicitly recommended B.1 next. It ensures all chart functions use consistent styling via `_base_layout()`.
+### Status: COMPLETE
+### What was done:
+- **`create_sankey_figure()`**: Replaced local `nhs_colours` (15 blue-heavy colors) with `DRUG_PALETTE`. Replaced 20-line hardcoded layout block (title color `#003087`, manual font/bgcolor) with `_base_layout()` call + 2 overrides (font size 12, margin/height).
+- **`create_cost_effectiveness_figure()`**: Replaced 38-line manual layout block (title, xaxis, yaxis, margin, bgcolor, hoverlabel, font) with `_base_layout()` + 5-key update. Replaced hardcoded annotation font strings with `ANNOTATION_COLOR` and `CHART_FONT_FAMILY` constants. Replaced `gridcolor="#E2E8F0"` with `GRID_COLOR`.
+- **`create_duration_figure()`**: Replaced 30-line manual layout (title color `#003087`, l=200 fixed margin, manual bgcolor/font) with `_base_layout()` + 6-key update. Fixed `margin.l` from 200 → 8 + `yaxis automargin=True`. Replaced hardcoded annotation font with constants. Used `ANNOTATION_COLOR` in subtitle HTML span.
+- Net result: -52 lines (24 added, 76 removed). All 11 chart functions now use `_base_layout()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, no errors.
+- Tier 2 (Visual): All three functions produce figures with title color `#1E293B`, title size 18, font family `Source Sans 3, system-ui, sans-serif`, transparent bgcolor. Duration uses automargin instead of fixed l=200.
+### Files changed:
+- `src/visualization/plotly_generator.py` — converted 3 remaining chart functions to `_base_layout()`
+- `IMPLEMENTATION_PLAN.md` — marked B.1 subtasks [x]
+### Committed: 8d05adc "fix: consistent titles via _base_layout() for Sankey, Cost Effectiveness, Duration (Task B.1)"
+### Patterns discovered:
+- All 11 chart functions in plotly_generator.py now use `_base_layout()`. No more hardcoded `"Source Sans 3"` strings or `#003087` title colors exist outside of constants/colorscale definitions.
+- Sankey's local `nhs_colours` was different from `DRUG_PALETTE` (had more blue variants like `#003087`, `#41B6E6`, `#0066CC`). Replacing with `DRUG_PALETTE` gives more distinguishable drug colors.
+- The `_base_layout()` conversion is a reliable pattern: replace the entire `fig.update_layout(...)` call with `layout = _base_layout(title)` + `layout.update({chart-specific})` + `fig.update_layout(**layout)`. Removes ~15-30 lines per function.
+### Next iteration should:
+- Choose Task B.2 (cost effectiveness smooth gradient) or B.3 (Sankey narrow-screen fix) — both are small, independent tasks with no blockers.
+- B.2: In `create_cost_effectiveness_figure()`, replace the 3-bin hard threshold (green/amber/red at 0.33/0.66) with smooth RGB interpolation. Green (#009639) → Amber (#ED8B00) at ratio 0–0.5, Amber → Red (#DA291C) at 0.5–1.0.
+- B.3: In `create_sankey_figure()`, change `arrangement="snap"` → `arrangement="freeform"` and increase `pad` from 20 → 25.
+- Both are quick changes — could potentially do B.2+B.3 together if scoped carefully, but the loop rules say one task per iteration.
+### Blocked items:
+- None
