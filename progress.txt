@@ -2587,3 +2587,38 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - Recommend 11.2 or 11.3 next as they're CSS-only changes
 ### Blocked items:
 - None
+
+## Iteration 45 — 2026-02-07
+### Task: 11.2 — Trust Comparison charts: fix overspill and increase chart size
+### Why this task:
+- Progress.txt from iteration 44 recommended 11.2 or 11.3 as CSS-only changes
+- 11.2 is a clear readability fix — charts at 320px were too cramped, text/axes overspilling
+- Independent of other Phase 11 tasks
+### Status: COMPLETE
+### What was done:
+- **Updated `dash_app/components/trust_comparison.py`**: Changed `dcc.Graph` height from `320px` to `500px` across all 6 chart cells (56% increase)
+- **Updated `dash_app/assets/nhs.css`**: Added `overflow: hidden` and `min-height: 0` to `.tc-chart-cell` to prevent content leaking outside cells
+- **Height analysis**: Plotly figure functions generate dynamic heights:
+  - Market Share: 560px, Heatmap: 380px, Duration: 760px
+  - At 500px container, Plotly scales figures to fit. Heatmap fits perfectly, Market Share and Duration are slightly compressed but readable
+  - Dashboard scrolls vertically (3 rows × ~540px = ~1620px total) which is acceptable per the task requirements
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK
+- Tier 1 (App starts): `python run_dash.py` — "Dash is running on http://127.0.0.1:8050/" — no errors
+- Tier 2 (Layout): 6 chart cells now 500px (no 320px references remain), overflow: hidden in CSS
+- Tier 3 (Functional): 20 callbacks registered (no regression), all 6 TC charts render with real data
+### Files changed:
+- `dash_app/components/trust_comparison.py` — Changed dcc.Graph height from 320px to 500px
+- `dash_app/assets/nhs.css` — Added overflow: hidden + min-height: 0 to .tc-chart-cell
+- `IMPLEMENTATION_PLAN.md` — Task 11.2 marked [x]
+### Committed: a4059b5 "style: increase Trust Comparison chart height from 320px to 500px (Task 11.2)"
+### Patterns discovered:
+- Plotly `dcc.Graph` with a fixed CSS height will scale the figure's `layout.height` to fit the container. This means 500px container works for figures that compute 380px–760px layout heights — Plotly compresses/stretches to fit.
+- `overflow: hidden` on the chart cell prevents any edge-case spillover while `min-height: 0` prevents flex child overflow issues.
+### Next iteration should:
+- Pick either 11.3 (Patient Pathways chart fill height) or 11.4 (modal aesthetics)
+- 11.3 is CSS-only: make chart card + patient-pathways-view flex columns so dcc.Graph's `flex: 1` works. Currently `flex: 1` has no effect because parent isn't a flex container.
+- 11.4 is more involved: increase chip sizes, increase modal widths, use frontend-developer agent for UX review
+- Recommend 11.3 next as it's a smaller CSS change
+### Blocked items:
+- None
