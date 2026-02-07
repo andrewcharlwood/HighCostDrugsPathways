@@ -86,8 +86,8 @@ def make_chart_card():
                                 id="heatmap-metric-toggle",
                                 data=[
                                     {"value": "patients", "label": "Patients"},
-                                    {"value": "cost", "label": "Cost"},
-                                    {"value": "cost_pp_pa", "label": "Cost p.a."},
+                                    {"value": "cost", "label": "Cost per Patient"},
+                                    {"value": "cost_pp_pa", "label": "Cost per Patient p.a."},
                                 ],
                                 value="patients",
                                 size="xs",

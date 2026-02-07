@@ -308,13 +308,11 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - **Checkpoint**: Click a directorate line → drill into drug-level trends. Back button returns to overview. `python run_dash.py` starts cleanly. PASSED.
 
 ### E.5 Fix chart height to fill viewport
-- [ ] In `create_trend_figure()` in `plotly_generator.py`: remove explicit `height=500`, let `autosize=True` (from `_base_layout()`) handle it
-- [ ] For ALL Patient Pathways chart functions (icicle, sankey, heatmap, funnel, depth, scatter, network, timeline, doses): review and remove fixed `height=...` values where appropriate. Replace with responsive height:
-  - For charts with dynamic height (e.g. `max(400, n_bars * 28 + 150)`): keep the dynamic calculation but ensure minimum is high enough to fill viewport
-  - For charts with fixed `height=500`: remove it
-- [ ] Add CSS rule to ensure `#pathway-chart .js-plotly-plot, #pathway-chart .plot-container` have `height: 100%` to propagate the flex container height to the Plotly div
-- [ ] Verify the existing CSS flex chain propagates correctly: `.chart-card` → `.dash-loading-callback` → `#chart-container` → `#pathway-chart`
-- [ ] Rename "Cost" to "Cost per Patient" in any remaining metric toggle labels (heatmap toggles in `chart_card.py` and `trust_comparison.py`)
+- [x] In `create_trend_figure()` in `plotly_generator.py`: removed explicit `height=500`, `autosize=True` from `_base_layout()` handles it
+- [x] Reviewed ALL chart functions — removed 4 fixed heights: `create_cost_waterfall_figure()` (500), `create_duration_cost_scatter_figure()` (550), `create_drug_network_figure()` (600), `create_trend_figure()` (500). Kept 13 dynamic heights (`max(...)`, `fig_height`, `dynamic_height`).
+- [x] Added CSS rules: `#pathway-chart .js-plotly-plot, .plot-container, .svg-container { height: 100% !important }` to propagate flex container height
+- [x] Verified CSS flex chain: `.chart-card` → `.dash-loading-callback > div` → `#chart-container` → `#pathway-chart` → `.js-plotly-plot` — all flex with `min-height: 0`
+- [x] Renamed "Cost" to "Cost per Patient" and "Cost p.a." to "Cost per Patient p.a." in heatmap toggles in `chart_card.py` and `trust_comparison.py`
 - **Checkpoint**: Charts fill available viewport height in Patient Pathways. No fixed 500px cutoff. `python run_dash.py` starts cleanly.
 
 ---
@@ -355,9 +353,9 @@ Comprehensive review and improvement of all Plotly charts in the Dash dashboard.
 - [x] Trends landing page shows directorate-level line chart with metric toggle
 - [x] Clicking a directorate drills into drug-level trends
 - [x] Back button returns to directorate overview
-- [ ] Charts fill available viewport height (no fixed 500px cutoff)
+- [x] Charts fill available viewport height (no fixed 500px cutoff)
 - [x] "Cost" renamed to "Cost per Patient" in metric toggles
-- [ ] `python run_dash.py` starts cleanly
+- [x] `python run_dash.py` starts cleanly
 
 ---
 

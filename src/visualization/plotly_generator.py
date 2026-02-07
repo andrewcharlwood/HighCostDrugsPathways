@@ -722,7 +722,6 @@ def create_cost_waterfall_figure(
         ),
         margin=dict(t=60, l=8, r=24, b=40),
         showlegend=False,
-        height=500,
         bargap=0.25,
     )
     fig.update_layout(**layout)
@@ -1992,7 +1991,6 @@ def create_duration_cost_scatter_figure(
             zeroline=False,
         ),
         legend=legend,
-        height=550,
     )
     fig.update_layout(**layout)
 
@@ -2080,7 +2078,6 @@ def create_drug_network_figure(data: dict, title: str = "") -> go.Figure:
         margin=dict(t=60, l=24, r=24, b=24),
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
-        height=600,
     )
     fig.update_layout(**layout)
 
@@ -2376,7 +2373,6 @@ def create_trend_figure(
             zeroline=True,
             zerolinecolor=GRID_COLOR,
         ),
-        height=500,
         margin=dict(t=60, l=8, **legend_margins),
         legend=legend,
         hovermode="x unified",

@@ -826,3 +826,51 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Key files to read: `plotly_generator.py` (search for `height=`), `dash_app/assets/nhs.css` (flex chain), `chart_card.py` (heatmap toggle labels), `trust_comparison.py` (TC heatmap toggle labels)
 ### Blocked items:
 - None
+
+## Iteration 21 — 2026-02-07
+### Task: E.5 — Fix chart height to fill viewport + rename metric toggle labels
+### Why this task:
+- E.5 is the last remaining task. All other tasks (Phases A-D, E.1-E.4) are complete. Iteration 20 explicitly recommended E.5 with detailed guidance.
+### Status: COMPLETE
+### What was done:
+- **Removed 4 fixed heights** in `plotly_generator.py`:
+  1. `create_cost_waterfall_figure()`: removed `height=500`
+  2. `create_duration_cost_scatter_figure()`: removed `height=550`
+  3. `create_drug_network_figure()`: removed `height=600`
+  4. `create_trend_figure()`: removed `height=500`
+- **Kept 13 dynamic heights**: all `max(...)`, `fig_height`, and `dynamic_height` values remain — these scale with data and are correct behavior.
+- **Added CSS rules** in `nhs.css`: `#pathway-chart .js-plotly-plot, .plot-container, .svg-container { height: 100% !important }` to propagate flex container height into Plotly-rendered divs when no explicit figure height is set.
+- **Verified CSS flex chain**: `.chart-card` (flex:1) → `.dash-loading-callback > div` (flex:1) → `#chart-container` (flex:1) → `#pathway-chart` (flex:1) → `.js-plotly-plot/.plot-container/.svg-container` (height:100%) — full propagation from viewport to chart.
+- **Renamed metric toggle labels** in 2 files:
+  - `chart_card.py`: "Cost" → "Cost per Patient", "Cost p.a." → "Cost per Patient p.a."
+  - `trust_comparison.py`: same renames
+  - `trends.py`: already correct from E.3 (verified, no changes needed)
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): No fixed 500/550/600px cutoffs remain. Charts with no data-dependent height will expand to fill the flex container. Dynamic-height charts (e.g., 59-bar timeline at 1772px) remain unchanged.
+- Tier 3 (Functional): Metric toggles show "Patients | Cost per Patient | Cost per Patient p.a." in both PP heatmap and TC heatmap.
+### Files changed:
+- `src/visualization/plotly_generator.py` — removed 4 fixed height values
+- `dash_app/assets/nhs.css` — added Plotly div height propagation CSS
+- `dash_app/components/chart_card.py` — renamed heatmap metric toggle labels
+- `dash_app/components/trust_comparison.py` — renamed TC heatmap metric toggle labels
+- `IMPLEMENTATION_PLAN.md` — marked E.5 subtasks [x], all completion criteria [x]
+### Committed: [pending]
+### Patterns discovered:
+- Plotly `responsive=True` on `dcc.Graph` + `autosize=True` in figure layout is insufficient on its own — the Plotly-generated inner divs (`.js-plotly-plot`, `.plot-container`, `.svg-container`) need explicit `height: 100%` CSS to inherit the flex container height. Without this, they default to their content height.
+- The `!important` on the height rule is needed because Plotly sets inline styles on these elements.
+- Charts with dynamic heights (e.g., `max(400, n_bars * 28 + 120)`) correctly override the CSS since Plotly applies an inline `height` style which takes precedence over the CSS rule — `!important` only kicks in when no inline height is set.
+### Next iteration should:
+- ALL TASKS COMPLETE. See completion check below.
+### Blocked items:
+- None
+
+## PROJECT COMPLETION
+All tasks in IMPLEMENTATION_PLAN.md are marked [x]. All completion criteria satisfied.
+Summary of all completed work (21 iterations):
+- **Phase A (4 tasks)**: Shared constants + _base_layout(), heatmap fixes, legend overflow fix, trust color differentiation
+- **Phase B (4 tasks)**: Title consistency, cost effectiveness gradient, Sankey freeform, heatmap metric toggle
+- **Phase C (4 tasks)**: Retention funnel, pathway depth distribution, duration vs cost scatter, drug network graph
+- **Phase D (3 tasks)**: Temporal trends CLI + Dash tab, drug timeline Gantt chart, average administered doses chart
+- **Phase E (5 tasks)**: Remove trends from PP, 3-view navigation, Trends landing page, drill-down, chart height fix + metric rename
+- **Total**: 20 tasks completed, 0 blocked, 9 PP tabs, 6 TC charts, 1 standalone Trends view, 17+ chart functions, all using shared styling
