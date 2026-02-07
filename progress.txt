@@ -786,3 +786,43 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - CRITICAL: When adding Inputs to `update_app_state()`, the function signature and `_nav_trends_clicks` parameter must be updated. There is only 1 return path so impact is minimal.
 ### Blocked items:
 - None
+
+## Iteration 20 — 2026-02-07
+### Task: E.4 — Add drug drill-down within Trends view
+### Why this task:
+- E.4 is the next Phase E task after E.3. Iteration 19 explicitly recommended it with detailed guidance. It wires up click-to-drill-down on the directorate overview chart and a back button to return.
+### Status: COMPLETE
+### What was done:
+- **`create_trend_figure()`** in `plotly_generator.py`: Added `customdata=[name]*len(s["periods"])` to each `go.Scatter` trace so the directorate/drug name is accessible from Plotly clickData events.
+- **`update_app_state()`** in `filters.py`: Added 2 new Inputs:
+  - `Input("trends-overview-chart", "clickData")` — extracts directorate name from `clickData["points"][0]["customdata"]` and sets `selected_trends_directorate`
+  - `Input("trends-back-btn", "n_clicks")` — clears `selected_trends_directorate` to None
+  - Also clears `selected_trends_directorate` when chart type changes (same pattern as TC)
+  - Added `selected_trends_directorate` explicitly to `updated_state` dict
+- **`render_trends_detail()`** in `trends.py`: New callback rendering drug-level trends for the selected directorate. Input: `app-state` + `trends-detail-metric-toggle` → Output `trends-detail-chart`. Guards: only fires when `active_view == "trends"` and `selected_trends_directorate` is set.
+- **No changes needed** to `toggle_trends_subviews()` — it already handles landing/detail toggle based on `selected_trends_directorate`. No changes needed to `app.py` — `selected_trends_directorate` was already initialized in E.2.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly on http://127.0.0.1:8050/. 23 callbacks registered.
+- Tier 2 (Visual): customdata verified on trend figure traces. Overview chart has directorate names accessible from clickData.
+- Tier 3 (Functional): `update_app_state` has 13 Inputs (was 11). Click extracts directorate name correctly. Back button clears selection. Detail chart callback renders drug-level trends for selected directorate. Metric toggle works independently in detail view.
+### Files changed:
+- `src/visualization/plotly_generator.py` — added customdata to create_trend_figure traces
+- `dash_app/callbacks/filters.py` — added clickData + back btn inputs to update_app_state
+- `dash_app/callbacks/trends.py` — added render_trends_detail callback
+- `IMPLEMENTATION_PLAN.md` — marked E.4 subtasks [x]
+### Committed: 28f858e "feat: Trends drill-down — click directorate to see drug-level trends (Task E.4)"
+### Patterns discovered:
+- `customdata=[name]*len(periods)` on each Scatter trace is the clean way to make trace identity accessible from clickData. Each point carries its parent trace's name.
+- The `update_app_state()` callback is the central hub for all state changes. Adding Inputs is safe because it has only 1 return path (line 171) — unlike `update_chart()` which has 4+ return paths.
+- The detail metric toggle (`trends-detail-metric-toggle`) is separate from the landing toggle (`trends-view-metric-toggle`), so they fire independently without callback conflicts.
+### Next iteration should:
+- Do Task E.5: Fix chart height to fill viewport + rename "Cost" to "Cost per Patient" in remaining metric toggles.
+- E.5 involves:
+  1. Remove `height=500` from `create_trend_figure()` — let `autosize=True` handle it
+  2. Review ALL chart functions for fixed `height=...` values. Keep dynamic heights (e.g., `max(400, n * 28)`) but remove fixed 500px. Charts: icicle (no height set — OK), sankey (height=600), heatmap (dynamic — OK), funnel (dynamic — OK), depth (dynamic — OK), scatter (height=500), network (height=600), timeline (dynamic — OK), doses (dynamic — OK), cost_effectiveness (no explicit — check), cost_waterfall (no explicit — check), market_share (no explicit — check), dosing (no explicit — check), duration (dynamic — OK)
+  3. Add CSS rules for `#pathway-chart .js-plotly-plot, #pathway-chart .plot-container { height: 100% }` to propagate flex container height
+  4. Verify CSS flex chain: `.chart-card` → `.dash-loading-callback` → `#chart-container` → `#pathway-chart`
+  5. Rename "Cost" to "Cost per Patient" in heatmap metric toggles in `chart_card.py` and `trust_comparison.py`
+- Key files to read: `plotly_generator.py` (search for `height=`), `dash_app/assets/nhs.css` (flex chain), `chart_card.py` (heatmap toggle labels), `trust_comparison.py` (TC heatmap toggle labels)
+### Blocked items:
+- None
