@@ -329,3 +329,43 @@ Working Dash application with 2 views (Patient Pathways + Trust Comparison), 13 
 - Use `_base_layout()` and NHS blue gradient for the funnel figure.
 ### Blocked items:
 - None
+
+## Iteration 9 — 2026-02-07
+### Task: C.1 — Retention funnel chart
+### Why this task:
+- C.1 is the first Phase C task. Phases A and B are complete. Iteration 8 explicitly recommended C.1. It follows the 6-step pattern for adding a new chart tab.
+### Status: COMPLETE
+### What was done:
+- **`get_retention_funnel()`** in `pathway_queries.py`: Queries level 3+ nodes grouped by level, aggregates patient counts. Level 3→depth 1 (1st drug), level 4→depth 2 (2nd drug), etc. Supports directory/trust filters. Returns list of dicts with depth, label, patients, pct.
+- **Thin wrapper** in `dash_app/data/queries.py`: Imports and delegates to shared function with DB_PATH resolution.
+- **`create_retention_funnel_figure()`** in `plotly_generator.py`: Uses `go.Funnel` with NHS blue gradient (#003087→#005EB8→#1E88E5). Text inside bars shows "N patients (X%)". Uses `_base_layout()` for consistent styling. Dynamic height based on depth count.
+- **TAB_DEFINITIONS**: Added `("funnel", "Funnel")` — now 4 tabs: Icicle, Sankey, Heatmap, Funnel.
+- **`_render_funnel()`** in `chart.py`: Reads filter state, calls query, passes to figure function. Handles empty data and errors.
+- **Dispatch case**: Added `elif active_tab == "funnel"` in `update_chart()`.
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` OK. `python run_dash.py` starts cleanly, HTTP 200.
+- Tier 2 (Visual): Funnel shows 3 levels: 1st drug (10,819 patients, 100%), 2nd drug (2,142, 19.8%), 3rd drug (176, 1.6%). NHS blue gradient applied.
+- Tier 3 (Functional): Responds to directory filter (RHEUMATOLOGY: 3,448→551→50). Works with indication chart type (10,782→1,519→125). Returns empty figure for nonexistent directory. Tab switching wired via dynamic `_TAB_IDS`.
+### Files changed:
+- `src/data_processing/pathway_queries.py` — added `get_retention_funnel()`
+- `dash_app/data/queries.py` — added import + thin wrapper
+- `src/visualization/plotly_generator.py` — added `create_retention_funnel_figure()`
+- `dash_app/components/chart_card.py` — added funnel to TAB_DEFINITIONS
+- `dash_app/callbacks/chart.py` — added `_render_funnel()` + dispatch case
+- `IMPLEMENTATION_PLAN.md` — marked C.1 subtasks [x]
+### Committed: a6cf6ef "feat: retention funnel chart tab with treatment line depth (Task C.1)"
+### Patterns discovered:
+- The 6-step pattern works cleanly: query → wrapper → figure → tab def → render helper → dispatch. No surprises.
+- Level 3 sum (10,819) ≈ root value (11,118) — difference is due to minimum_patients thresholds. Close enough for funnel percentages.
+- `go.Funnel` positions text automatically. `textposition="inside"` with white text on dark NHS blue is readable.
+- Funnel connector lines use `GRID_COLOR` for visual consistency with other charts.
+### Next iteration should:
+- Do Task C.2: Pathway depth distribution chart. Same 6-step pattern.
+  1. Create `get_pathway_depth_distribution()` in `pathway_queries.py` — aggregate patients who STOPPED at each depth (not cumulative like funnel, but exclusive)
+  2. Key difference from funnel: subtract child counts. Patients at depth 1 only = level 3 total - level 4 total. Patients at depth 2 only = level 4 total - level 5 total.
+  3. Create `create_pathway_depth_figure(data, title)` — horizontal bar chart with NHS blue gradient
+  4. Add "Depth" tab to TAB_DEFINITIONS (will be 5th tab)
+  5. Wire callback helpers
+- The query logic for "stopped at depth N" is: patients_at_level_N - patients_at_level_(N+1). The last level has no children so stopped = total.
+### Blocked items:
+- None
