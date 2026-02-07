@@ -2620,8 +2620,6 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
 - 11.3 is CSS-only: make chart card + patient-pathways-view flex columns so dcc.Graph's `flex: 1` works. Currently `flex: 1` has no effect because parent isn't a flex container.
 - 11.4 is more involved: increase chip sizes, increase modal widths, use frontend-developer agent for UX review
 - Recommend 11.3 next as it's a smaller CSS change
-### Blocked items:
-- None
 
 ## Iteration 46 — 2026-02-07
 ### Task: 11.3 — Patient Pathways chart fill available screen height
@@ -2671,5 +2669,36 @@ Console error: `WARN: Multiple implied roots, cannot build icicle hierarchy of t
   6. Review accordion spacing in directorate modal
   7. Update CSS for modal chips and layout
 - Files to modify: `dash_app/components/modals.py`, `dash_app/assets/nhs.css`
-### Blocked items:
-- None
+
+## Iteration 47 — 2026-02-07
+### Task: 11.4 — Filter modals — improve aesthetics for large screens
+### Why this task:
+- Last remaining task in the entire implementation plan (Phase 11.4)
+- Recommended by iteration 46 as the next logical step
+- User-facing polish — modals had tiny xs-sized chips and undersized modal widths
+### Status: COMPLETE
+### What was done:
+- **Spawned frontend-developer agent** for UX review — agent analyzed data shapes (42 drugs, 7 trusts, 19 directorates × 163 indications) and recommended specific sizing, layout patterns, and CSS additions
+- **Drug modal**: size "lg" → "70%", chips "xs" → "sm", added SimpleGrid(cols=4) layout
+- **Trust modal**: size "sm" → "lg", chips "xs" → "md", added Stack(gap="xs") vertical layout
+- **Directorate modal**: size "xl" → "70%", drug badges "sm" → "md", text "sm" → "md", count badge "xs" → "sm"
+- **CSS**: padding-right on scroll container, white-space: nowrap on chip labels, .mantine-Modal-title width: 100%
+### Validation results:
+- Tier 1 (Code): `from dash_app.app import app` — OK, 20 callbacks
+- Tier 1 (App starts): `uv run python run_dash.py` — OK, no errors
+- Tier 2 (Layout): Percentage-based widths, readable chip sizes, grid/stack layouts
+- Tier 3 (Functional): 20 callbacks (no regression), ChipGroup state works with SimpleGrid/Stack wrappers
+### Files changed:
+- `dash_app/components/modals.py` — All three modals updated
+- `dash_app/assets/nhs.css` — Modal CSS additions
+- `IMPLEMENTATION_PLAN.md` — Task 11.4 [x], Phase 11 criteria all [x]
+### Committed: caf7ada "style: improve filter modal aesthetics for large screens (Task 11.4)"
+### Patterns discovered:
+- SimpleGrid/Stack inside ChipGroup works in DMC 0.14.x — ChipGroup uses React context, not direct children
+- .mantine-Modal-title { width: 100% } needed for Group justify="space-between" in modal titles
+- Percentage modal sizes ("70%") scale well on large screens
+
+### ALL TASKS COMPLETE
+All tasks in IMPLEMENTATION_PLAN.md are marked [x]. All phase completion criteria satisfied.
+Phase 0 (Scaffolding) ✓ | Phase 1 (Data access) ✓ | Phase 2 (Layout) ✓ | Phase 3 (Callbacks) ✓
+Phase 4 (Modals) ✓ | Phase 9 (Analytics charts) ✓ | Phase 10 (Two-view) ✓ | Phase 11 (Polish) ✓
