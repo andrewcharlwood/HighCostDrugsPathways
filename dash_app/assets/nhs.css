@@ -187,12 +187,12 @@ body {
     margin-left: var(--sidebar-w);
     margin-top: var(--header-total-h);
     padding: 24px;
-    height: calc(100vh - var(--header-total-h));
+    min-height: calc(100vh - var(--header-total-h));
     display: flex; flex-direction: column; gap: 20px;
     overflow-y: auto;
 }
 
-/* View containers — flex chain for chart to fill height */
+/* View containers */
 #view-container {
     flex: 1; display: flex; flex-direction: column; min-height: 0;
 }
@@ -267,12 +267,6 @@ body {
 }
 #pathway-chart {
     flex: 1; min-height: 0;
-}
-/* Propagate flex height into Plotly-rendered divs when no explicit figure height is set */
-#pathway-chart .js-plotly-plot,
-#pathway-chart .plot-container,
-#pathway-chart .svg-container {
-    height: 100% !important;
 }
 .chart-card > .dash-loading-callback,
 .chart-card > .dash-loading-callback > div {

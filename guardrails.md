@@ -21,11 +21,16 @@ If you discover a new failure pattern during your work, add it to this file.
 - **Rule**: Chart figure functions go in `src/visualization/plotly_generator.py`. Query functions go in `src/data_processing/pathway_queries.py`. Dash callbacks should CALL INTO `src/`, not duplicate the code.
 - **Why**: Duplicating SQL queries and figure logic creates copies that drift apart.
 
-### Do NOT modify pathways.db schema or data
+### Do NOT modify pathways.db schema or data from Dash callbacks
 - **When**: Querying the database from Dash callbacks
-- **Rule**: Read-only access. Use `sqlite3.connect(db_path)` with SELECT queries only. Never INSERT, UPDATE, DELETE, or ALTER.
-- **Exception**: Phase D tasks (D.1 trends) may add new tables — this requires explicit planning.
-- **Why**: pathways.db is populated by `python -m cli.refresh_pathways`. The Dash app is a read-only consumer.
+- **Rule**: Read-only access from Dash. Use `sqlite3.connect(db_path)` with SELECT queries only. Never INSERT, UPDATE, DELETE, or ALTER from the Dash app.
+- **Exception**: The standalone `cli/compute_trends.py` script may CREATE and INSERT into the `pathway_trends` table. This is a separate CLI command, not part of the Dash app or the main refresh pipeline.
+- **Why**: pathways.db is populated by CLI commands. The Dash app is a read-only consumer.
+
+### Trend computation uses existing pipeline functions as-is
+- **When**: Building `cli/compute_trends.py`
+- **Rule**: Import and call `fetch_and_transform_data()` and `process_pathway_for_date_filter()` from `pathway_pipeline.py`. Do NOT modify these functions. Do NOT modify `schema.py`, `reference_data.py`, or `refresh_pathways.py`. The new script creates its own table via `CREATE TABLE IF NOT EXISTS`.
+- **Why**: The historical snapshot approach works by calling existing functions with different `max_date` values. No pipeline changes needed.
 
 ---
 
@@ -133,12 +138,17 @@ If you discover a new failure pattern during your work, add it to this file.
 - **Rule**: Always re-read `src/visualization/plotly_generator.py` at the start of the iteration. Line numbers in IMPLEMENTATION_PLAN.md are approximate and shift as edits accumulate. Search for function names, not line numbers.
 - **Why**: Previous iterations may have changed the file, shifting all line numbers.
 
-<!--
-ADD NEW GUARDRAILS BELOW as failures are observed during the loop.
+### 3-view navigation pattern
+- **When**: Modifying `switch_view()` in `navigation.py` or `update_app_state()` in `filters.py`
+- **Rule**: There are 3 views: `patient-pathways`, `trust-comparison`, `trends`. The `switch_view()` callback has 6 Outputs (3 view styles + 3 nav classNames). The `update_app_state()` callback has 3 nav Inputs. When updating either callback, ensure ALL return paths handle all 3 views correctly. Every return statement must include values for all 6 outputs / handle all 3 active_view values.
+- **Why**: Adding a 3rd view to a previously binary toggle is error-prone — missing a return path causes Dash callback errors.
 
-Format:
-### [Short descriptive name]
-- **When**: What situation triggers this guardrail?
-- **Rule**: What must you do (or not do)?
-- **Why**: What failure prompted adding this guardrail?
--->
+### Trends view state in app-state
+- **When**: Working on the Trends view (E.2–E.4)
+- **Rule**: `selected_trends_directorate` must be initialized as `None` in the `app-state` dcc.Store initial data in `app.py`. The Trends view uses landing/detail toggle based on this value (same pattern as Trust Comparison's `selected_comparison_directorate`).
+- **Why**: Missing initial state causes KeyError on first page load.
+
+### Removing callback Outputs/Inputs requires updating ALL return paths
+- **When**: Removing Outputs or Inputs from an existing callback (e.g., E.1 removing trends toggle from update_chart)
+- **Rule**: When removing an Output from a callback, you MUST update EVERY `return` statement in that callback to match the new Output count. Count the number of return statements before editing and verify the same count after. The `update_chart()` callback currently has 4+ return paths.
+- **Why**: Mismatched return tuple length causes `InvalidCallbackReturnValue` at runtime.

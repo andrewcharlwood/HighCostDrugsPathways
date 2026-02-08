@@ -46,7 +46,8 @@ def make_trends_landing():
                 dcc.Graph(
                     id="trends-overview-chart",
                     config={"displayModeBar": False, "displaylogo": False},
-                    style={"height": "500px"},
+                    style={"height": "calc(100vh - 220px)", "minHeight": "400px"},
+                    responsive=True,
                 ),
             ]),
         ],
@@ -105,7 +106,8 @@ def make_trends_detail():
                 dcc.Graph(
                     id="trends-detail-chart",
                     config={"displayModeBar": False, "displaylogo": False},
-                    style={"height": "500px"},
+                    style={"height": "calc(100vh - 220px)", "minHeight": "400px"},
+                    responsive=True,
                 ),
             ]),
         ],

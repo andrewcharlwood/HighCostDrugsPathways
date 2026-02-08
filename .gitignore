@@ -37,25 +37,11 @@ logs/*.jsonl
 .states/
 
 # SQLite database (will contain local data)
-*.db
-*.sqlite
+#*.db
+#*.sqlite
 
 # Snowflake result cache
 data/cache/
 
-# Uploaded data files
-data/uploads/
-
-# Exported analysis results
-data/exports/
-
-# Analysis output files
-output/*.html
-output/*.csv
-*.html
-
 # VS Code workspace settings
 .vscode/
-
-# User uploaded files
-uploaded_files/

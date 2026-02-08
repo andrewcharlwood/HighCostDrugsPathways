@@ -106,8 +106,6 @@ def make_chart_card():
                         children=[
                             dcc.Graph(
                                 id="pathway-chart",
-                                style={"flex": "1", "minHeight": "0"},
-                                responsive=True,
                                 config={
                                     "displayModeBar": True,
                                     "displaylogo": False,

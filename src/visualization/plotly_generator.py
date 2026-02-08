@@ -135,6 +135,8 @@ def _base_layout(title: str, **overrides) -> dict:
         plot_bgcolor="rgba(0,0,0,0)",
         autosize=True,
         font=dict(family=CHART_FONT_FAMILY),
+        xaxis=dict(automargin=True),
+        yaxis=dict(automargin=True),
     )
     layout.update(overrides)
     return layout
@@ -337,6 +339,7 @@ def create_icicle_from_nodes(nodes: list[dict], title: str = "") -> go.Figure:
     layout = _base_layout(
         display_title,
         margin=dict(t=40, l=8, r=8, b=24),
+        height=700,
         hoverlabel=dict(
             bgcolor="#FFFFFF",
             bordercolor="#CBD5E1",
@@ -444,7 +447,7 @@ def create_market_share_figure(data: list[dict], title: str = "") -> go.Figure:
         yaxis=dict(title="", automargin=True),
         legend=_smart_legend(n_drugs, legend_title="Drug"),
         margin=dict(t=50, l=8, **legend_margins),
-        height=max(400, len(seen_dirs) * 60 + 200),
+        height=max(600, len(seen_dirs) * 60 + 200),
     )
     fig.update_layout(**layout)
 
@@ -607,8 +610,8 @@ def create_cost_effectiveness_figure(
             automargin=True,
             tickfont=dict(size=11),
         ),
-        margin=dict(t=50, l=8, r=24, b=40),
-        height=max(450, len(filtered) * 28 + 150),
+        margin=dict(t=50, l=8, r=80, b=40),
+        height=max(600, len(filtered) * 28 + 150),
     )
     fig.update_layout(**layout)
 
@@ -719,8 +722,10 @@ def create_cost_waterfall_figure(
             gridcolor=GRID_COLOR,
             zeroline=True,
             zerolinecolor="#CBD5E1",
+            automargin=True,
         ),
-        margin=dict(t=60, l=8, r=24, b=40),
+        margin=dict(t=60, l=8, r=24, b=80),
+        height=max(600, len(data) * 50 + 200),
         showlegend=False,
         bargap=0.25,
     )
@@ -833,7 +838,7 @@ def create_sankey_figure(
     layout.update(
         font=dict(family=CHART_FONT_FAMILY, size=12),
         margin=dict(t=60, l=30, r=30, b=30),
-        height=max(500, len(unique_bases) * 35 + 200),
+        height=max(600, len(unique_bases) * 35 + 200),
     )
     fig.update_layout(**layout)
 
@@ -889,7 +894,7 @@ def create_dosing_figure(
         ),
         yaxis=dict(automargin=True, tickfont=dict(size=11)),
         margin=dict(t=60, l=20, **legend_margins),
-        height=max(450, n_rows * 40 + 150),
+        height=max(600, n_rows * 40 + 150),
         bargap=0.15,
         bargroupgap=0.05,
         showlegend=True,
@@ -1280,7 +1285,7 @@ def create_heatmap_figure(
         chart_title = f"{chart_title} — {title}"
 
     n_dirs = len(directories)
-    fig_height = max(400, 80 + n_dirs * 40)
+    fig_height = max(600, 80 + n_dirs * 40)
 
     layout = _base_layout(chart_title)
     layout.update(
@@ -1289,6 +1294,7 @@ def create_heatmap_figure(
             tickfont=dict(size=11, color="#425563"),
             tickangle=-45,
             side="bottom",
+            automargin=True,
         ),
         yaxis=dict(
             title="",
@@ -1426,7 +1432,7 @@ def create_duration_figure(
         chart_title += f"<br><span style='font-size:13px;color:{ANNOTATION_COLOR}'>{title}</span>"
 
     n_bars = len(data)
-    fig_height = max(400, 40 + n_bars * 28)
+    fig_height = max(600, 40 + n_bars * 28)
 
     layout = _base_layout(chart_title)
     layout.update(
@@ -1444,7 +1450,7 @@ def create_duration_figure(
             automargin=True,
             autorange="reversed",
         ),
-        margin=dict(t=60, l=8, r=80, b=50),
+        margin=dict(t=60, l=8, r=100, b=50),
         height=fig_height,
         showlegend=False,
     )
@@ -1652,10 +1658,10 @@ def create_trust_heatmap_figure(
 
     layout = _base_layout(chart_title)
     layout.update(
-        xaxis=dict(title="", tickfont=dict(size=11, color="#425563"), tickangle=-45, side="bottom"),
+        xaxis=dict(title="", tickfont=dict(size=11, color="#425563"), tickangle=-45, side="bottom", automargin=True),
         yaxis=dict(title="", tickfont=dict(size=12, color="#425563"), autorange="reversed", automargin=True),
         margin=dict(t=60, l=8, r=80, b=120),
-        height=max(300, 80 + n_trusts * 50),
+        height=max(400, 80 + n_trusts * 50),
     )
     fig.update_layout(**layout)
 
@@ -1814,7 +1820,7 @@ def create_retention_funnel_figure(
     layout.update(
         margin=dict(t=60, l=8, r=8, b=40),
         yaxis=dict(automargin=True),
-        height=max(300, len(data) * 80 + 120),
+        height=max(600, len(data) * 80 + 120),
     )
     fig.update_layout(**layout)
 
@@ -1884,7 +1890,7 @@ def create_pathway_depth_figure(
             title="Patients",
             gridcolor=GRID_COLOR,
         ),
-        height=max(300, len(data) * 70 + 120),
+        height=max(600, len(data) * 70 + 120),
         bargap=0.3,
     )
     fig.update_layout(**layout)
@@ -1979,6 +1985,7 @@ def create_duration_cost_scatter_figure(
     layout = _base_layout(display_title)
     layout.update(
         margin=dict(t=60, l=8, **legend_margins),
+        height=600,
         xaxis=dict(
             title="Average Treatment Duration (days)",
             gridcolor=GRID_COLOR,
@@ -2076,6 +2083,7 @@ def create_drug_network_figure(data: dict, title: str = "") -> go.Figure:
     layout = _base_layout(display_title)
     layout.update(
         margin=dict(t=60, l=24, r=24, b=24),
+        height=600,
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
     )
@@ -2175,7 +2183,7 @@ def create_drug_timeline_figure(data: list[dict], title: str = "") -> go.Figure:
     # Layout
     n_bars = len(data)
     bar_height = 28
-    dynamic_height = max(400, n_bars * bar_height + 120)
+    dynamic_height = max(600, n_bars * bar_height + 120)
 
     n_dirs = len(directories)
     legend_margins = _smart_legend_margin(n_dirs)
@@ -2268,7 +2276,7 @@ def create_dosing_distribution_figure(
 
     n_bars = len(sorted_data)
     bar_height = 24
-    dynamic_height = max(400, n_bars * bar_height + 120)
+    dynamic_height = max(600, n_bars * bar_height + 120)
 
     n_dirs = len(directories)
     legend_margins = _smart_legend_margin(n_dirs)
@@ -2322,25 +2330,30 @@ def create_trend_figure(
 
     display_title = title or "Temporal Trends"
 
-    # Group data by name (drug or directory)
+    # Group data by name (drug or directory), sorting periods chronologically
     from collections import defaultdict
-    series = defaultdict(lambda: {"periods": [], "values": []})
+    series = defaultdict(list)
     for row in data:
         name = row.get("name", "")
-        series[name]["periods"].append(row["period_end"])
-        series[name]["values"].append(row.get("value", 0))
+        series[name].append((row["period_end"], row.get("value", 0)))
+
+    # Sort each series by period
+    for name in series:
+        series[name].sort(key=lambda x: x[0])
 
     n_series = len(series)
     fig = go.Figure()
 
-    for i, (name, s) in enumerate(sorted(series.items())):
+    for i, (name, points) in enumerate(sorted(series.items())):
+        periods = [p[0] for p in points]
+        values = [p[1] for p in points]
         colour = DRUG_PALETTE[i % len(DRUG_PALETTE)]
         fig.add_trace(go.Scatter(
-            x=s["periods"],
-            y=s["values"],
+            x=periods,
+            y=values,
             mode="lines+markers",
             name=name,
-            customdata=[name] * len(s["periods"]),
+            customdata=[name] * len(periods),
             line=dict(color=colour, width=2),
             marker=dict(color=colour, size=6),
             hovertemplate=(
@@ -2365,7 +2378,9 @@ def create_trend_figure(
         xaxis=dict(
             title="Period",
             gridcolor=GRID_COLOR,
-            type="category",
+            type="date",
+            dtick="M6",
+            tickformat="%b %Y",
         ),
         yaxis=dict(
             title=y_label,

@@ -262,6 +262,31 @@ while ($true) {
                 Write-Host "  [ERROR] API overloaded after $maxRetries retries, giving up." -ForegroundColor Red
             }
         }
+        # Check for usage limit with cooldown (e.g. "Usage limit reached. Reset at 3 pm")
+        elseif ($outputString -match "(?i)usage limit reached.*reset at (\d{1,2})(?::(\d{2}))?\s*(am|pm)") {
+            $resetHour = [int]$Matches[1]
+            $resetMinute = if ($Matches[2]) { [int]$Matches[2] } else { 0 }
+            $resetAmPm = $Matches[3]
+
+            if ($resetAmPm -ieq "pm" -and $resetHour -ne 12) { $resetHour += 12 }
+            elseif ($resetAmPm -ieq "am" -and $resetHour -eq 12) { $resetHour = 0 }
+
+            $now = Get-Date
+            $resetTime = Get-Date -Hour $resetHour -Minute $resetMinute -Second 0
+            if ($resetTime -le $now) { $resetTime = $resetTime.AddDays(1) }
+            $resetTime = $resetTime.AddMinutes(2)
+
+            $waitSeconds = [Math]::Ceiling(($resetTime - $now).TotalSeconds)
+            $waitMinutes = [Math]::Ceiling($waitSeconds / 60)
+
+            Write-Host ""
+            Write-Host "  [USAGE LIMIT] Reset at $($Matches[1]) $resetAmPm. Cooling down ~$waitMinutes minutes (until $($resetTime.ToString('HH:mm')))..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $waitSeconds
+            Write-Host "  [USAGE LIMIT] Cooldown complete. Retrying iteration..." -ForegroundColor Green
+
+            $apiOverloaded = $true
+            # Don't increment retryCount — deterministic wait, not a flaky error
+        }
     } while ($apiOverloaded -and $retryCount -lt $maxRetries)
 
     $outputString | Set-Content -Path $logFile -Encoding UTF8

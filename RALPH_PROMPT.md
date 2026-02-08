@@ -2,7 +2,7 @@
 
 You are operating inside an automated loop improving Plotly charts in an NHS patient pathway analysis Dash application. Each iteration you receive fresh context — you have NO memory of previous iterations. Your only memory is the filesystem.
 
-**Current Focus**: Fix chart bugs, improve visual polish, add new analytics charts. See IMPLEMENTATION_PLAN.md for the full task list organized into Phases A–D.
+**Current Focus**: Phase E — Redesign temporal trends as a standalone 3rd view with directorate overview + drug drill-down, fix chart height, rename cost labels. See IMPLEMENTATION_PLAN.md for the full task list organized into Phases A–E.
 
 ## First Actions Every Iteration
 
@@ -27,8 +27,16 @@ Then run `git log --oneline -5` to see recent commits.
 - `dash_app/data/queries.py` — Thin wrappers. Add wrapper for each new query.
 - `dash_app/components/chart_card.py` — TAB_DEFINITIONS for Patient Pathways tabs.
 
+**When working on the Trends view** (Phase E), also read:
+- `dash_app/components/trends.py` — Trends landing + detail components (create if doesn't exist)
+- `dash_app/callbacks/trends.py` — Trends view callbacks (create if doesn't exist)
+- `dash_app/components/sidebar.py` — Sidebar navigation (3 items: Patient Pathways, Trust Comparison, Trends)
+- `dash_app/callbacks/navigation.py` — View switching (3-way)
+- `dash_app/callbacks/filters.py` — `update_app_state()` handles nav clicks
+- `dash_app/app.py` — Layout with 3 view containers + app-state initial data
+
 **When modifying UI components**, read:
-- `dash_app/components/trust_comparison.py` — TC landing + dashboard layout.
+- `dash_app/components/trust_comparison.py` — TC landing + dashboard layout (reference for Trends landing/detail pattern).
 - `dash_app/assets/nhs.css` — All CSS styles.
 
 ## Narration
@@ -71,6 +79,10 @@ Work on ONE task per iteration. Build incrementally and verify as you go.
 - **Plotly**: `import plotly.graph_objects as go` — all chart figures
 - **SQLite**: `import sqlite3` — read-only access to `data/pathways.db`
 - **CSS**: All in `dash_app/assets/nhs.css` — auto-served by Dash
+
+### Plotly Skill
+
+**IMPORTANT**: When creating or modifying chart functions in `plotly_generator.py`, invoke the `/plotly` skill first. This loads Plotly reference documentation (chart types, graph objects, layouts, interactivity) that helps produce better chart code. Use it before writing any Plotly figure code.
 
 ### plotly_generator.py Patterns
 
@@ -235,6 +247,7 @@ DO NOT output it if any task is still `[ ]` or `[B]` or `[~]`.
 - **New query functions** go in `src/data_processing/pathway_queries.py` with thin wrappers in `dash_app/data/queries.py`
 - **dcc.Store for state** — no server-side globals
 - **Lazy tab rendering** — only compute the active tab's chart
+- **3-view architecture** — Patient Pathways, Trust Comparison, Trends (Phase E). View switching via `active_view` in app-state.
 - Keep commits atomic and well-described
 - If stuck for 2+ attempts, document in progress.txt and move on
 - `python run_dash.py` must work after every task
