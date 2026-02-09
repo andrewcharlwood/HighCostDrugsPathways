@@ -9,12 +9,11 @@ Also provides get_all_drugs() for the flat "All Drugs" card.
 
 import csv
 from collections import defaultdict
-from pathlib import Path
 
+from core.resource_path import get_resource_path
 from data_processing.diagnosis_lookup import SEARCH_TERM_MERGE_MAP
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-DIM_SEARCH_TERM_PATH = DATA_DIR / "DimSearchTerm.csv"
+DIM_SEARCH_TERM_PATH = get_resource_path("data/DimSearchTerm.csv")
 
 
 def build_directorate_tree() -> dict[str, dict[str, list[str]]]:

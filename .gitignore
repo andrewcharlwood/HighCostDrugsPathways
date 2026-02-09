@@ -36,16 +36,10 @@ logs/*.jsonl
 .web/
 .states/
 
-<<<<<<< Updated upstream
-# SQLite database (will contain local data)
-#*.db
-#*.sqlite
-=======
 # SQLite databases (except pathways.db which contains pre-computed data)
 *.db
 !data/pathways.db
 *.sqlite
->>>>>>> Stashed changes
 
 # Snowflake result cache
 data/cache/

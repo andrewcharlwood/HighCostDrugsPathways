@@ -1,7 +1,10 @@
 """Dash application entry point with layout root and state stores."""
+import sys
+
 from dash import Dash, html, dcc
 import dash_mantine_components as dmc
 
+from core.resource_path import get_resource_path
 from dash_app.components.header import make_header
 from dash_app.components.sub_header import make_sub_header
 from dash_app.components.sidebar import make_sidebar
@@ -12,10 +15,11 @@ from dash_app.components.modals import make_modals
 from dash_app.components.trust_comparison import make_tc_landing, make_tc_dashboard
 from dash_app.components.trends import make_trends_landing, make_trends_detail
 
-app = Dash(
-    __name__,
-    suppress_callback_exceptions=True,
-)
+_app_kwargs = {"suppress_callback_exceptions": True}
+if getattr(sys, "frozen", False):
+    _app_kwargs["assets_folder"] = str(get_resource_path("dash_app/assets"))
+
+app = Dash(__name__, **_app_kwargs)
 
 app.layout = dmc.MantineProvider(
     children=[

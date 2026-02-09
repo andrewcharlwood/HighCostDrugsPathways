@@ -5,9 +5,9 @@ Resolves the database path relative to this file's location and delegates
 to the shared functions in src/data_processing/pathway_queries.py.
 """
 
-from pathlib import Path
 from typing import Optional
 
+from core.resource_path import get_resource_path
 from data_processing.pathway_queries import (
     load_initial_data as _load_initial_data,
     load_pathway_nodes as _load_pathway_nodes,
@@ -33,7 +33,7 @@ from data_processing.pathway_queries import (
     get_trend_data as _get_trend_data,
 )
 
-DB_PATH = Path(__file__).resolve().parents[2] / "data" / "pathways.db"
+DB_PATH = get_resource_path("data/pathways.db")
 
 
 def load_initial_data() -> dict:
