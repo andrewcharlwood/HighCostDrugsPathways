@@ -229,12 +229,6 @@ python -m data_processing.migrate
 2. A browser window will open for SSO authentication
 3. Verify your network allows Snowflake connections
 
-## Documentation
-
-- [CLAUDE.md](CLAUDE.md) — Technical architecture documentation
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — End-user guide
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Deployment guide
-
 ## License
 
 Internal NHS use only. Not for distribution.
