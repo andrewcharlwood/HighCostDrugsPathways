@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 
-# Ensure src/ is on sys.path when run as `python -m cli.compute_trends`
+# Ensure project root is on sys.path when run as `python -m cli.compute_trends`
 _src_dir = str(Path(__file__).resolve().parent.parent)
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)

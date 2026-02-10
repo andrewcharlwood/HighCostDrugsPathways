@@ -10,7 +10,7 @@ ROOT = os.path.abspath(os.path.dirname(SPECPATH)) if 'SPECPATH' in dir() else os
 
 a = Analysis(
     ['app_desktop.py'],
-    pathex=[os.path.join(ROOT, 'src')],
+    pathex=[ROOT],
     binaries=[],
     datas=[
         ('data/pathways.db', 'data'),
@@ -39,7 +39,7 @@ a = Analysis(
         'pandas._libs.tslibs',
         'numpy',
         'sqlite3',
-        # App packages (src/ on pathex)
+        # App packages (project root on pathex)
         'core',
         'core.config',
         'core.models',

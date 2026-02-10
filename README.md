@@ -4,12 +4,13 @@ A web-based application for analyzing secondary care patient treatment pathways.
 
 ## Features
 
+- **Desktop App**: Native window experience via pywebview (no browser needed)
 - **Interactive Visualization**: Plotly icicle charts showing patient treatment hierarchies with cost and frequency statistics
 - **Dual Chart Types**: Directory-based (Trust → Directorate → Drug → Pathway) and Indication-based (Trust → GP Diagnosis → Drug → Pathway) views
 - **Pre-computed Pathways**: Treatment pathways pre-processed and stored in SQLite for sub-50ms filter response times
 - **GP Diagnosis Matching**: Patient indications matched from GP records using SNOMED cluster codes (~93% match rate)
-- **Modern Web Interface**: Browser-based UI using Dash (Plotly) + Dash Mantine Components with NHS branding
-- **Drug Browser**: Drawer-based card browser organized by clinical directorate for drug/indication selection
+- **Trend Analysis**: Historical trend views showing how drug usage and costs change over time
+- **Modern Web Interface**: Dash (Plotly) + Dash Mantine Components with NHS branding
 - **Flexible Filtering**: Filter by date range, NHS trusts, drugs, and medical directories
 
 ## Requirements
@@ -29,20 +30,21 @@ cd patient-pathway-analysis
 
 # Install dependencies
 uv sync
-
-# One-time dev setup: adds src/ to Python path via .pth file
-uv run python setup_dev.py
 ```
 
 ## Quick Start
 
-### Run the Web Application
+### Run the Application
 
 ```bash
+# Run as desktop app (recommended)
+python app_desktop.py
+
+# Run in browser (development)
 python run_dash.py
 ```
 
-Open http://localhost:8050 in your browser.
+The desktop app opens automatically in a native window. For browser mode, open http://localhost:8050.
 
 The application loads pre-computed pathway data from SQLite on startup. No additional configuration is needed for viewing existing data.
 
@@ -65,6 +67,19 @@ python -m cli.refresh_pathways --chart-type indication
 python -m cli.refresh_pathways --chart-type all --dry-run -v
 ```
 
+**Compute Trends (for Trends view):**
+
+```bash
+# Compute historical trend snapshots
+python -m cli.compute_trends
+
+# Custom date range
+python -m cli.compute_trends --start 2022-01-01 --end 2025-06-30
+
+# Help
+python -m cli.compute_trends --help
+```
+
 ## Usage
 
 ### Interface Overview
@@ -73,21 +88,28 @@ The application has a single-page layout with:
 
 | Component | Purpose |
 |-----------|---------|
-| **Header** | NHS branding, data freshness indicator (patient count + relative time) |
-| **Sidebar** | Navigation items with drawer triggers for Drug Selection, Trust Selection, Indications |
-| **KPI Row** | 4 cards: Unique Patients, Drug Types, Total Cost, Indication Match Rate |
-| **Filter Bar** | Chart type toggle (By Directory / By Indication) + date filter dropdowns |
-| **Chart Card** | Interactive Plotly icicle chart with loading spinner |
-| **Drawer** | Right-side panel with drug chips, trust chips, and directorate card browser |
+| **Header** | NHS branding, fraction KPIs (patients, drugs, cost), data freshness indicator |
+| **Sidebar** | Navigation: Patient Pathways, Trust Comparison, Trends |
+| **Sub-Header** | Chart type toggle (By Directory / By Indication) + date filter dropdowns |
+| **Filter Bar** | Patient Pathways drug/trust/directorate filter buttons with modals |
+| **Chart Card** | 9-tab chart area (Icicle, Sankey, Heatmap, Funnel, Depth, Scatter, Network, Timeline, Doses) |
+| **Trust Comparison** | Per-directorate 6-chart dashboard comparing drugs across trusts |
+| **Trends** | Historical trend analysis with directorate overview + drug drill-down |
 
 ### Filtering Data
 
-1. **Chart Type**: Toggle between "By Directory" and "By Indication" views
-2. **Date Filters**: Select treatment initiation period and last-seen window
-3. **Drug Selection**: Open the drawer to select specific drugs via chips
-4. **Trust Selection**: Open the drawer to filter by NHS trusts
-5. **Directorate Browser**: Navigate directorates → indications → drug fragments in the drawer
-6. **Clear Filters**: Reset all selections to show full dataset
+The application has three analytical views:
+
+1. **Patient Pathways**: Icicle chart + 8 additional analytics tabs with drug/trust/directorate filtering
+2. **Trust Comparison**: Per-directorate analysis comparing drugs across trusts
+3. **Trends**: Historical trend analysis showing directorate and drug-level changes over time
+
+Common controls across all views:
+
+- **Chart Type**: Toggle between "By Directory" and "By Indication" views
+- **Date Filters**: Select treatment initiation period and last-seen window
+- **Drug/Trust/Directorate Selection**: Open modals to filter by specific drugs, trusts, or directorates (Patient Pathways)
+- **Clear Filters**: Reset all selections to show full dataset
 
 ### Understanding the Pathway Chart
 
@@ -121,22 +143,23 @@ Root (Regional Total)
 
 ```
 .
-├── src/                         # All application library code
-│   ├── core/                    # Foundation: paths, models, logging
-│   ├── config/                  # Snowflake connection settings
-│   ├── data_processing/         # Data layer (SQLite, Snowflake, transforms)
-│   ├── analysis/                # Analysis pipeline
-│   ├── visualization/           # Plotly chart generation
-│   └── cli/                     # CLI tools (refresh_pathways)
+├── core/                        # Foundation: paths, models, logging
+├── config/                      # Snowflake connection settings
+├── data_processing/             # Data layer (SQLite, Snowflake, transforms)
+├── analysis/                    # Analysis pipeline
+├── visualization/               # Plotly chart generation
+├── cli/                         # CLI tools (refresh_pathways, compute_trends)
 ├── dash_app/                    # Dash web application
 │   ├── app.py                   # App entry point, layout, stores
 │   ├── assets/nhs.css           # NHS design system CSS
 │   ├── data/                    # Query wrappers + card browser data
-│   ├── components/              # UI components (header, sidebar, etc.)
-│   └── callbacks/               # Dash callbacks (filters, chart, KPI, drawer)
-├── run_dash.py                  # Entry point: python run_dash.py
+│   ├── components/              # UI components (header, sidebar, chart_card, trends, etc.)
+│   └── callbacks/               # Dash callbacks (filters, chart, KPI, trends, etc.)
+├── app_desktop.py               # Desktop entry point (pywebview native window)
+├── run_dash.py                  # Browser entry point
+├── app.spec                     # PyInstaller packaging spec
 ├── data/                        # Reference data + SQLite DB (pathways.db)
-├── tests/                       # Test suite (113 tests)
+├── tests/                       # Test suite (114 tests)
 ├── docs/                        # Documentation
 └── archive/                     # Historical/deprecated code
 ```
@@ -149,7 +172,7 @@ See `CLAUDE.md` for detailed architecture documentation.
 # Run all tests
 python -m pytest tests/ -v
 
-# Run with coverage
+# Run with coverage (114 tests)
 python -m pytest tests/ -v --cov=core --cov=data_processing --cov=analysis
 
 # Run only fast tests
@@ -158,7 +181,16 @@ python -m pytest tests/ -v -m "not slow"
 
 ## Configuration
 
-### Snowflake Connection (`src/config/snowflake.toml`)
+### Desktop Packaging
+
+```bash
+# Build standalone executable (Windows)
+pyinstaller app.spec
+
+# Output: dist/NHS_Pathway_Analysis/NHS_Pathway_Analysis.exe
+```
+
+### Snowflake Connection (`config/snowflake.toml`)
 
 ```toml
 [snowflake]
@@ -177,11 +209,11 @@ authenticator = "externalbrowser"  # Required for NHS SSO
 # Ensure dependencies are installed
 uv sync
 
-# Ensure src/ is on Python path
-uv run python setup_dev.py
+# Try desktop mode
+python app_desktop.py
 
-# Try running with uv
-uv run python run_dash.py
+# Or browser mode
+python run_dash.py
 ```
 
 ### Database not found
@@ -193,7 +225,7 @@ python -m data_processing.migrate
 
 ### Snowflake connection issues
 
-1. Ensure `src/config/snowflake.toml` has the correct account identifier
+1. Ensure `config/snowflake.toml` has the correct account identifier
 2. A browser window will open for SSO authentication
 3. Verify your network allows Snowflake connections
 

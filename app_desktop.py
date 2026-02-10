@@ -6,10 +6,10 @@ import threading
 import time
 from pathlib import Path
 
-# Ensure src/ is on sys.path so that core/, data_processing/, etc. are importable
-_src_dir = str(Path(__file__).resolve().parent / "src")
-if _src_dir not in sys.path:
-    sys.path.insert(0, _src_dir)
+# Ensure project root is on sys.path so that core/, data_processing/, etc. are importable
+_project_root = str(Path(__file__).resolve().parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 import webview
 from dash_app.app import app
