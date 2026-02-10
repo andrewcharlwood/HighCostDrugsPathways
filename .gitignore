@@ -19,10 +19,6 @@ wheels/
 .mypy_cache/
 .pytest_cache/
 
-# Data files (large)
-hcd_20250411.csv
-hcd_20250411.parquet
-
 # IDE
 .idea
 
@@ -56,7 +52,6 @@ NUL
 
 # SQLite databases (except pathways.db which contains pre-computed data)
 *.db
-!data/pathways.db
 *.sqlite
 
 # Snowflake result cache
