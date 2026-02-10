@@ -9,6 +9,7 @@ build/
 dist/
 wheels/
 *.egg-info
+*claude*
 
 # Virtual environments
 .venv
@@ -32,9 +33,26 @@ hcd_20250411.parquet
 logs/*.log
 logs/*.jsonl
 
-# Reflex build artifacts (future)
+# Reflex build artifacts (legacy)
 .web/
 .states/
+
+# Legacy files (old Reflex/CustomTkinter app)
+archive/
+images/
+run.bat
+
+# Ralph loop files
+ralph.ps1
+RALPH_PROMPT.md
+progress.txt
+
+# Planning/process docs (not used by application)
+guardrails.md
+IMPLEMENTATION_PLAN.md
+
+# Windows artifacts
+NUL
 
 # SQLite databases (except pathways.db which contains pre-computed data)
 *.db
